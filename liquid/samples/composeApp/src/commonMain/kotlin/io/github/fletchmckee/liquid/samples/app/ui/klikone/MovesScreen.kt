@@ -51,11 +51,17 @@ fun MovesScreen(
 ) {
     var filter by remember { mutableStateOf("all") }
 
+    // Completed buckets the Done list; everything else daily-tasks goes into Running.
+    // Needs-your-OK is the combined review queue (featured AI suggestions + sensitive
+    // todos that require explicit user confirmation).
+    fun isDone(t: TaskMetadata): Boolean =
+        t.status == TaskStatus.COMPLETED ||
+            t.kkExecStatus?.uppercase() in setOf("COMPLETED", "APPROVED")
+
     val needsOk = featuredTasks + sensitiveTasks
-    val running = dailyTasks.filter {
-        it.status == TaskStatus.IN_REVIEW || it.kkExecStatus?.uppercase() in setOf("RUNNING", "IN_PROGRESS")
-    }
-    val done = dailyTasks.filter { it.status == TaskStatus.COMPLETED }
+    val doneIds = dailyTasks.filter(::isDone).map { it.id }.toSet()
+    val running = dailyTasks.filter { it.id !in doneIds }
+    val done = dailyTasks.filter { it.id in doneIds }
     val totalAll = needsOk.size + running.size + done.size
 
     val filteredAll = when (filter) {

@@ -1,7 +1,10 @@
 // Copyright 2025, Klik — Klik One redesign of the Today tab.
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,8 +12,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import io.github.fletchmckee.liquid.samples.app.domain.entity.DailyBriefing
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Insights
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
@@ -64,6 +72,10 @@ fun TodayScreen(
     onEntityClick: (EntityNavigationData) -> Unit = {},
     onSegmentClick: (TracedSegmentNavigation) -> Unit = {},
     onMeetingClick: (Meeting) -> Unit = {},
+    isRecording: Boolean = false,
+    onStartRecording: () -> Unit = {},
+    onStopRecording: () -> Unit = {},
+    onOpenLiveRecording: () -> Unit = {},
 ) {
     val scroll = rememberScrollState()
     Column(
@@ -73,9 +85,24 @@ fun TodayScreen(
             .verticalScroll(scroll)
             .padding(top = 52.dp, bottom = 120.dp)
     ) {
+        // Header with date navigation — prev / today-label / next, tap label jumps to today
+        val todayDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val prevDate = selectedDate.minus(DatePeriod(days = 1))
+        val nextDate = selectedDate.plus(DatePeriod(days = 1))
         K1Header(
             title = "Today",
-            trailing = { K1Chip(label = dateLabel(selectedDate)) }
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DateChevron(pointRight = false, onClick = { onDateChange(prevDate) })
+                    Spacer(Modifier.width(4.dp))
+                    K1Chip(
+                        label = dateLabel(selectedDate),
+                        onClick = if (selectedDate != todayDate) ({ onDateChange(todayDate) }) else null,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    DateChevron(pointRight = true, onClick = { onDateChange(nextDate) })
+                }
+            }
         )
         Spacer(Modifier.height(K1Sp.lg))
 
@@ -84,11 +111,21 @@ fun TodayScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
             K1SectionHeader(
                 "Right now",
-                dotColor = if (nowMeetings.isNotEmpty()) KlikAlert else KlikLineMute
+                dotColor = when {
+                    isRecording -> KlikAlert
+                    nowMeetings.isNotEmpty() -> KlikAlert
+                    else -> KlikLineMute
+                }
             )
             Spacer(Modifier.height(K1Sp.s))
-            if (nowMeetings.isNotEmpty()) LiveSessionCard(nowMeetings.first())
-            else QuietCard()
+            when {
+                isRecording -> RecordingActiveCard(
+                    onOpen = onOpenLiveRecording,
+                    onStop = onStopRecording,
+                )
+                nowMeetings.isNotEmpty() -> LiveSessionCard(nowMeetings.first())
+                else -> QuietCard(onStart = onStartRecording)
+            }
         }
 
         Spacer(Modifier.height(K1Sp.xxl))
@@ -138,17 +175,27 @@ fun TodayScreen(
         }
 
         // ── INSIGHTS ──────────────────────────────────────────────────────
+        // Backend often echoes the summary as the first highlight — de-dupe so
+        // the card doesn't read the same line twice.
         insights?.let { ins ->
-            if (ins.highlights.isNotEmpty() || ins.summary.isNotBlank()) {
+            val summaryTrim = ins.summary.trim()
+            val extraHighlights = ins.highlights
+                .asSequence()
+                .map { it.trim() }
+                .filter { it.isNotBlank() && !it.equals(summaryTrim, ignoreCase = true) }
+                .distinctBy { it.lowercase() }
+                .take(3)
+                .toList()
+            if (summaryTrim.isNotBlank() || extraHighlights.isNotEmpty()) {
                 Column(Modifier.padding(horizontal = 20.dp)) {
                     K1SectionHeader("This week")
                     Spacer(Modifier.height(K1Sp.s))
                     K1Card {
-                        if (ins.summary.isNotBlank()) {
-                            Text(ins.summary, style = K1Type.bodySm)
-                            Spacer(Modifier.height(K1Sp.s))
+                        if (summaryTrim.isNotBlank()) {
+                            Text(summaryTrim, style = K1Type.bodySm)
+                            if (extraHighlights.isNotEmpty()) Spacer(Modifier.height(K1Sp.s))
                         }
-                        ins.highlights.take(3).forEach { h ->
+                        extraHighlights.forEach { h ->
                             Row {
                                 Text("·  ", style = K1Type.caption)
                                 Text(h, style = K1Type.bodySm)
@@ -182,14 +229,78 @@ private fun LiveSessionCard(m: Meeting) {
 }
 
 @Composable
-private fun QuietCard() {
-    K1Card(soft = true) {
+private fun QuietCard(onStart: () -> Unit) {
+    K1Card(soft = true, onClick = onStart) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             K1Waveform(heights = listOf(6f, 10f, 4f, 8f), color = KlikInkMuted)
             Spacer(Modifier.width(12.dp))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("Quiet.", style = K1Type.bodyMd)
-                Text("Klik is listening when you're ready.", style = K1Type.caption)
+                Text("Tap to start listening.", style = K1Type.caption)
+            }
+            // Record dot glyph — tap-hint
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .background(
+                        io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary,
+                        androidx.compose.foundation.shape.CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(
+                            io.github.fletchmckee.liquid.samples.app.theme.KlikAlert,
+                            androidx.compose.foundation.shape.CircleShape,
+                        )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecordingActiveCard(
+    onOpen: () -> Unit,
+    onStop: () -> Unit,
+) {
+    K1Card(onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            K1RecDot()
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "RECORDING",
+                    style = K1Type.eyebrow.copy(
+                        color = KlikAlert,
+                        letterSpacing = 0.6.sp,
+                        fontSize = 10.sp,
+                    ),
+                )
+                Spacer(Modifier.height(2.dp))
+                Text("Tap to open live view", style = K1Type.caption)
+            }
+            K1WaveformLive(Modifier.size(width = 48.dp, height = 28.dp))
+            Spacer(Modifier.width(10.dp))
+            // Stop pill
+            Box(
+                Modifier
+                    .clip(K1R.chip)
+                    .background(io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary)
+                    .clickable(onClick = onStop)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Stop",
+                    style = K1Type.meta.copy(
+                        color = io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                        fontSize = 11.sp,
+                    ),
+                )
             }
         }
     }
@@ -251,4 +362,34 @@ private fun dateLabel(d: LocalDate): String {
     val dayName = d.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
     val month = d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
     return "$dayName · $month ${d.dayOfMonth}"
+}
+
+@Composable
+private fun DateChevron(pointRight: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(28.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(12.dp)) {
+            val w = 1.4.dp.toPx()
+            val tip = if (pointRight) 9.dp.toPx() else 3.dp.toPx()
+            val tail = if (pointRight) 3.dp.toPx() else 9.dp.toPx()
+            drawLine(
+                color = io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary,
+                strokeWidth = w,
+                cap = StrokeCap.Round,
+                start = Offset(tail, 2.dp.toPx()),
+                end = Offset(tip, 6.dp.toPx()),
+            )
+            drawLine(
+                color = io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary,
+                strokeWidth = w,
+                cap = StrokeCap.Round,
+                start = Offset(tip, 6.dp.toPx()),
+                end = Offset(tail, 10.dp.toPx()),
+            )
+        }
+    }
 }

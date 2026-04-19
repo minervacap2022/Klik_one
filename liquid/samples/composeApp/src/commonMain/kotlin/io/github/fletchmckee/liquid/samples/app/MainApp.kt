@@ -1752,6 +1752,64 @@ fun MainApp() {
           }
       }
 
+      // Record-session start/stop actions — extracted so both legacy TopStatusDock
+      // and the K1 TodayScreen record pill can invoke the same code path.
+      val startFixedSessionAction: () -> Unit = {
+          val startRecordingNow: () -> Unit = {
+              appScope.launch {
+                  try {
+                      val response = RemoteDataFetcher.startFixedSession()
+                      fixedSessionId = response.sessionId
+                      isFixedSessionRecording = true
+                      recordingStartedAtMillis = Clock.System.now().toEpochMilliseconds()
+                      KlikLogger.i("MainApp", "Fixed session started: ${response.sessionId}")
+                      showRecordingStartedBanner = true
+                      val userId = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId
+                          ?: throw IllegalStateException("No user logged in for audio streaming")
+                      val streamStarted = FixedSessionAudioStreamer.startStreaming(userId)
+                      if (!streamStarted) {
+                          KlikLogger.e("MainApp", "Failed to start audio streaming, stopping session")
+                          RemoteDataFetcher.stopFixedSession()
+                          isFixedSessionRecording = false
+                          fixedSessionId = null
+                      }
+                  } catch (e: Exception) {
+                      KlikLogger.e("MainApp", "Failed to start fixed session: ${e.message}", e)
+                      isFixedSessionRecording = false
+                      fixedSessionId = null
+                  }
+              }
+          }
+          when {
+              hasRecordingConsent != true -> {
+                  pendingPostConsentAction = startRecordingNow
+                  lastMainRoute = currentRoute
+                  currentRoute = "recording_consent"
+              }
+              hasBiometricConsent != true -> {
+                  pendingPostConsentAction = startRecordingNow
+                  lastMainRoute = currentRoute
+                  currentRoute = "biometric_consent"
+              }
+              else -> startRecordingNow()
+          }
+      }
+      val stopFixedSessionAction: () -> Unit = {
+          isFixedSessionRecording = false
+          fixedSessionId = null
+          recordingStartedAtMillis = null
+          if (currentRoute == "live_recording") currentRoute = lastMainRoute
+          CoroutineScope(Dispatchers.Default + SupervisorJob()).launch {
+              try {
+                  FixedSessionAudioStreamer.stopStreaming()
+                  val response = RemoteDataFetcher.stopFixedSession()
+                  KlikLogger.i("MainApp", "Fixed session stopped: ${response.message}, session: ${response.sessionId ?: "none"}, duration: ${response.durationSeconds ?: 0.0}s")
+              } catch (e: Exception) {
+                  KlikLogger.e("MainApp", "Failed to stop fixed session: ${e.message}", e)
+              }
+          }
+      }
+
       AnimatedContent(
           targetState = appState,
           transitionSpec = {
@@ -2050,6 +2108,13 @@ fun MainApp() {
                                     sessionDetailMeeting = m
                                     lastMainRoute = "today"
                                     currentRoute = "session_detail"
+                                },
+                                isRecording = isFixedSessionRecording,
+                                onStartRecording = startFixedSessionAction,
+                                onStopRecording = stopFixedSessionAction,
+                                onOpenLiveRecording = {
+                                    lastMainRoute = currentRoute
+                                    currentRoute = "live_recording"
                                 },
                             )
                             "function" -> MovesScreen(
