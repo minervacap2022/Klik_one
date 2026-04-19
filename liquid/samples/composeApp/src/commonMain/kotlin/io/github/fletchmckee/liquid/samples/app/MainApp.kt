@@ -2736,8 +2736,33 @@ fun MainApp() {
         onNeverShowAgain = onNeverShowIntegrationPrompt
       )
 
+      // Routes that take over the whole viewport (no chrome at all). These
+      // screens own their own back navigation so don't need the tab bar, and
+      // they either pre-date tabs (onboarding/consent) or live outside the
+      // tab structure (settings drill-downs, session detail, live capture).
+      val isFullScreenRoute = currentRoute in setOf(
+          "klikone_onboarding",
+          "recording_consent",
+          "biometric_consent",
+          "live_recording",
+          "session_detail",
+          "notification_settings",
+          "privacy_settings",
+          "account_security",
+          "pricing",
+          "archived",
+          "notifications",
+          "growth_tree",
+      )
+      // Main K1 tab routes — these render their own K1Header at the top and use
+      // K1BottomNav at the bottom, so the legacy TopStatusDock + BottomNavBar
+      // are both suppressed.
+      val isKlikOneTab = currentRoute in setOf("today", "function", "growth", "explore")
+      // Collapse everything into one "hide legacy chrome" flag.
+      val hideLegacyChrome = isFullScreenRoute || isKlikOneTab
+
       // Top Dock (Status Overlay) — legacy dock with date strip + notifications + explore icon.
-      TopStatusDock(
+      if (!hideLegacyChrome) TopStatusDock(
         liquidState = liquidState,
         currentRoute = currentRoute,
         selectedDate = selectedDate,
@@ -2847,7 +2872,7 @@ fun MainApp() {
       )
 
       // Bottom Navigation Bar
-      BottomNavBar(
+      if (!hideLegacyChrome) BottomNavBar(
         liquidState = liquidState,
         currentRoute = currentRoute,
         showAskKlik = showAskKlik,
@@ -2868,6 +2893,55 @@ fun MainApp() {
         isFabVisible = appState == "main" && heroTransition.currentState == "main",
         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)
       )
+
+      // Klik One 4-tab bottom nav on main K1 tab routes. Hidden while the
+      // AskKlik sheet is open so it can render edge-to-edge.
+      if (isKlikOneTab && !showAskKlik) {
+        io.github.fletchmckee.liquid.samples.app.ui.klikone.K1BottomNav(
+          items = listOf(
+            io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
+              route = "today",
+              label = "Today",
+              iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconToday(active = currentRoute == "today") },
+            ),
+            io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
+              route = "function",
+              label = "Moves",
+              iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconMoves(active = currentRoute == "function") },
+              badgeCount = reviewBadgeCount,
+            ),
+            io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
+              route = "growth",
+              label = "Network",
+              iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconNetwork(active = currentRoute == "growth") },
+            ),
+            io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
+              route = "explore",
+              label = "You",
+              iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconYou(active = currentRoute == "explore") },
+            ),
+          ),
+          currentRoute = currentRoute,
+          onSelect = { r ->
+            showAskKlik = false
+            currentRoute = r
+          },
+          modifier = Modifier.align(Alignment.BottomCenter),
+        )
+        // Floating Ask Klik button above the nav — toggles the sheet. Hidden
+        // while the sheet is open so it doesn't hover over the chat.
+        if (!showAskKlik) {
+          io.github.fletchmckee.liquid.samples.app.ui.klikone.K1AskFab(
+            onClick = {
+              showAskKlik = true
+              isCalendarExpanded = false
+            },
+            modifier = Modifier
+              .align(Alignment.BottomEnd)
+              .padding(end = 20.dp, bottom = 96.dp),
+          )
+        }
+      }
 
                       // Offline banner overlay
                       AnimatedVisibility(

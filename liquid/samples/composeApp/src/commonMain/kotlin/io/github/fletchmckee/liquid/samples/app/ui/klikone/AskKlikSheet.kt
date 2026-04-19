@@ -9,10 +9,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -72,7 +72,7 @@ fun AskKlikSheet(
 ) {
     val uiState by viewModel.state.collectAsState()
 
-    BoxWithConstraints(
+    Box(
         Modifier.fillMaxSize()
             .background(Color.Black.copy(alpha = 0.35f))
             .clickable(
@@ -81,12 +81,11 @@ fun AskKlikSheet(
                 onClick = onDismiss,
             ),
     ) {
-        val sheetMax = maxHeight * 0.88f
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .heightIn(max = sheetMax)
+                .fillMaxHeight(0.88f)
                 .clip(K1R.sheet)
                 .background(KlikPaperCard)
                 .clickable(
@@ -113,8 +112,7 @@ fun AskKlikSheet(
                 Spacer(Modifier.height(16.dp))
 
                 Column(
-                    Modifier.weight(1f, fill = false)
-                        .heightIn(max = sheetMax - 180.dp)
+                    Modifier.weight(1f)
                         .verticalScroll(rememberScrollState()),
                 ) {
                     if (uiState.messages.isEmpty() && !uiState.isSending) {
