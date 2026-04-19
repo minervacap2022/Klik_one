@@ -62,6 +62,18 @@ object IntegrationStorageKeys {
 }
 
 /**
+ * Keys for Klik One first-run onboarding completion. Scoped by user_id so the
+ * flow re-prompts when a different account signs in on the same device.
+ */
+object KlikOneOnboardingKeys {
+    private const val COMPLETED_PREFIX = "klikone_onboarding_completed"
+    private const val ROLE_PREFIX = "klikone_onboarding_role"
+
+    fun completedKey(userId: String): String = "$COMPLETED_PREFIX:$userId"
+    fun roleKey(userId: String): String = "$ROLE_PREFIX:$userId"
+}
+
+/**
  * Keys for Apple native integration storage.
  * Used to track permission status for Calendar and Reminders on iOS.
  */

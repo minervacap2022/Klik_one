@@ -112,7 +112,15 @@ import io.github.fletchmckee.liquid.samples.app.ui.icons.CustomIcons
 import io.github.fletchmckee.liquid.samples.app.ui.icons.Mic
 import io.github.fletchmckee.liquid.samples.app.ui.components.MiniCalendar
 import io.github.fletchmckee.liquid.samples.app.ui.screens.ArchivedScreen
-import io.github.fletchmckee.liquid.samples.app.ui.screens.AskKlikScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.AskKlikSheet
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.TodayScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.MovesScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.NetworkScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.YouScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.SessionDetailScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.OnboardingScreen
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.LiveRecordingScreen
+import io.github.fletchmckee.liquid.samples.app.data.storage.KlikOneOnboardingKeys
 import io.github.fletchmckee.liquid.samples.app.domain.entity.ChatSource
 import io.github.fletchmckee.liquid.samples.app.domain.entity.ChatSourceType
 import io.github.fletchmckee.liquid.samples.app.ui.screens.AuthScreen
@@ -364,6 +372,14 @@ fun MainApp() {
   var fixedSessionId by remember { mutableStateOf<String?>(null) }
   // Prominent in-app recording-started banner (replaces Material snackbar)
   var showRecordingStartedBanner by remember { mutableStateOf(false) }
+  // Wall-clock capture start so LiveRecordingScreen can render elapsed until
+  // the backend live-transcript WS (see BACKEND-REQUIREMENTS.md §12) lands.
+  var recordingStartedAtMillis by remember { mutableStateOf<Long?>(null) }
+  // Meeting selected for the SessionDetailScreen route (tapped from TodayScreen).
+  var sessionDetailMeeting by remember { mutableStateOf<Meeting?>(null) }
+  // Klik One first-run onboarding — null until SecureStorage is read per user_id.
+  var hasCompletedKlikOnboarding by remember { mutableStateOf<Boolean?>(null) }
+  val onboardingStorage = remember { io.github.fletchmckee.liquid.samples.app.data.storage.SecureStorage() }
 
   // Recording consent state
   var hasRecordingConsent by remember { mutableStateOf<Boolean?>(null) }
@@ -538,6 +554,7 @@ fun MainApp() {
       LlmDataCache.encourageData = null
       LlmDataCache.worklifeData = null
       // Clear per-user consent state so the next login re-fetches it
+      hasCompletedKlikOnboarding = null
       hasRecordingConsent = null
       hasBiometricConsent = null
       pendingPostConsentAction = null
@@ -582,15 +599,29 @@ fun MainApp() {
     }
   }
 
-  // Mandatory consent onboarding gate: once both statuses are loaded, force-route the
-  // user through any missing consent before they can access the main app. Runs every
-  // time the statuses change so accepting recording_tos seamlessly flows into biometric.
-  LaunchedEffect(isAuthReady, hasRecordingConsent, hasBiometricConsent) {
+  // Read Klik One first-run completion from SecureStorage once auth is ready.
+  LaunchedEffect(isAuthReady) {
+    if (isAuthReady && hasCompletedKlikOnboarding == null) {
+      val uid = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId
+      hasCompletedKlikOnboarding = if (uid.isNullOrBlank()) false
+        else onboardingStorage.getString(KlikOneOnboardingKeys.completedKey(uid)) == "true"
+    }
+  }
+
+  // Mandatory onboarding gate. Order: Klik One first-run → recording consent →
+  // biometric consent → main app. Runs whenever any flag resolves so chained
+  // steps flow without intermediate flicker.
+  LaunchedEffect(isAuthReady, hasCompletedKlikOnboarding, hasRecordingConsent, hasBiometricConsent) {
     if (!isAuthReady) return@LaunchedEffect
-    // Wait for both statuses to resolve — routing prematurely would flicker.
+    if (hasCompletedKlikOnboarding == null) return@LaunchedEffect
     if (hasRecordingConsent == null || hasBiometricConsent == null) return@LaunchedEffect
 
     when {
+      hasCompletedKlikOnboarding == false -> {
+        isOnboardingConsent = true
+        lastMainRoute = "today"
+        currentRoute = "klikone_onboarding"
+      }
       hasRecordingConsent == false -> {
         isOnboardingConsent = true
         lastMainRoute = "today"
@@ -602,7 +633,6 @@ fun MainApp() {
         currentRoute = "biometric_consent"
       }
       isOnboardingConsent -> {
-        // Both consents now granted — leave onboarding and land on the default screen.
         isOnboardingConsent = false
         currentRoute = "today"
       }
@@ -1908,7 +1938,7 @@ fun MainApp() {
                           label = "ScreenTransition"
                         ) { route ->
                           when (route) {
-                            "today" -> CalendarScreen(
+                            "today" -> TodayScreen(
                                 selectedDate = selectedDate,
                                 isCalendarExpanded = isCalendarExpanded,
                                 isLoading = isEventsLoading,
@@ -2015,9 +2045,14 @@ fun MainApp() {
                                     currentRoute = "today"
 
                                     KlikLogger.d("CalendarScreen", "Navigating to segment: sessionId=${segmentNav.sessionId}, segmentId=${segmentNav.segmentId}, text=${tracedSegment?.text?.take(30)}")
-                                }
+                                },
+                                onMeetingClick = { m ->
+                                    sessionDetailMeeting = m
+                                    lastMainRoute = "today"
+                                    currentRoute = "session_detail"
+                                },
                             )
-                            "function" -> EventsScreen(
+                            "function" -> MovesScreen(
                                 isLoading = isEventsLoading,
                                 isRefreshing = isTasksRefreshing,
                                 // Featured: AI suggestions from backend
@@ -2159,7 +2194,7 @@ fun MainApp() {
                                     currentRoute = "today"
                                 }
                             )
-                            "growth" -> WorkLifeScreen(
+                            "growth" -> NetworkScreen(
                                 isLoading = isGrowthLoading,
                                 isLlmDataLoading = isLlmDataLoading,
                                 encourageData = encourageData,
@@ -2269,7 +2304,7 @@ fun MainApp() {
                                     currentRoute = lastMainRoute
                                 }
                             )
-                            "explore" -> ProfileScreen(
+                            "explore" -> YouScreen(
                                 onNavigateToArchived = {
                                     lastMainRoute = currentRoute
                                     currentRoute = "archived"
@@ -2475,6 +2510,72 @@ fun MainApp() {
                                     authViewModel.logout()
                                 }
                             )
+                            "klikone_onboarding" -> OnboardingScreen(
+                                onComplete = { pickedRole ->
+                                    val uid = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId
+                                    if (!uid.isNullOrBlank()) {
+                                        onboardingStorage.saveString(
+                                            KlikOneOnboardingKeys.completedKey(uid), "true"
+                                        )
+                                        pickedRole?.id?.let {
+                                            onboardingStorage.saveString(
+                                                KlikOneOnboardingKeys.roleKey(uid), it
+                                            )
+                                        }
+                                    }
+                                    KlikLogger.i("MainApp", "Klik One onboarding complete (role=${pickedRole?.id})")
+                                    hasCompletedKlikOnboarding = true
+                                }
+                            )
+                            "session_detail" -> {
+                                val m = sessionDetailMeeting
+                                if (m != null) {
+                                    SessionDetailScreen(
+                                        meeting = m,
+                                        tasks = reviewMetadata + pendingMetadata + completedMetadata,
+                                        onBack = {
+                                            sessionDetailMeeting = null
+                                            currentRoute = "today"
+                                        },
+                                    )
+                                } else {
+                                    LaunchedEffect(Unit) { currentRoute = "today" }
+                                }
+                            }
+                            "live_recording" -> {
+                                val startedAt = recordingStartedAtMillis
+                                val nowMs = Clock.System.now().toEpochMilliseconds()
+                                val elapsedSec = if (startedAt != null) ((nowMs - startedAt) / 1000L).coerceAtLeast(0) else 0L
+                                val mm = elapsedSec / 60
+                                val ss = elapsedSec % 60
+                                val elapsedLabel = "${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}"
+                                LiveRecordingScreen(
+                                    title = "In conversation",
+                                    startedAgo = if (startedAt != null) "Recording for $mm min" else "Just started",
+                                    speakerCount = 1,
+                                    elapsed = elapsedLabel,
+                                    recentTurns = emptyList(),   // wired once §12 live-transcript WS lands
+                                    detections = emptyList(),
+                                    isPaused = !isFixedSessionRecording,
+                                    onMinimize = { currentRoute = lastMainRoute },
+                                    onPauseResume = {},
+                                    onStop = {
+                                        isFixedSessionRecording = false
+                                        fixedSessionId = null
+                                        recordingStartedAtMillis = null
+                                        archiveScope.launch {
+                                            try {
+                                                FixedSessionAudioStreamer.stopStreaming()
+                                                RemoteDataFetcher.stopFixedSession()
+                                            } catch (e: Exception) {
+                                                KlikLogger.e("MainApp", "Failed to stop fixed session: ${e.message}", e)
+                                            }
+                                        }
+                                        currentRoute = lastMainRoute
+                                    },
+                                    onAddContext = {},
+                                )
+                            }
                           }
                         }
                       }
@@ -2500,7 +2601,7 @@ fun MainApp() {
         exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(400)),
         modifier = Modifier.fillMaxSize()
       ) {
-         AskKlikScreen(
+         AskKlikSheet(
            hasRecordingConsent = hasRecordingConsent == true,
            onRequestRecordingConsent = {
              // Dismiss the AskKlik modal and route to the consent screen. No pending action
@@ -2683,6 +2784,7 @@ fun MainApp() {
                         val response = RemoteDataFetcher.startFixedSession()
                         fixedSessionId = response.sessionId
                         isFixedSessionRecording = true
+                        recordingStartedAtMillis = Clock.System.now().toEpochMilliseconds()
                         KlikLogger.i("MainApp", "Fixed session started: ${response.sessionId}")
 
                         // Per-recording notification (#45) — prominent liquid-glass banner
@@ -2726,6 +2828,8 @@ fun MainApp() {
             // regardless of how the network call goes.
             isFixedSessionRecording = false
             fixedSessionId = null
+            recordingStartedAtMillis = null
+            if (currentRoute == "live_recording") currentRoute = lastMainRoute
             // Use a scope independent of the Compose lifecycle so the stop request
             // reaches the backend even if the user exits the page while it is in flight.
             CoroutineScope(Dispatchers.Default + SupervisorJob()).launch {
