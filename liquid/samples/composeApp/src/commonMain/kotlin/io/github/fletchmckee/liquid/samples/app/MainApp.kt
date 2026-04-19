@@ -1873,7 +1873,7 @@ fun MainApp() {
                          }
                        }
                      }
-                     AuthScreen(
+                     io.github.fletchmckee.liquid.samples.app.ui.klikone.K1AuthScreen(
                        viewModel = authViewModel,
                        onAuthSuccess = {
                          // Auth success handled via state
