@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Klik would like to access your calendar to automatically save meeting events and reminders from your conversations.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Klik would like to access your reminders to automatically create action items and follow-ups from your meetings.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Klik uses the microphone for voice-to-text input in the AskKlik chat.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Klik uses speech recognition to convert your voice into text for the AskKlik chat.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>ai.hiklik.klik</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>klik</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

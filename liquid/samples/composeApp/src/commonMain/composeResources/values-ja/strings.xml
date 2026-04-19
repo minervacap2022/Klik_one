@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Existing -->
+    <string name="liquid_demos_platform">Liquid デモ (%1$s)</string>
+    <string name="clock_format">%1$s:%2$s:%3$s</string>
+
+    <!-- App -->
+    <string name="app_name">Klik</string>
+
+    <!-- Navigation -->
+    <string name="nav_today">今日</string>
+    <string name="nav_events">イベント</string>
+    <string name="nav_growth">成長</string>
+    <string name="nav_explore">探索</string>
+    <string name="nav_notifications">通知</string>
+    <string name="nav_back">戻る</string>
+    <string name="nav_close">閉じる</string>
+
+    <!-- Common -->
+    <string name="loading">読み込み中…</string>
+    <string name="loading_notifications">通知を読み込み中…</string>
+    <string name="loading_integrations">連携を読み込み中…</string>
+    <string name="error_generic">エラーが発生しました</string>
+    <string name="retry">再試行</string>
+    <string name="cancel">キャンセル</string>
+    <string name="ok">OK</string>
+    <string name="save">保存</string>
+    <string name="delete">削除</string>
+    <string name="done">完了</string>
+    <string name="send">送信</string>
+    <string name="dismiss">閉じる</string>
+    <string name="refresh">更新</string>
+    <string name="undo">元に戻す</string>
+    <string name="new_label">新規</string>
+    <string name="active">有効</string>
+    <string name="connect">接続</string>
+    <string name="selected">選択済み</string>
+    <string name="default_label">デフォルト</string>
+
+    <!-- Offline Banner -->
+    <string name="no_internet_connection">インターネット接続なし</string>
+    <string name="no_internet_connection_caps">インターネット接続なし</string>
+
+    <!-- Recording -->
+    <string name="recording_started">録音が開始されました</string>
+    <string name="recording_started_subtitle">全参加者に周知されていることを確認してください</string>
+    <string name="battery">バッテリー</string>
+    <string name="recording">録音</string>
+    <string name="recording_on">オン</string>
+    <string name="recording_off">オフ</string>
+    <string name="stop_session">セッションを停止</string>
+    <string name="fixed_session">固定セッション</string>
+    <string name="stop_recording">録音を停止</string>
+    <string name="voice_message">音声メッセージ</string>
+
+    <!-- Bottom Nav / FAB -->
+    <string name="klik_logo">Klik ロゴ</string>
+
+    <!-- Auth Screen -->
+    <string name="auth_slogan_line1">手は自由、心は自由、</string>
+    <string name="auth_slogan_line2">精神的に自由</string>
+    <string name="auth_reset_password">パスワードをリセット</string>
+    <string name="auth_reset_password_sent">パスワードリセットリンクが %1$s に送信されました。受信トレイをご確認ください。</string>
+    <string name="auth_reset_password_instructions">メールアドレスを入力してください。パスワードリセットリンクをお送りします。</string>
+    <string name="auth_email_address">メールアドレス</string>
+    <string name="auth_send_reset_link">リセットリンクを送信</string>
+    <string name="auth_back_to">戻る：</string>
+    <string name="auth_sign_in">ログイン</string>
+    <string name="auth_sign_up">新規登録</string>
+    <string name="auth_create_account">アカウント作成</string>
+    <string name="auth_full_name">氏名</string>
+    <string name="auth_email_or_username">メールまたはユーザー名</string>
+    <string name="auth_password">パスワード</string>
+    <string name="auth_hide_password">パスワードを隠す</string>
+    <string name="auth_show_password">パスワードを表示</string>
+    <string name="auth_forgot_password">パスワードをお忘れですか？</string>
+    <string name="auth_age_confirmation">13歳以上であることを確認します</string>
+    <string name="auth_or_continue_with">または次の方法で続行</string>
+    <string name="auth_sign_in_with_apple">Appleでサインイン</string>
+    <string name="auth_sign_up_with_apple">Appleで新規登録</string>
+    <string name="auth_new_to_klik">Klikは初めてですか？</string>
+    <string name="auth_already_have_account">すでにアカウントをお持ちですか？</string>
+
+    <!-- Ask Klik Screen -->
+    <string name="ask_klik_header">こんにちは、Klik</string>
+    <string name="ask_klik_how_can_i_help">今日は何をお手伝いしましょうか？</string>
+    <string name="ask_klik_placeholder">何でも聞いてください…</string>
+    <string name="ask_klik_thinking">考え中…</string>
+    <string name="ask_klik_ai_response">AI回答</string>
+    <string name="ask_klik_sources">ソース</string>
+    <string name="ask_klik_failed_transcribe">音声の文字起こしに失敗しました：%1$s</string>
+    <string name="ask_klik_failed_record">録音に失敗しました</string>
+    <string name="ask_klik_mic_permission_required">音声入力にはマイクの許可が必要です</string>
+    <string name="ask_klik_failed_start_recording">録音の開始に失敗しました</string>
+
+    <!-- Calendar Screen -->
+    <string name="calendar_meetings">ミーティング</string>
+    <string name="calendar_no_meetings">ミーティングなし</string>
+    <string name="calendar_meeting_archived">ミーティングをアーカイブしました</string>
+    <string name="calendar_insights">インサイト</string>
+    <string name="calendar_participants">参加者</string>
+    <string name="calendar_open_in_dropbox">Dropboxで開く</string>
+    <string name="calendar_pinned">ピン留め</string>
+    <string name="calendar_minutes_tab">議事録</string>
+    <string name="calendar_todos_tab">タスク</string>
+    <string name="calendar_transcript_tab">文字起こし</string>
+    <string name="calendar_share">共有</string>
+    <string name="calendar_ai_transcription">AI文字起こし</string>
+    <string name="calendar_meeting_minutes_title">議事録：%1$s</string>
+    <string name="calendar_meeting_todos_title">ミーティングタスク：%1$s</string>
+    <string name="calendar_meeting_transcript_title">ミーティング文字起こし：%1$s</string>
+    <string name="calendar_no_minutes">議事録はありません</string>
+    <string name="calendar_no_todos">タスクはありません</string>
+    <string name="calendar_no_transcript">文字起こしはありません</string>
+    <string name="calendar_insight">インサイト</string>
+    <string name="calendar_recurring">定期</string>
+
+    <!-- Events Screen -->
+    <string name="events_task_archived">タスクをアーカイブしました</string>
+    <string name="events_featured">注目</string>
+    <string name="events_sensitive">要注意</string>
+    <string name="events_daily">日常</string>
+    <string name="events_no_featured">注目アイテムはまだありません</string>
+    <string name="events_no_sensitive">レビューが必要な要注意アイテムはありません</string>
+    <string name="events_no_daily">日常タスクはまだありません</string>
+    <string name="events_no_items">アイテムはまだありません</string>
+    <string name="events_collapse">折りたたむ</string>
+    <string name="events_expand">展開</string>
+    <string name="events_uncategorized">未分類</string>
+    <string name="events_description">説明</string>
+    <string name="events_related_session">関連セッション</string>
+    <string name="events_related_sentences">関連文</string>
+    <string name="events_related_people">関連する人物</string>
+    <string name="events_related_projects">関連プロジェクト</string>
+    <string name="events_related_organizations">関連組織</string>
+    <string name="events_reason_label">理由（任意）</string>
+    <string name="events_reason_placeholder">なぜ拒否しますか？</string>
+
+    <!-- WorkLife Screen -->
+    <string name="worklife_tap_to_retry">タップして再試行</string>
+    <string name="worklife_highlights">ハイライト</string>
+    <string name="worklife_projects">プロジェクト</string>
+    <string name="worklife_people">人物</string>
+    <string name="worklife_organizations">組織</string>
+    <string name="worklife_no_projects">プロジェクトはまだありません。プロジェクトはここに表示されます。</string>
+    <string name="worklife_no_people">人物はまだいません。連絡先はここに表示されます。</string>
+    <string name="worklife_no_organizations">組織はまだありません。企業はここに表示されます。</string>
+    <string name="worklife_on_track">順調</string>
+    <string name="worklife_in_progress">進行中</string>
+    <string name="worklife_behind">遅延</string>
+    <string name="worklife_at_risk">リスクあり</string>
+    <string name="worklife_budget">予算</string>
+    <string name="worklife_lead">リーダー</string>
+    <string name="worklife_risks">リスク</string>
+    <string name="worklife_goals">目標</string>
+    <string name="worklife_related_people">関連する人物</string>
+    <string name="worklife_related_projects">関連プロジェクト</string>
+    <string name="worklife_related_organizations">関連組織</string>
+    <string name="worklife_related_meetings">関連ミーティング</string>
+    <string name="worklife_email">メール</string>
+    <string name="worklife_phone">電話</string>
+    <string name="worklife_skills">スキル</string>
+    <string name="worklife_characteristics">特徴</string>
+    <string name="worklife_departments">部門</string>
+    <string name="worklife_strengths">強み</string>
+    <string name="worklife_strategic_focus">戦略的重点</string>
+    <string name="worklife_next_action">次のアクション</string>
+
+    <!-- Notifications Screen -->
+    <string name="notifications_title">通知</string>
+    <string name="notifications_loading">通知を読み込み中…</string>
+    <string name="notifications_none">通知はまだありません</string>
+
+    <!-- Pricing Screen -->
+    <string name="pricing_plans">プラン</string>
+    <string name="pricing_monthly">月額</string>
+    <string name="pricing_yearly">年額</string>
+    <string name="pricing_current">現在</string>
+    <string name="pricing_current_plan">現在のプラン</string>
+    <string name="pricing_upgrade">アップグレード</string>
+    <string name="pricing_downgrade">ダウングレード</string>
+    <string name="pricing_select">選択</string>
+    <string name="pricing_asr_minutes">音声認識分数：%1$s</string>
+    <string name="pricing_asr_unlimited">無制限</string>
+    <string name="pricing_asr_monthly">%1$d分/月</string>
+    <string name="pricing_storage">ストレージ：%1$s</string>
+    <string name="pricing_storage_unlimited">無制限</string>
+    <string name="pricing_storage_mb">%1$d MB</string>
+    <string name="pricing_cloud_backup_included">クラウドバックアップ：含まれています</string>
+    <string name="pricing_cloud_backup_not_included">クラウドバックアップ：含まれていません</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_welcome_back">おかえりなさい、%1$s</string>
+    <string name="profile_my_plan">マイプラン</string>
+    <string name="profile_integrations">連携</string>
+    <string name="profile_app_settings">アプリ設定</string>
+    <string name="profile_privacy_data">プライバシーとデータ</string>
+    <string name="profile_account_security">アカウントセキュリティ</string>
+    <string name="profile_notifications">通知</string>
+    <string name="profile_billing_payment">請求と支払い</string>
+    <string name="profile_verify_email">メールを確認</string>
+    <string name="profile_verification_sent">確認メールを送信しました</string>
+    <string name="profile_support_legal">サポートと法的情報</string>
+    <string name="profile_terms_of_service">利用規約</string>
+    <string name="profile_privacy_policy">プライバシーポリシー</string>
+    <string name="profile_developer_options">開発者オプション</string>
+    <string name="profile_sign_out">サインアウト</string>
+    <string name="profile_delete_account">アカウントを削除</string>
+    <string name="profile_version">Klik v%1$s (%2$s)</string>
+    <string name="profile_language">言語</string>
+    <string name="profile_archived_items">アーカイブ済みアイテム</string>
+    <string name="profile_archived_items_subtitle">アーカイブ済みのタスク、セッション、エンティティを表示</string>
+
+    <!-- Developer Settings -->
+    <string name="dev_settings_title">開発者設定</string>
+    <string name="dev_background">背景</string>
+    <string name="dev_double_click_default">ダブルクリックでデフォルトに設定</string>
+    <string name="dev_typography">タイポグラフィ</string>
+    <string name="dev_typography_adjustments">タイポグラフィ調整</string>
+    <string name="dev_font_size_scale">フォントサイズ倍率</string>
+    <string name="dev_letter_spacing_scale">文字間隔倍率</string>
+    <string name="dev_line_height_scale">行の高さ倍率</string>
+    <string name="dev_liquid_glass_engine">Liquid Glass エンジン</string>
+    <string name="dev_transparency">透明度</string>
+    <string name="dev_frost">フロスト</string>
+    <string name="dev_refraction">屈折</string>
+    <string name="dev_curve">カーブ</string>
+    <string name="dev_edge">エッジ</string>
+    <string name="dev_apply_to_cards">カードに適用</string>
+    <string name="dev_apply_to_cards_subtitle">すべてのカードにリキッドガラスエフェクトを有効にする</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_edit_profile">プロフィールを編集</string>
+    <string name="dialog_saving">保存中…</string>
+    <string name="dialog_name">名前</string>
+    <string name="dialog_email">メール</string>
+    <string name="dialog_delete_account">アカウントを削除</string>
+    <string name="dialog_deleting">削除中…</string>
+    <string name="dialog_delete_account_warning">この操作は永久的で元に戻すことはできません。すべてのデータが完全に削除されます。</string>
+    <string name="dialog_enter_password">確認のためパスワードを入力してください</string>
+    <string name="dialog_sign_out">サインアウト</string>
+    <string name="dialog_sign_out_message">サインアウトしてもよろしいですか？アカウントにアクセスするには再度ログインが必要です。</string>
+    <string name="dialog_language">言語</string>
+
+    <!-- Subscription / Plan Card -->
+    <string name="plan_loading">読み込み中…</string>
+    <string name="plan_asr_used_unlimited">ASR：%1$d分使用済み · 無制限</string>
+    <string name="plan_asr_used_of_limit">ASR：%1$d / %2$d分</string>
+    <string name="plan_icon">プラン</string>
+</resources>

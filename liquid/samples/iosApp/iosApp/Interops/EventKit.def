@@ -1,0 +1,8 @@
+language = Objective-C
+package = eventkit.bridge
+
+headers = EventKitConstants.h
+headerFilter = EventKitConstants.h
+
+compilerOpts = -framework EventKit
+linkerOpts = -framework EventKit

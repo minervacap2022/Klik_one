@@ -1,0 +1,181 @@
+// Copyright 2025, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
+package io.github.fletchmckee.liquid.internal
+
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isUnspecified
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastCoerceAtMost
+import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastForEach
+import io.github.fletchmckee.liquid.internal.LiquidScopeImpl.Companion.Float4Zero
+
+internal fun ContentDrawScope.recordLiquefiablesIntoLayer(
+  layer: GraphicsLayer,
+  reusableScope: InternalLiquidScope,
+) = with(reusableScope) {
+  if (positionOnScreen.isUnspecified) return@with
+  // Only record content inside the effect's bounds.
+  val liquefiables = liquefiables.fastFilter { boundsInRoot.overlaps(it.boundsOnScreen) }
+  if (liquefiables.isEmpty()) return@with
+  // We avoid unnecessary liquidScope invalidations by observing the mutableState boundsOnScreen
+  // and layers here. Changes to these properties will recompose the full draw pass.
+  layer.record(intSize) {
+    liquefiables.fastForEach { liquefiable ->
+      liquefiable.layer
+        ?.takeUnless { it.isReleased }
+        ?.let { liquefiableLayer ->
+          // Position content where it should appear on screen.
+          val (x, y) = liquefiable.boundsOnScreen.topLeft - positionOnScreen
+          withTransform(
+            {
+              rotate(degrees = inverseRotationZ, pivot = Offset.Zero)
+              scale(scaleX = inverseScaleX, scaleY = inverseScaleY, pivot = Offset.Zero)
+              translate(left = x, top = y)
+            },
+          ) {
+            drawLayer(liquefiableLayer)
+          }
+        }
+    }
+  }
+}
+
+/**
+ * Allows passing a [Shape] parameter to a composable that can be used for other GraphicsLayer requirements
+ * along with being used in our liquid nodes.
+ */
+
+internal fun Shape.normalizedCornerRadii(
+  size: Size,
+  density: Density,
+  layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+): FloatArray = when (this) {
+  CircleShape -> {
+    floatArrayOf(0.5f, 0.5f, 0.5f, 0.5f)
+  }
+
+  is RoundedCornerShape -> {
+    when {
+      size.minDimension <= 0 -> Float4Zero
+
+      else -> {
+        // Similar to the logic in CornerBasedShape, but normalized by the minDimension.
+        var topStart = topStart.toPx(size, density)
+        var topEnd = topEnd.toPx(size, density)
+        var bottomEnd = bottomEnd.toPx(size, density)
+        var bottomStart = bottomStart.toPx(size, density)
+        val minDimension = size.minDimension
+
+        if (topStart + bottomStart > minDimension) {
+          val scale = 1f / (topStart + bottomStart)
+          topStart *= scale
+          bottomStart *= scale
+        } else {
+          topStart /= minDimension
+          bottomStart /= minDimension
+        }
+
+        if (topEnd + bottomEnd > minDimension) {
+          val scale = 1f / (topEnd + bottomEnd)
+          topEnd *= scale
+          bottomEnd *= scale
+        } else {
+          topEnd /= minDimension
+          bottomEnd /= minDimension
+        }
+
+        // Users can clip if they want a shape with radii > 50%, but we have to cap the
+        // max value at 0.5f to prevent sdf artifacts.
+        when (layoutDirection) {
+          LayoutDirection.Ltr -> floatArrayOf(
+            bottomEnd.fastCoerceAtMost(0.5f),
+            topEnd.fastCoerceAtMost(0.5f),
+            bottomStart.fastCoerceAtMost(0.5f),
+            topStart.fastCoerceAtMost(0.5f),
+          )
+
+          LayoutDirection.Rtl -> floatArrayOf(
+            bottomStart.fastCoerceAtMost(0.5f),
+            topStart.fastCoerceAtMost(0.5f),
+            bottomEnd.fastCoerceAtMost(0.5f),
+            topEnd.fastCoerceAtMost(0.5f),
+          )
+        }
+      }
+    }
+  }
+
+  else -> Float4Zero
+}
+
+@Suppress("NOTHING_TO_INLINE")
+internal inline infix fun Int.has(flag: Int): Boolean = (this and flag) != 0
+
+internal fun Outline.asPath(): Path = when (this) {
+  is Outline.Rectangle -> Path().apply { addRect(rect) }
+  is Outline.Rounded -> Path().apply { addRoundRect(roundRect) }
+  is Outline.Generic -> path
+}
+
+// ///////////////
+// Backup effects
+// ///////////////
+
+// This won't be that accurate, but we should at least provide an edge-like inner border using gradients
+// if the user provided a value.
+internal fun ContentDrawScope.drawBackupEdgeEffect(shapePath: Path) = clipPath(shapePath) {
+  val strokeWidth = 4.dp.toPx()
+  val radius = size.minDimension
+  // Light at topLeft corner
+  drawPath(
+    path = shapePath,
+    brush = Brush.radialGradient(
+      colors = listOf(Color(0x4DFFFFFF), Color.Transparent),
+      center = Offset.Zero,
+      radius = radius,
+    ),
+    style = Stroke(width = strokeWidth),
+  )
+
+  // Light at bottomRight corner
+  drawPath(
+    path = shapePath,
+    brush = Brush.radialGradient(
+      colors = listOf(Color(0x4DFFFFFF), Color.Transparent),
+      center = Offset(size.width, size.height),
+      radius = radius,
+    ),
+    style = Stroke(width = strokeWidth),
+  )
+}
+
+internal fun ColorMatrix.setContrast(contrast: Float) {
+  val translate = 0.5f * (1f - contrast) * 255f
+  setToScale(
+    redScale = contrast,
+    greenScale = contrast,
+    blueScale = contrast,
+    alphaScale = 1f,
+  )
+  this[0, 4] = translate // red offset
+  this[1, 4] = translate // green offset
+  this[2, 4] = translate // blue offset
+}

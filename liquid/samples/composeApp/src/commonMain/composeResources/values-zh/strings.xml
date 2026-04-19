@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Existing -->
+    <string name="liquid_demos_platform">Liquid 演示 (%1$s)</string>
+    <string name="clock_format">%1$s:%2$s:%3$s</string>
+
+    <!-- App -->
+    <string name="app_name">Klik</string>
+
+    <!-- Navigation -->
+    <string name="nav_today">今天</string>
+    <string name="nav_events">事件</string>
+    <string name="nav_growth">成长</string>
+    <string name="nav_explore">探索</string>
+    <string name="nav_notifications">通知</string>
+    <string name="nav_back">返回</string>
+    <string name="nav_close">关闭</string>
+
+    <!-- Common -->
+    <string name="loading">加载中…</string>
+    <string name="loading_notifications">加载通知中…</string>
+    <string name="loading_integrations">加载集成中…</string>
+    <string name="error_generic">出了点问题</string>
+    <string name="retry">重试</string>
+    <string name="cancel">取消</string>
+    <string name="ok">确定</string>
+    <string name="save">保存</string>
+    <string name="delete">删除</string>
+    <string name="done">完成</string>
+    <string name="send">发送</string>
+    <string name="dismiss">关闭</string>
+    <string name="refresh">刷新</string>
+    <string name="undo">撤销</string>
+    <string name="new_label">新</string>
+    <string name="active">已连接</string>
+    <string name="connect">连接</string>
+    <string name="selected">已选择</string>
+    <string name="default_label">默认</string>
+
+    <!-- Offline Banner -->
+    <string name="no_internet_connection">无网络连接</string>
+    <string name="no_internet_connection_caps">无网络连接</string>
+
+    <!-- Recording -->
+    <string name="recording_started">录制已开始</string>
+    <string name="recording_started_subtitle">请确保所有参与者已知晓</string>
+    <string name="battery">电池</string>
+    <string name="recording">录制</string>
+    <string name="recording_on">开启</string>
+    <string name="recording_off">关闭</string>
+    <string name="stop_session">停止会话</string>
+    <string name="fixed_session">固定会话</string>
+    <string name="stop_recording">停止录制</string>
+    <string name="voice_message">语音消息</string>
+
+    <!-- Bottom Nav / FAB -->
+    <string name="klik_logo">Klik 图标</string>
+
+    <!-- Auth Screen -->
+    <string name="auth_slogan_line1">解放双手，解放思想，</string>
+    <string name="auth_slogan_line2">自在心灵</string>
+    <string name="auth_reset_password">重置密码</string>
+    <string name="auth_reset_password_sent">密码重置链接已发送至 %1$s。请检查您的收件箱。</string>
+    <string name="auth_reset_password_instructions">输入您的电子邮件地址，我们将向您发送密码重置链接。</string>
+    <string name="auth_email_address">电子邮件地址</string>
+    <string name="auth_send_reset_link">发送重置链接</string>
+    <string name="auth_back_to">返回</string>
+    <string name="auth_sign_in">登录</string>
+    <string name="auth_sign_up">注册</string>
+    <string name="auth_create_account">创建账户</string>
+    <string name="auth_full_name">姓名</string>
+    <string name="auth_email_or_username">邮箱或用户名</string>
+    <string name="auth_password">密码</string>
+    <string name="auth_hide_password">隐藏密码</string>
+    <string name="auth_show_password">显示密码</string>
+    <string name="auth_forgot_password">忘记密码？</string>
+    <string name="auth_age_confirmation">我确认我已年满13岁</string>
+    <string name="auth_or_continue_with">或通过以下方式继续</string>
+    <string name="auth_sign_in_with_apple">通过 Apple 登录</string>
+    <string name="auth_sign_up_with_apple">通过 Apple 注册</string>
+    <string name="auth_new_to_klik">初次使用 Klik？</string>
+    <string name="auth_already_have_account">已有账户？</string>
+
+    <!-- Ask Klik Screen -->
+    <string name="ask_klik_header">你好，Klik</string>
+    <string name="ask_klik_how_can_i_help">今天我能帮您什么？</string>
+    <string name="ask_klik_placeholder">随便问我…</string>
+    <string name="ask_klik_thinking">思考中…</string>
+    <string name="ask_klik_ai_response">AI 回复</string>
+    <string name="ask_klik_sources">来源</string>
+    <string name="ask_klik_failed_transcribe">转录音频失败：%1$s</string>
+    <string name="ask_klik_failed_record">录音失败</string>
+    <string name="ask_klik_mic_permission_required">语音输入需要麦克风权限</string>
+    <string name="ask_klik_failed_start_recording">启动录音失败</string>
+
+    <!-- Calendar Screen -->
+    <string name="calendar_meetings">会议</string>
+    <string name="calendar_no_meetings">暂无会议</string>
+    <string name="calendar_meeting_archived">会议已归档</string>
+    <string name="calendar_insights">洞察</string>
+    <string name="calendar_participants">参与者</string>
+    <string name="calendar_open_in_dropbox">在 Dropbox 中打开</string>
+    <string name="calendar_pinned">已置顶</string>
+    <string name="calendar_minutes_tab">纪要</string>
+    <string name="calendar_todos_tab">待办</string>
+    <string name="calendar_transcript_tab">转录</string>
+    <string name="calendar_share">分享</string>
+    <string name="calendar_ai_transcription">AI 转录</string>
+    <string name="calendar_meeting_minutes_title">会议纪要：%1$s</string>
+    <string name="calendar_meeting_todos_title">会议待办：%1$s</string>
+    <string name="calendar_meeting_transcript_title">会议转录：%1$s</string>
+    <string name="calendar_no_minutes">暂无纪要</string>
+    <string name="calendar_no_todos">暂无待办</string>
+    <string name="calendar_no_transcript">暂无转录</string>
+    <string name="calendar_insight">洞察</string>
+    <string name="calendar_recurring">重复</string>
+
+    <!-- Events Screen -->
+    <string name="events_task_archived">任务已归档</string>
+    <string name="events_featured">精选</string>
+    <string name="events_sensitive">敏感</string>
+    <string name="events_daily">日常</string>
+    <string name="events_no_featured">暂无精选项目</string>
+    <string name="events_no_sensitive">暂无需要审核的敏感项目</string>
+    <string name="events_no_daily">暂无日常任务</string>
+    <string name="events_no_items">暂无项目</string>
+    <string name="events_collapse">收起</string>
+    <string name="events_expand">展开</string>
+    <string name="events_uncategorized">未分类</string>
+    <string name="events_description">描述</string>
+    <string name="events_related_session">相关会话</string>
+    <string name="events_related_sentences">相关语句</string>
+    <string name="events_related_people">相关人物</string>
+    <string name="events_related_projects">相关项目</string>
+    <string name="events_related_organizations">相关组织</string>
+    <string name="events_reason_label">原因（可选）</string>
+    <string name="events_reason_placeholder">您为什么要拒绝这个？</string>
+
+    <!-- WorkLife Screen -->
+    <string name="worklife_tap_to_retry">点击重试</string>
+    <string name="worklife_highlights">亮点</string>
+    <string name="worklife_projects">项目</string>
+    <string name="worklife_people">人物</string>
+    <string name="worklife_organizations">组织</string>
+    <string name="worklife_no_projects">暂无项目。您的项目将显示在这里。</string>
+    <string name="worklife_no_people">暂无人物。您的联系人将显示在这里。</string>
+    <string name="worklife_no_organizations">暂无组织。您的公司将显示在这里。</string>
+    <string name="worklife_on_track">进展顺利</string>
+    <string name="worklife_in_progress">进行中</string>
+    <string name="worklife_behind">落后</string>
+    <string name="worklife_at_risk">存在风险</string>
+    <string name="worklife_budget">预算</string>
+    <string name="worklife_lead">负责人</string>
+    <string name="worklife_risks">风险</string>
+    <string name="worklife_goals">目标</string>
+    <string name="worklife_related_people">相关人物</string>
+    <string name="worklife_related_projects">相关项目</string>
+    <string name="worklife_related_organizations">相关组织</string>
+    <string name="worklife_related_meetings">相关会议</string>
+    <string name="worklife_email">电子邮件</string>
+    <string name="worklife_phone">电话</string>
+    <string name="worklife_skills">技能</string>
+    <string name="worklife_characteristics">特征</string>
+    <string name="worklife_departments">部门</string>
+    <string name="worklife_strengths">优势</string>
+    <string name="worklife_strategic_focus">战略重点</string>
+    <string name="worklife_next_action">下一步行动</string>
+
+    <!-- Notifications Screen -->
+    <string name="notifications_title">通知</string>
+    <string name="notifications_loading">加载通知中…</string>
+    <string name="notifications_none">暂无通知</string>
+
+    <!-- Pricing Screen -->
+    <string name="pricing_plans">套餐</string>
+    <string name="pricing_monthly">月付</string>
+    <string name="pricing_yearly">年付</string>
+    <string name="pricing_current">当前</string>
+    <string name="pricing_current_plan">当前套餐</string>
+    <string name="pricing_upgrade">升级</string>
+    <string name="pricing_downgrade">降级</string>
+    <string name="pricing_select">选择</string>
+    <string name="pricing_asr_minutes">语音识别分钟数：%1$s</string>
+    <string name="pricing_asr_unlimited">无限</string>
+    <string name="pricing_asr_monthly">%1$d 分钟/月</string>
+    <string name="pricing_storage">存储：%1$s</string>
+    <string name="pricing_storage_unlimited">无限</string>
+    <string name="pricing_storage_mb">%1$d MB</string>
+    <string name="pricing_cloud_backup_included">云备份：已包含</string>
+    <string name="pricing_cloud_backup_not_included">云备份：未包含</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_welcome_back">欢迎回来，%1$s</string>
+    <string name="profile_my_plan">我的套餐</string>
+    <string name="profile_integrations">集成</string>
+    <string name="profile_app_settings">应用设置</string>
+    <string name="profile_privacy_data">隐私与数据</string>
+    <string name="profile_account_security">账户安全</string>
+    <string name="profile_notifications">通知</string>
+    <string name="profile_billing_payment">账单与支付</string>
+    <string name="profile_verify_email">验证邮箱</string>
+    <string name="profile_verification_sent">验证邮件已发送</string>
+    <string name="profile_support_legal">支持与法律</string>
+    <string name="profile_terms_of_service">服务条款</string>
+    <string name="profile_privacy_policy">隐私政策</string>
+    <string name="profile_developer_options">开发者选项</string>
+    <string name="profile_sign_out">退出登录</string>
+    <string name="profile_delete_account">删除账户</string>
+    <string name="profile_version">Klik v%1$s (%2$s)</string>
+    <string name="profile_language">语言</string>
+    <string name="profile_archived_items">已归档项目</string>
+    <string name="profile_archived_items_subtitle">查看已归档的任务、会议和实体</string>
+
+    <!-- Developer Settings -->
+    <string name="dev_settings_title">开发者设置</string>
+    <string name="dev_background">背景</string>
+    <string name="dev_double_click_default">双击设为默认</string>
+    <string name="dev_typography">字体排版</string>
+    <string name="dev_typography_adjustments">字体排版调整</string>
+    <string name="dev_font_size_scale">字体大小比例</string>
+    <string name="dev_letter_spacing_scale">字间距比例</string>
+    <string name="dev_line_height_scale">行高比例</string>
+    <string name="dev_liquid_glass_engine">Liquid Glass 引擎</string>
+    <string name="dev_transparency">透明度</string>
+    <string name="dev_frost">磨砂</string>
+    <string name="dev_refraction">折射</string>
+    <string name="dev_curve">曲率</string>
+    <string name="dev_edge">边缘</string>
+    <string name="dev_apply_to_cards">应用于卡片</string>
+    <string name="dev_apply_to_cards_subtitle">在所有卡片上启用液态玻璃效果</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_edit_profile">编辑个人资料</string>
+    <string name="dialog_saving">保存中…</string>
+    <string name="dialog_name">姓名</string>
+    <string name="dialog_email">电子邮件</string>
+    <string name="dialog_delete_account">删除账户</string>
+    <string name="dialog_deleting">删除中…</string>
+    <string name="dialog_delete_account_warning">此操作不可撤销。您的所有数据将被永久删除。</string>
+    <string name="dialog_enter_password">请输入密码以确认</string>
+    <string name="dialog_sign_out">退出登录</string>
+    <string name="dialog_sign_out_message">确定要退出登录吗？您需要重新登录才能访问您的账户。</string>
+    <string name="dialog_language">语言</string>
+
+    <!-- Subscription / Plan Card -->
+    <string name="plan_loading">加载中…</string>
+    <string name="plan_asr_used_unlimited">语音识别：已使用 %1$d 分钟 · 无限</string>
+    <string name="plan_asr_used_of_limit">语音识别：%1$d / %2$d 分钟</string>
+    <string name="plan_icon">套餐</string>
+</resources>

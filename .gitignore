@@ -1,0 +1,22 @@
+.DS_Store
+*.iml
+.gradle/
+.kotlin/
+build/
+/reports
+local.properties
+.idea/
+!.idea/copyright
+.externalNativeBuild
+.cxx
+captures/
+
+# Xcode
+xcuserdata/
+*.xcworkspace/xcuserdata
+DerivedData/
+build_error*.log
+build.log
+
+# Kotlin/JS
+kotlin-js-store/

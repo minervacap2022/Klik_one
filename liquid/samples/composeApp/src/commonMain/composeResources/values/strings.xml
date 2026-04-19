@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Existing -->
+    <string name="liquid_demos_platform">Liquid Demos (%1$s)</string>
+    <string name="clock_format">%1$s:%2$s:%3$s</string>
+
+    <!-- App -->
+    <string name="app_name">Klik</string>
+
+    <!-- Navigation (contentDescription for nav icons) -->
+    <string name="nav_today">today</string>
+    <string name="nav_events">function</string>
+    <string name="nav_growth">growth</string>
+    <string name="nav_explore">Explore</string>
+    <string name="nav_notifications">Notifications</string>
+    <string name="nav_back">Back</string>
+    <string name="nav_close">Close</string>
+
+    <!-- Common -->
+    <string name="loading">Loading…</string>
+    <string name="loading_notifications">Loading notifications…</string>
+    <string name="loading_integrations">Loading integrations…</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="retry">Retry</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="done">Done</string>
+    <string name="send">Send</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="refresh">Refresh</string>
+    <string name="undo">Undo</string>
+    <string name="new_label">New</string>
+    <string name="active">Active</string>
+    <string name="connect">Connect</string>
+    <string name="selected">Selected</string>
+    <string name="default_label">Default</string>
+
+    <!-- Offline Banner -->
+    <string name="no_internet_connection">No internet connection</string>
+    <string name="no_internet_connection_caps">No Internet Connection</string>
+
+    <!-- Recording -->
+    <string name="recording_started">Recording Started</string>
+    <string name="recording_started_subtitle">Make sure all participants are aware</string>
+    <string name="battery">Battery</string>
+    <string name="recording">Recording</string>
+    <string name="recording_on">On</string>
+    <string name="recording_off">Off</string>
+    <string name="stop_session">Stop Session</string>
+    <string name="fixed_session">Fixed Session</string>
+    <string name="stop_recording">Stop Recording</string>
+    <string name="voice_message">Voice Message</string>
+
+    <!-- Bottom Nav / FAB -->
+    <string name="klik_logo">Klik Logo</string>
+
+    <!-- Auth Screen -->
+    <string name="auth_slogan_line1">Hands free, Minds free,</string>
+    <string name="auth_slogan_line2">Mentally free</string>
+    <string name="auth_reset_password">Reset Password</string>
+    <string name="auth_reset_password_sent">A password reset link has been sent to %1$s. Check your inbox.</string>
+    <string name="auth_reset_password_instructions">Enter your email address and we\'ll send you a link to reset your password.</string>
+    <string name="auth_email_address">Email Address</string>
+    <string name="auth_send_reset_link">Send Reset Link</string>
+    <string name="auth_back_to">Back to </string>
+    <string name="auth_sign_in">Sign In</string>
+    <string name="auth_sign_up">Sign Up</string>
+    <string name="auth_create_account">Create Account</string>
+    <string name="auth_full_name">Full Name</string>
+    <string name="auth_email_or_username">Email or Username</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_hide_password">Hide password</string>
+    <string name="auth_show_password">Show password</string>
+    <string name="auth_forgot_password">Forgot Password?</string>
+    <string name="auth_age_confirmation">I confirm I am 13 years of age or older</string>
+    <string name="auth_or_continue_with">or continue with</string>
+    <string name="auth_sign_in_with_apple">Sign in with Apple</string>
+    <string name="auth_sign_up_with_apple">Sign up with Apple</string>
+    <string name="auth_new_to_klik">New to Klik? </string>
+    <string name="auth_already_have_account">Already have an account? </string>
+
+    <!-- Ask Klik Screen -->
+    <string name="ask_klik_header">Hi, Klik</string>
+    <string name="ask_klik_how_can_i_help">How can I help you today?</string>
+    <string name="ask_klik_placeholder">Ask me anything…</string>
+    <string name="ask_klik_thinking">Thinking…</string>
+    <string name="ask_klik_ai_response">AI Response</string>
+    <string name="ask_klik_sources">Sources</string>
+    <string name="ask_klik_failed_transcribe">Failed to transcribe audio: %1$s</string>
+    <string name="ask_klik_failed_record">Failed to record audio</string>
+    <string name="ask_klik_mic_permission_required">Microphone permission required for voice input</string>
+    <string name="ask_klik_failed_start_recording">Failed to start recording</string>
+
+    <!-- Calendar Screen -->
+    <string name="calendar_meetings">Meetings</string>
+    <string name="calendar_no_meetings">No Meetings</string>
+    <string name="calendar_meeting_archived">Meeting archived</string>
+    <string name="calendar_insights">Insights</string>
+    <string name="calendar_participants">Participants</string>
+    <string name="calendar_open_in_dropbox">Open in Dropbox</string>
+    <string name="calendar_pinned">Pinned</string>
+    <string name="calendar_minutes_tab">Minutes</string>
+    <string name="calendar_todos_tab">Todos</string>
+    <string name="calendar_transcript_tab">Transcript</string>
+    <string name="calendar_share">Share</string>
+    <string name="calendar_ai_transcription">AI Transcription</string>
+    <string name="calendar_meeting_minutes_title">Meeting Minutes: %1$s</string>
+    <string name="calendar_meeting_todos_title">Meeting Todos: %1$s</string>
+    <string name="calendar_meeting_transcript_title">Meeting Transcript: %1$s</string>
+    <string name="calendar_no_minutes">No minutes available</string>
+    <string name="calendar_no_todos">No todos available</string>
+    <string name="calendar_no_transcript">No transcript available</string>
+    <string name="calendar_insight">Insight</string>
+    <string name="calendar_recurring">Recurring</string>
+
+    <!-- Events Screen -->
+    <string name="events_task_archived">Task archived</string>
+    <string name="events_featured">Featured</string>
+    <string name="events_sensitive">Sensitive</string>
+    <string name="events_daily">Daily</string>
+    <string name="events_no_featured">No featured items yet</string>
+    <string name="events_no_sensitive">No sensitive items to review</string>
+    <string name="events_no_daily">No daily tasks yet</string>
+    <string name="events_no_items">No items yet</string>
+    <string name="events_collapse">Collapse</string>
+    <string name="events_expand">Expand</string>
+    <string name="events_uncategorized">Uncategorized</string>
+    <string name="events_description">Description</string>
+    <string name="events_related_session">Related Session</string>
+    <string name="events_related_sentences">Related Sentences</string>
+    <string name="events_related_people">Related People</string>
+    <string name="events_related_projects">Related Projects</string>
+    <string name="events_related_organizations">Related Organizations</string>
+    <string name="events_reason_label">Reason (optional)</string>
+    <string name="events_reason_placeholder">Why are you rejecting this?</string>
+
+    <!-- WorkLife Screen -->
+    <string name="worklife_tap_to_retry">Tap to retry</string>
+    <string name="worklife_highlights">Highlights</string>
+    <string name="worklife_projects">Projects</string>
+    <string name="worklife_people">People</string>
+    <string name="worklife_organizations">Organizations</string>
+    <string name="worklife_no_projects">No projects yet. Your projects will appear here.</string>
+    <string name="worklife_no_people">No people yet. Your contacts will appear here.</string>
+    <string name="worklife_no_organizations">No organizations yet. Your companies will appear here.</string>
+    <string name="worklife_on_track">On Track</string>
+    <string name="worklife_in_progress">In Progress</string>
+    <string name="worklife_behind">Behind</string>
+    <string name="worklife_at_risk">At Risk</string>
+    <string name="worklife_budget">Budget</string>
+    <string name="worklife_lead">Lead</string>
+    <string name="worklife_risks">Risks</string>
+    <string name="worklife_goals">Goals</string>
+    <string name="worklife_related_people">Related People</string>
+    <string name="worklife_related_projects">Related Projects</string>
+    <string name="worklife_related_organizations">Related Organizations</string>
+    <string name="worklife_related_meetings">Related Meetings</string>
+    <string name="worklife_email">Email</string>
+    <string name="worklife_phone">Phone</string>
+    <string name="worklife_skills">Skills</string>
+    <string name="worklife_characteristics">Characteristics</string>
+    <string name="worklife_departments">Departments</string>
+    <string name="worklife_strengths">Strengths</string>
+    <string name="worklife_strategic_focus">Strategic Focus</string>
+    <string name="worklife_next_action">Next Action</string>
+
+    <!-- Notifications Screen -->
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_loading">Loading notifications…</string>
+    <string name="notifications_none">No notifications yet</string>
+
+    <!-- Pricing Screen -->
+    <string name="pricing_plans">Plans</string>
+    <string name="pricing_monthly">Monthly</string>
+    <string name="pricing_yearly">Yearly</string>
+    <string name="pricing_current">Current</string>
+    <string name="pricing_current_plan">Current Plan</string>
+    <string name="pricing_upgrade">Upgrade</string>
+    <string name="pricing_downgrade">Downgrade</string>
+    <string name="pricing_select">Select</string>
+    <string name="pricing_asr_minutes">ASR Minutes: %1$s</string>
+    <string name="pricing_asr_unlimited">Unlimited</string>
+    <string name="pricing_asr_monthly">%1$d min/mo</string>
+    <string name="pricing_storage">Storage: %1$s</string>
+    <string name="pricing_storage_unlimited">Unlimited</string>
+    <string name="pricing_storage_mb">%1$d MB</string>
+    <string name="pricing_cloud_backup_included">Cloud Backup: Included</string>
+    <string name="pricing_cloud_backup_not_included">Cloud Backup: Not included</string>
+
+    <!-- Profile Screen -->
+    <string name="profile_welcome_back">Welcome back, %1$s</string>
+    <string name="profile_my_plan">My Plan</string>
+    <string name="profile_integrations">Integrations</string>
+    <string name="profile_app_settings">App Settings</string>
+    <string name="profile_privacy_data">Privacy &amp; Data</string>
+    <string name="profile_account_security">Account Security</string>
+    <string name="profile_notifications">Notifications</string>
+    <string name="profile_billing_payment">Billing &amp; Payment</string>
+    <string name="profile_verify_email">Verify Email</string>
+    <string name="profile_verification_sent">Verification Email Sent</string>
+    <string name="profile_support_legal">Support &amp; Legal</string>
+    <string name="profile_terms_of_service">Terms of Service</string>
+    <string name="profile_privacy_policy">Privacy Policy</string>
+    <string name="profile_developer_options">Developer Options</string>
+    <string name="profile_sign_out">Sign Out</string>
+    <string name="profile_delete_account">Delete Account</string>
+    <string name="profile_version">Klik v%1$s (%2$s)</string>
+    <string name="profile_language">Language</string>
+    <string name="profile_archived_items">Archived Items</string>
+    <string name="profile_archived_items_subtitle">View archived tasks, sessions, and entities</string>
+
+    <!-- Developer Settings -->
+    <string name="dev_settings_title">Developer Settings</string>
+    <string name="dev_background">Background</string>
+    <string name="dev_double_click_default">Double-click to set as default</string>
+    <string name="dev_typography">Typography</string>
+    <string name="dev_typography_adjustments">Typography Adjustments</string>
+    <string name="dev_font_size_scale">Font Size Scale</string>
+    <string name="dev_letter_spacing_scale">Letter Spacing Scale</string>
+    <string name="dev_line_height_scale">Line Height Scale</string>
+    <string name="dev_liquid_glass_engine">Liquid Glass Engine</string>
+    <string name="dev_transparency">Transparency</string>
+    <string name="dev_frost">Frost</string>
+    <string name="dev_refraction">Refraction</string>
+    <string name="dev_curve">Curve</string>
+    <string name="dev_edge">Edge</string>
+    <string name="dev_apply_to_cards">Apply to Cards</string>
+    <string name="dev_apply_to_cards_subtitle">Enable liquid glass effect on all cards</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_edit_profile">Edit Profile</string>
+    <string name="dialog_saving">Saving…</string>
+    <string name="dialog_name">Name</string>
+    <string name="dialog_email">Email</string>
+    <string name="dialog_delete_account">Delete Account</string>
+    <string name="dialog_deleting">Deleting…</string>
+    <string name="dialog_delete_account_warning">This action is permanent and cannot be undone. All your data will be permanently deleted.</string>
+    <string name="dialog_enter_password">Enter your password to confirm</string>
+    <string name="dialog_sign_out">Sign Out</string>
+    <string name="dialog_sign_out_message">Are you sure you want to sign out? You will need to log in again to access your account.</string>
+    <string name="dialog_language">Language</string>
+
+    <!-- Subscription / Plan Card -->
+    <string name="plan_loading">Loading…</string>
+    <string name="plan_asr_used_unlimited">ASR: %1$d min used · Unlimited</string>
+    <string name="plan_asr_used_of_limit">ASR: %1$d / %2$d min</string>
+    <string name="plan_icon">Plan</string>
+</resources>
