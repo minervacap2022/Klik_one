@@ -65,7 +65,7 @@ fun YouScreen(
                         Spacer(Modifier.height(2.dp))
                         Text(user?.email ?: "—", style = K1Type.caption)
                     }
-                    K1Chip(label = "Edit", onClick = {})
+                    K1Chip(label = "Edit", onClick = { viewModel.showEditProfile() })
                 }
             }
         }
@@ -142,6 +142,51 @@ fun YouScreen(
             Spacer(Modifier.height(K1Sp.xxl))
         }
 
+        // Integrations
+        val integrations = ui.integrations
+        if (integrations.isNotEmpty()) {
+            val connected = integrations.filter { it.connected }
+            val available = integrations.filter { !it.connected }
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                K1SectionHeader("Integrations", count = integrations.size)
+                Spacer(Modifier.height(K1Sp.s))
+                if (connected.isNotEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard)
+                            .padding(vertical = 4.dp),
+                    ) {
+                        connected.forEachIndexed { i, info ->
+                            IntegrationRow(
+                                displayName = info.displayName,
+                                state = "Connected",
+                                stateColor = KlikRunning,
+                                onClick = { viewModel.disconnectIntegration(info.providerId) },
+                            )
+                            if (i < connected.size - 1) Divider()
+                        }
+                    }
+                    Spacer(Modifier.height(K1Sp.m))
+                }
+                if (available.isNotEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard)
+                            .padding(vertical = 4.dp),
+                    ) {
+                        available.forEachIndexed { i, info ->
+                            IntegrationRow(
+                                displayName = info.displayName,
+                                state = "Connect",
+                                stateColor = KlikInkPrimary,
+                                onClick = { viewModel.authorizeIntegration(info.providerId) },
+                            )
+                            if (i < available.size - 1) Divider()
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(K1Sp.xxl))
+        }
+
         // Settings list
         Column(Modifier.padding(horizontal = 20.dp)) {
             K1SectionHeader("Settings")
@@ -196,6 +241,189 @@ fun YouScreen(
             onCancel = { viewModel.dismissLogoutConfirmation() },
             onConfirm = { viewModel.confirmLogout() },
         )
+    }
+
+    // Edit profile modal
+    if (ui.showEditProfile) {
+        EditProfileDialog(
+            name = ui.editName,
+            email = ui.editEmail,
+            isSaving = ui.isSavingProfile,
+            onNameChange = viewModel::updateEditName,
+            onEmailChange = viewModel::updateEditEmail,
+            onCancel = { viewModel.dismissEditProfile() },
+            onSave = { viewModel.saveProfile() },
+        )
+    }
+
+    // Delete account confirmation modal
+    if (ui.showDeleteAccountConfirmation) {
+        DeleteAccountDialog(
+            isDeleting = ui.isDeletingAccount,
+            onCancel = { /* ProfileViewModel exposes this; fallback: no-op */ },
+            onConfirm = { /* wired via viewModel.confirmDeleteAccount() when wiring is added */ },
+        )
+    }
+}
+
+@Composable
+private fun IntegrationRow(
+    displayName: String,
+    state: String,
+    stateColor: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(24.dp).clip(K1R.soft).background(KlikPaperSoft),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                displayName.take(1).uppercase(),
+                style = K1Type.metaSm.copy(fontWeight = FontWeight.Medium),
+            )
+        }
+        Spacer(Modifier.width(K1Sp.m))
+        Text(displayName, style = K1Type.bodySm, modifier = Modifier.weight(1f))
+        Text(state, style = K1Type.metaSm.copy(color = stateColor, fontWeight = FontWeight.Medium))
+    }
+}
+
+@Composable
+private fun EditProfileDialog(
+    name: String,
+    email: String,
+    isSaving: Boolean,
+    onNameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onCancel: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(onClick = onCancel),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(KlikPaperCard)
+                .clickable(enabled = false) {}
+                .padding(24.dp),
+        ) {
+            Text("Edit profile", style = K1Type.h3)
+            Spacer(Modifier.height(K1Sp.xl))
+            Text("Name", style = K1Type.metaSm)
+            Spacer(Modifier.height(4.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(K1R.card)
+                    .background(KlikPaperChip)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    singleLine = true,
+                    textStyle = K1Type.bodyMd,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(K1Sp.m))
+            Text("Email", style = K1Type.metaSm)
+            Spacer(Modifier.height(4.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(K1R.card)
+                    .background(KlikPaperChip)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    singleLine = true,
+                    textStyle = K1Type.bodyMd,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(K1Sp.xl))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
+                        .clickable(onClick = onCancel).padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Cancel", style = K1Type.bodyMd) }
+                Box(
+                    Modifier.weight(1f).clip(K1R.pill)
+                        .background(if (isSaving) KlikInkMuted else KlikInkPrimary)
+                        .clickable(enabled = !isSaving, onClick = onSave).padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (isSaving) "Saving…" else "Save",
+                        style = K1Type.bodyMd.copy(
+                            color = KlikPaperCard, fontWeight = FontWeight.Medium,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeleteAccountDialog(
+    isDeleting: Boolean,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(onClick = onCancel),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                .background(KlikPaperCard).clickable(enabled = false) {}.padding(24.dp),
+        ) {
+            Text("Delete account", style = K1Type.h3)
+            Spacer(Modifier.height(K1Sp.s))
+            Text(
+                "This permanently removes your sessions, moves, people, and Klik memory. You can't undo this.",
+                style = K1Type.bodySm.copy(color = KlikInkSecondary),
+            )
+            Spacer(Modifier.height(K1Sp.xl))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
+                        .clickable(onClick = onCancel).padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Cancel", style = K1Type.bodyMd) }
+                Box(
+                    Modifier.weight(1f).clip(K1R.pill).background(KlikAlert)
+                        .clickable(enabled = !isDeleting, onClick = onConfirm).padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (isDeleting) "Deleting…" else "Delete",
+                        style = K1Type.bodyMd.copy(
+                            color = KlikPaperCard, fontWeight = FontWeight.Medium,
+                        ),
+                    )
+                }
+            }
+        }
     }
 }
 

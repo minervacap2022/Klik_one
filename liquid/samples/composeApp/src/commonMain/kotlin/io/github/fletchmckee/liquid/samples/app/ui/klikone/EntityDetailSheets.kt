@@ -12,6 +12,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,7 +102,11 @@ fun TaskDetailScreen(
     onBack: () -> Unit,
     onApprove: (() -> Unit)? = null,
     onReject: (() -> Unit)? = null,
+    onRetry: (() -> Unit)? = null,
+    onRejectWithReason: ((String) -> Unit)? = null,
 ) {
+    var showRejectReasonDialog by remember { mutableStateOf(false) }
+    var rejectReason by remember { mutableStateOf("") }
     DetailScaffold(
         eyebrow = "Move",
         title = task.title,
@@ -225,8 +233,21 @@ fun TaskDetailScreen(
                 }
             }
 
-            // Action row for needs-confirmation tasks
-            if (task.needsConfirmation && (onApprove != null || onReject != null)) {
+            // Failed tasks get a Retry primary action.
+            val isFailed = task.kkExecStatus?.uppercase() == "FAILED" ||
+                task.kkExecStatus?.uppercase() == "ERROR"
+            if (isFailed && onRetry != null) {
+                Spacer(Modifier.height(K1Sp.xl))
+                K1ButtonPrimary(
+                    label = "Retry",
+                    onClick = onRetry,
+                    pill = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // Needs-confirmation tasks get Approve + Reject-with-reason.
+            if (task.needsConfirmation && (onApprove != null || onReject != null || onRejectWithReason != null)) {
                 Spacer(Modifier.height(K1Sp.xl))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (onApprove != null) {
@@ -237,19 +258,115 @@ fun TaskDetailScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    if (onReject != null) {
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .clip(K1R.pill)
-                                .border(0.5.dp, KlikInkMuted, K1R.pill)
-                                .clickable(onClick = onReject)
-                                .padding(vertical = 14.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("Skip", style = K1Type.bodyMd.copy(color = KlikInkPrimary))
-                        }
+                    val rejectHandler: () -> Unit = {
+                        if (onRejectWithReason != null) showRejectReasonDialog = true
+                        else onReject?.invoke()
                     }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .clip(K1R.pill)
+                            .border(0.5.dp, KlikInkMuted, K1R.pill)
+                            .clickable(onClick = rejectHandler)
+                            .padding(vertical = 14.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (onRejectWithReason != null) "Reject…" else "Skip",
+                            style = K1Type.bodyMd.copy(color = KlikInkPrimary),
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRejectReasonDialog && onRejectWithReason != null) {
+        RejectReasonDialog(
+            reason = rejectReason,
+            onReasonChange = { rejectReason = it },
+            onCancel = { showRejectReasonDialog = false; rejectReason = "" },
+            onSubmit = {
+                onRejectWithReason(rejectReason.trim())
+                showRejectReasonDialog = false
+                rejectReason = ""
+            },
+        )
+    }
+}
+
+@Composable
+private fun RejectReasonDialog(
+    reason: String,
+    onReasonChange: (String) -> Unit,
+    onCancel: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    androidx.compose.foundation.layout.Box(
+        androidx.compose.ui.Modifier
+            .fillMaxSize()
+            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f))
+            .clickable(onClick = onCancel),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        androidx.compose.foundation.layout.Column(
+            androidx.compose.ui.Modifier
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                .background(KlikPaperCard)
+                .clickable(enabled = false) {}
+                .padding(24.dp),
+        ) {
+            Text("Why skip this move?", style = K1Type.h3)
+            Spacer(androidx.compose.ui.Modifier.height(K1Sp.s))
+            Text(
+                "Your reason helps Klik refine future suggestions.",
+                style = K1Type.bodySm.copy(color = KlikInkSecondary),
+            )
+            Spacer(androidx.compose.ui.Modifier.height(K1Sp.m))
+            androidx.compose.foundation.layout.Box(
+                androidx.compose.ui.Modifier
+                    .fillMaxWidth()
+                    .clip(K1R.card)
+                    .background(KlikPaperChip)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+            ) {
+                if (reason.isBlank()) {
+                    Text(
+                        "Optional — e.g. wrong person, already handled, not relevant",
+                        style = K1Type.bodySm.copy(color = KlikInkMuted),
+                    )
+                }
+                androidx.compose.foundation.text.BasicTextField(
+                    value = reason,
+                    onValueChange = onReasonChange,
+                    textStyle = K1Type.bodySm,
+                    maxLines = 4,
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(androidx.compose.ui.Modifier.height(K1Sp.xl))
+            androidx.compose.foundation.layout.Row(
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
+                        .clickable(onClick = onCancel).padding(vertical = 14.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) { Text("Cancel", style = K1Type.bodyMd) }
+                androidx.compose.foundation.layout.Box(
+                    androidx.compose.ui.Modifier.weight(1f).clip(K1R.pill).background(KlikInkPrimary)
+                        .clickable(onClick = onSubmit).padding(vertical = 14.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    Text(
+                        "Send",
+                        style = K1Type.bodyMd.copy(
+                            color = KlikPaperCard,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                        ),
+                    )
                 }
             }
         }

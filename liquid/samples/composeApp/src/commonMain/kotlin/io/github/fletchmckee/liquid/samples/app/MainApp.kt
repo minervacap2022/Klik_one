@@ -2691,6 +2691,54 @@ fun MainApp() {
                                                 currentRoute = lastMainRoute
                                             }
                                         } else null,
+                                        onRejectWithReason = if (t.needsConfirmation) {
+                                            { reason: String ->
+                                                integrationScope.launch {
+                                                    try {
+                                                        val todo = kkExecSensitiveTodosState.value
+                                                            .firstOrNull { it.id == t.id }
+                                                        if (todo?.kkExecTodoId != null) {
+                                                            RemoteDataFetcher.rejectKKExecTodo(
+                                                                todo.kkExecTodoId!!,
+                                                                reason = reason,
+                                                            )
+                                                            onRefreshTasks()
+                                                        } else {
+                                                            RemoteDataFetcher.updateTaskStatus(t.id, "archived")
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        KlikLogger.e("MainApp", "Reject-with-reason failed: ${e.message}", e)
+                                                    }
+                                                }
+                                                taskDetailId = null
+                                                currentRoute = lastMainRoute
+                                            }
+                                        } else null,
+                                        onRetry = run {
+                                            val isFailed = t.kkExecStatus?.uppercase() == "FAILED" ||
+                                                t.kkExecStatus?.uppercase() == "ERROR"
+                                            if (isFailed) {
+                                                {
+                                                    integrationScope.launch {
+                                                        try {
+                                                            val todo = (kkExecSensitiveTodosState.value +
+                                                                kkExecDailyTodosState.value)
+                                                                .firstOrNull { it.id == t.id }
+                                                            if (todo?.kkExecTodoId != null) {
+                                                                executingTodoIdsState.value =
+                                                                    executingTodoIdsState.value + t.id
+                                                                RemoteDataFetcher.retryKKExecTodo(todo.kkExecTodoId!!)
+                                                                onRefreshTasks()
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            executingTodoIdsState.value =
+                                                                executingTodoIdsState.value - t.id
+                                                            KlikLogger.e("MainApp", "Retry failed: ${e.message}", e)
+                                                        }
+                                                    }
+                                                }
+                                            } else null
+                                        },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
