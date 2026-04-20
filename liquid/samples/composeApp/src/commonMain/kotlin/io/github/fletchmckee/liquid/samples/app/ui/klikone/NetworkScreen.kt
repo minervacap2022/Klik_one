@@ -41,6 +41,7 @@ import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
 import io.github.fletchmckee.liquid.samples.app.presentation.worklife.WorkLifeViewModel
 import io.github.fletchmckee.liquid.samples.app.theme.*
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
+import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
 
 /** Klik One — Network. Drop-in replacement for `WorkLifeScreen`. */
@@ -272,7 +273,11 @@ private fun KlikItButton(onClick: () -> Unit) {
 
 @Composable
 private fun PersonRow(p: Person, onEntityClick: (EntityNavigationData) -> Unit) {
-    Column {
+    Column(
+        Modifier.clickable {
+            onEntityClick(EntityNavigationData(EntityType.PERSON, p.id))
+        }
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -301,7 +306,11 @@ private fun ProjectsPanel(projects: List<Project>, onEntityClick: (EntityNavigat
         K1SectionHeader("All projects", count = projects.size, dotColor = KlikDotProject)
         Spacer(Modifier.height(K1Sp.s))
         projects.forEach { pr ->
-            K1Card {
+            K1Card(
+                onClick = {
+                    onEntityClick(EntityNavigationData(EntityType.PROJECT, pr.id))
+                },
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).clip(CircleShape).background(KlikDotProject))
                     Spacer(Modifier.width(K1Sp.s))
@@ -354,7 +363,12 @@ private fun OrgsPanel(orgs: List<Organization>, onEntityClick: (EntityNavigation
         Spacer(Modifier.height(K1Sp.s))
         orgs.forEach { org ->
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, org.id))
+                    }
+                    .padding(vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(

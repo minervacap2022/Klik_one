@@ -29,6 +29,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
 import io.github.fletchmckee.liquid.samples.app.theme.*
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
+import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
 
 /** Klik One — Moves. Drop-in replacement for `EventsScreen`. */
@@ -119,7 +120,12 @@ fun MovesScreen(
                 K1SectionHeader("Needs your OK", count = needsOk.size, dotColor = KlikWarn)
                 Spacer(Modifier.height(K1Sp.s))
                 needsOk.forEach { t ->
-                    NeedsOkCard(t, onApproveTask, onArchiveTaskOnBackend)
+                    NeedsOkCard(
+                        t = t,
+                        onApprove = onApproveTask,
+                        onArchive = onArchiveTaskOnBackend,
+                        onOpen = { onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+                    )
                     Spacer(Modifier.height(8.dp))
                 }
             }
@@ -131,7 +137,9 @@ fun MovesScreen(
                 K1SectionHeader("Running", count = running.size, dotColor = KlikRunning)
                 Spacer(Modifier.height(K1Sp.s))
                 running.forEach { t ->
-                    RunningRow(t)
+                    RunningRow(t, onClick = {
+                        onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+                    })
                     Spacer(Modifier.height(6.dp))
                 }
             }
@@ -167,8 +175,9 @@ private fun NeedsOkCard(
     t: TaskMetadata,
     onApprove: (String) -> Unit,
     onArchive: (String) -> Unit,
+    onOpen: () -> Unit = {},
 ) {
-    K1Card(soft = true) {
+    K1Card(soft = true, onClick = onOpen) {
         // Top row: title + subtitle | time ago
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
@@ -275,13 +284,14 @@ private fun ActionButton(
 }
 
 @Composable
-private fun RunningRow(t: TaskMetadata) {
+private fun RunningRow(t: TaskMetadata, onClick: () -> Unit = {}) {
     Row(
         Modifier
             .fillMaxWidth()
             .clip(K1R.card)
             .background(KlikPaperCard)
             .border(0.5.dp, KlikLineHairline, K1R.card)
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

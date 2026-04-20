@@ -377,6 +377,10 @@ fun MainApp() {
   var recordingStartedAtMillis by remember { mutableStateOf<Long?>(null) }
   // Meeting selected for the SessionDetailScreen route (tapped from TodayScreen).
   var sessionDetailMeeting by remember { mutableStateOf<Meeting?>(null) }
+  var taskDetailId by remember { mutableStateOf<String?>(null) }
+  var personDetailId by remember { mutableStateOf<String?>(null) }
+  var projectDetailId by remember { mutableStateOf<String?>(null) }
+  var orgDetailId by remember { mutableStateOf<String?>(null) }
   // Klik One first-run onboarding — null until SecureStorage is read per user_id.
   var hasCompletedKlikOnboarding by remember { mutableStateOf<Boolean?>(null) }
   val onboardingStorage = remember { io.github.fletchmckee.liquid.samples.app.data.storage.SecureStorage() }
@@ -2208,24 +2212,28 @@ fun MainApp() {
                                     }
                                 },
                                 onEntityClick = { entityNav ->
+                                    lastMainRoute = currentRoute
                                     when (entityNav.entityType) {
+                                        EntityType.TASK -> {
+                                            taskDetailId = entityNav.entityId
+                                            currentRoute = "task_detail"
+                                        }
                                         EntityType.PERSON -> {
-                                            highlightPersonId = entityNav.entityId
-                                            currentRoute = "growth"
+                                            personDetailId = entityNav.entityId
+                                            currentRoute = "person_detail"
                                         }
                                         EntityType.ORGANIZATION -> {
-                                            highlightOrganizationId = entityNav.entityId
-                                            currentRoute = "growth"
+                                            orgDetailId = entityNav.entityId
+                                            currentRoute = "org_detail"
                                         }
                                         EntityType.PROJECT -> {
-                                            highlightProjectId = entityNav.entityId
-                                            currentRoute = "growth"
+                                            projectDetailId = entityNav.entityId
+                                            currentRoute = "project_detail"
                                         }
                                         EntityType.MEETING -> {
                                             expandMeetingSessionId = entityNav.entityId
                                             currentRoute = "today"
                                         }
-                                        EntityType.TASK -> { /* already on function screen */ }
                                     }
                                 },
                                 onSegmentClick = { segmentNav ->
@@ -2274,24 +2282,27 @@ fun MainApp() {
 
                                 meetings = meetings,
                                 onEntityClick = { entityNav ->
-                                    // Navigate to entity card based on type
+                                    lastMainRoute = currentRoute
                                     when (entityNav.entityType) {
                                         EntityType.TASK -> {
-                                            currentRoute = "function"
+                                            taskDetailId = entityNav.entityId
+                                            currentRoute = "task_detail"
                                         }
                                         EntityType.MEETING -> {
                                             expandMeetingSessionId = entityNav.entityId
                                             currentRoute = "today"
                                         }
                                         EntityType.PROJECT -> {
-                                            // Already on growth screen - set highlight ID
-                                            highlightProjectId = entityNav.entityId
+                                            projectDetailId = entityNav.entityId
+                                            currentRoute = "project_detail"
                                         }
                                         EntityType.PERSON -> {
-                                            highlightPersonId = entityNav.entityId
+                                            personDetailId = entityNav.entityId
+                                            currentRoute = "person_detail"
                                         }
                                         EntityType.ORGANIZATION -> {
-                                            highlightOrganizationId = entityNav.entityId
+                                            orgDetailId = entityNav.entityId
+                                            currentRoute = "org_detail"
                                         }
                                     }
                                 },
@@ -2607,6 +2618,108 @@ fun MainApp() {
                                     LaunchedEffect(Unit) { currentRoute = "today" }
                                 }
                             }
+                            "task_detail" -> {
+                                val allTasks = reviewMetadata + pendingMetadata + completedMetadata +
+                                    kkExecSensitiveTodosState.value + kkExecDailyTodosState.value
+                                val t = allTasks.find { it.id == taskDetailId }
+                                if (t != null) {
+                                    io.github.fletchmckee.liquid.samples.app.ui.klikone.TaskDetailScreen(
+                                        task = t,
+                                        meetings = meetings,
+                                        onBack = {
+                                            taskDetailId = null
+                                            currentRoute = lastMainRoute
+                                        },
+                                        onApprove = if (t.needsConfirmation) {
+                                            {
+                                                integrationScope.launch {
+                                                    try {
+                                                        val todo = kkExecSensitiveTodosState.value
+                                                            .firstOrNull { it.id == t.id }
+                                                        if (todo?.kkExecTodoId != null) {
+                                                            executingTodoIdsState.value =
+                                                                executingTodoIdsState.value + t.id
+                                                            RemoteDataFetcher.approveKKExecTodo(todo.kkExecTodoId!!)
+                                                            onRefreshTasks()
+                                                            executingTodoIdsState.value =
+                                                                executingTodoIdsState.value - t.id
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        KlikLogger.e("MainApp", "Approve from detail failed: ${e.message}", e)
+                                                    }
+                                                }
+                                                taskDetailId = null
+                                                currentRoute = lastMainRoute
+                                            }
+                                        } else null,
+                                        onReject = if (t.needsConfirmation) {
+                                            {
+                                                integrationScope.launch {
+                                                    try {
+                                                        RemoteDataFetcher.updateTaskStatus(t.id, "archived")
+                                                    } catch (e: Exception) {
+                                                        KlikLogger.e("MainApp", "Archive from detail failed: ${e.message}", e)
+                                                    }
+                                                }
+                                                taskDetailId = null
+                                                currentRoute = lastMainRoute
+                                            }
+                                        } else null,
+                                    )
+                                } else {
+                                    LaunchedEffect(Unit) { currentRoute = lastMainRoute }
+                                }
+                            }
+                            "person_detail" -> {
+                                val p = peopleState.value.find { it.id == personDetailId }
+                                if (p != null) {
+                                    io.github.fletchmckee.liquid.samples.app.ui.klikone.PersonDetailScreen(
+                                        person = p,
+                                        meetings = meetings,
+                                        tasks = reviewMetadata + pendingMetadata + completedMetadata,
+                                        projects = projectsState.value,
+                                        organizations = organizationsState.value,
+                                        onBack = {
+                                            personDetailId = null
+                                            currentRoute = lastMainRoute
+                                        },
+                                    )
+                                } else {
+                                    LaunchedEffect(Unit) { currentRoute = lastMainRoute }
+                                }
+                            }
+                            "project_detail" -> {
+                                val pr = projectsState.value.find { it.id == projectDetailId }
+                                if (pr != null) {
+                                    io.github.fletchmckee.liquid.samples.app.ui.klikone.ProjectDetailScreen(
+                                        project = pr,
+                                        meetings = meetings,
+                                        tasks = reviewMetadata + pendingMetadata + completedMetadata,
+                                        onBack = {
+                                            projectDetailId = null
+                                            currentRoute = lastMainRoute
+                                        },
+                                    )
+                                } else {
+                                    LaunchedEffect(Unit) { currentRoute = lastMainRoute }
+                                }
+                            }
+                            "org_detail" -> {
+                                val o = organizationsState.value.find { it.id == orgDetailId }
+                                if (o != null) {
+                                    io.github.fletchmckee.liquid.samples.app.ui.klikone.OrgDetailScreen(
+                                        org = o,
+                                        people = peopleState.value,
+                                        projects = projectsState.value,
+                                        onBack = {
+                                            orgDetailId = null
+                                            currentRoute = lastMainRoute
+                                        },
+                                    )
+                                } else {
+                                    LaunchedEffect(Unit) { currentRoute = lastMainRoute }
+                                }
+                            }
                             "live_recording" -> {
                                 val startedAt = recordingStartedAtMillis
                                 val nowMs = Clock.System.now().toEpochMilliseconds()
@@ -2811,6 +2924,10 @@ fun MainApp() {
           "biometric_consent",
           "live_recording",
           "session_detail",
+          "task_detail",
+          "person_detail",
+          "project_detail",
+          "org_detail",
           "notification_settings",
           "privacy_settings",
           "account_security",
