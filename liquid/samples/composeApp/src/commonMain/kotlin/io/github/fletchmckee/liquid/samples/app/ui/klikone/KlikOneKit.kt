@@ -398,21 +398,27 @@ fun K1AvatarStack(initialsList: List<String>, size: Dp = 24.dp, modifier: Modifi
 fun K1AskFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier
-            .size(56.dp)
+            .size(60.dp)
             .background(KlikInkPrimary, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             K1Waveform(
-                heights = listOf(5f, 9f, 4f, 7f),
-                barWidth = 2.dp, gap = 1.5.dp,
-                color = KlikPaperCard
+                heights = listOf(8f, 13f, 6f, 11f, 7f),
+                barWidth = 2.5.dp, gap = 2.dp,
+                color = KlikPaperCard,
             )
-            Spacer(Modifier.height(1.dp))
-            Text("ASK", style = TextStyle(
-                fontSize = 8.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp, color = KlikPaperCard
-            ))
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "ASK",
+                style = TextStyle(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 1.sp,
+                    color = KlikPaperCard,
+                ),
+            )
         }
     }
 }

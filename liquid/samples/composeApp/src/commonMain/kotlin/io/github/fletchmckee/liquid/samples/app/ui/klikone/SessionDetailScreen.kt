@@ -42,9 +42,14 @@ private enum class SessionTab { Summary, Todos, Transcript, Highlights }
 fun SessionDetailScreen(
     meeting: Meeting,
     tasks: List<TaskMetadata> = emptyList(),
+    allMeetings: List<Meeting> = emptyList(),
+    projects: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Project> = emptyList(),
+    people: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Person> = emptyList(),
+    organizations: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Organization> = emptyList(),
     onBack: () -> Unit,
     onShare: () -> Unit = {},
     onMore: () -> Unit = {},
+    onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(SessionTab.Summary) }
 
@@ -157,7 +162,15 @@ fun SessionDetailScreen(
         Spacer(Modifier.height(K1Sp.lg))
 
         when (tab) {
-            SessionTab.Summary    -> SummaryPanel(meeting)
+            SessionTab.Summary    -> SummaryPanel(
+                m = meeting,
+                tasks = tasks,
+                allMeetings = allMeetings,
+                projects = projects,
+                people = people,
+                organizations = organizations,
+                onEntityClick = onEntityClick,
+            )
             SessionTab.Todos      -> TodosPanel(linked)
             SessionTab.Transcript -> TranscriptPanel(meeting)
             SessionTab.Highlights -> HighlightsPanel(meeting)
@@ -201,12 +214,29 @@ private fun TabItem(label: String, active: Boolean, badge: Int? = null, onClick:
 }
 
 @Composable
-private fun SummaryPanel(m: Meeting) {
+private fun SummaryPanel(
+    m: Meeting,
+    tasks: List<TaskMetadata>,
+    allMeetings: List<Meeting>,
+    projects: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Project>,
+    people: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Person>,
+    organizations: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Organization>,
+    onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit,
+) {
     Column(Modifier.padding(horizontal = 20.dp)) {
         if (m.summary.isNotBlank()) {
             K1Eyebrow("In 3 lines")
             Spacer(Modifier.height(K1Sp.s))
-            Text(m.summary, style = K1Type.bodySm)
+            io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                text = m.summary,
+                tasks = tasks,
+                meetings = allMeetings,
+                projects = projects,
+                people = people,
+                organizations = organizations,
+                onEntityClick = onEntityClick,
+                style = K1Type.bodySm,
+            )
             Spacer(Modifier.height(K1Sp.xxl))
         }
 
@@ -215,7 +245,16 @@ private fun SummaryPanel(m: Meeting) {
             Spacer(Modifier.height(K1Sp.s))
             m.actionItems.take(5).forEach { todo ->
                 K1Card(soft = true) {
-                    Text(todo.text, style = K1Type.caption)
+                    io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                        text = todo.text,
+                        tasks = tasks,
+                        meetings = allMeetings,
+                        projects = projects,
+                        people = people,
+                        organizations = organizations,
+                        onEntityClick = onEntityClick,
+                        style = K1Type.caption,
+                    )
                     Spacer(Modifier.height(3.dp))
                     Text(todo.type.name.lowercase().replace('_', ' '), style = K1Type.metaSm)
                 }

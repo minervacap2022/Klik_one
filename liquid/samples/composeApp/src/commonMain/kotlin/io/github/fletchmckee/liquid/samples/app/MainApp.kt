@@ -2617,9 +2617,27 @@ fun MainApp() {
                                     SessionDetailScreen(
                                         meeting = m,
                                         tasks = reviewMetadata + pendingMetadata + completedMetadata,
+                                        allMeetings = meetings,
+                                        projects = projectsState.value,
+                                        people = peopleState.value,
+                                        organizations = organizationsState.value,
                                         onBack = {
                                             sessionDetailMeeting = null
                                             currentRoute = "today"
+                                        },
+                                        onEntityClick = { nav ->
+                                            lastMainRoute = "today"
+                                            sessionDetailMeeting = null
+                                            when (nav.entityType) {
+                                                EntityType.TASK -> { taskDetailId = nav.entityId; currentRoute = "task_detail" }
+                                                EntityType.PERSON -> { personDetailId = nav.entityId; currentRoute = "person_detail" }
+                                                EntityType.PROJECT -> { projectDetailId = nav.entityId; currentRoute = "project_detail" }
+                                                EntityType.ORGANIZATION -> { orgDetailId = nav.entityId; currentRoute = "org_detail" }
+                                                EntityType.MEETING -> {
+                                                    expandMeetingSessionId = nav.entityId
+                                                    currentRoute = "today"
+                                                }
+                                            }
                                         },
                                     )
                                 } else {

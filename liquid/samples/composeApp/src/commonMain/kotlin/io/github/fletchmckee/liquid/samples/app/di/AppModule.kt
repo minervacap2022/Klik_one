@@ -169,6 +169,9 @@ object AppModule {
                     val meetings = fetcher.fetchMeetings()
                     calendarDataSource.setMeetings(meetings)
                     io.github.fletchmckee.liquid.samples.app.model.meetingsState.value = meetings
+                    // Push the fresh data through the repository flow so UI collectors
+                    // (MainApp's observeMeetingsUseCase) actually get the 301 records.
+                    calendarRepository.refreshMeetings()
                     KlikLogger.i("AppModule", "Loaded ${meetings.size} meetings from API")
                 } catch (e: Exception) {
                     KlikLogger.e("AppModule", "Failed to fetch meetings: ${e.message}", e)

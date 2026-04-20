@@ -333,14 +333,17 @@ private fun IntRange.overlaps(other: IntRange): Boolean {
 }
 
 /**
- * Get color for entity type
+ * Get color for entity type — K1 palette.
+ * Matches the mentioned-chip dots in the Klik kit:
+ *   project = purple (#7F77DD), org = green (#1D9E75), person = muted blue,
+ *   task = commitment green, meeting = ink (underlined, no color swap).
  */
 private fun getEntityColor(entityType: EntityType): Color {
     return when (entityType) {
-        EntityType.TASK -> Color(0xFF4CAF50)      // Green
-        EntityType.MEETING -> Color(0xFF9C27B0)    // Purple
-        EntityType.PROJECT -> Color(0xFF2196F3)    // Blue
-        EntityType.PERSON -> Color(0xFFFF9800)     // Orange
-        EntityType.ORGANIZATION -> Color(0xFFF44336) // Red
+        EntityType.TASK -> Color(0xFF085041)          // KlikCommitmentSubtext — deep green
+        EntityType.MEETING -> Color(0xFF1C1D21)       // KlikInkPrimary — neutral but underlined
+        EntityType.PROJECT -> Color(0xFF7F77DD)       // K1 project dot purple
+        EntityType.PERSON -> Color(0xFF6E9DC0)        // K1 avatar blue, muted enough to read inline
+        EntityType.ORGANIZATION -> Color(0xFF1D9E75)  // K1 org dot green
     }
 }

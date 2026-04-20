@@ -31,6 +31,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.Person
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Project
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
+import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikLineMute
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
@@ -92,9 +93,18 @@ fun TodayScreen(
     var pickerYear by remember(selectedDate.year) {
         mutableStateOf(selectedDate.year)
     }
-    val meetingsCountByDay = remember(meetings, pickerMonth, pickerYear) {
+    // For the month grid dots, always merge the `meetings` param with the global
+    // meetingsState (populated by AppModule after API load). The two sources are
+    // usually the same set, but reading the global state guarantees we see the
+    // 300-ish meetings even when the per-screen flow hasn't re-emitted yet.
+    val globalMeetings by io.github.fletchmckee.liquid.samples.app.model.meetingsState
+    val mergedMeetings = remember(meetings, globalMeetings) {
+        val byId = (meetings + globalMeetings).associateBy { it.id }
+        byId.values.toList()
+    }
+    val meetingsCountByDay = remember(mergedMeetings, pickerMonth, pickerYear) {
         io.github.fletchmckee.liquid.samples.app.model.getMeetingsCountForMonth(
-            meetings, pickerYear, pickerMonth
+            mergedMeetings, pickerYear, pickerMonth
         )
     }
 
@@ -172,37 +182,60 @@ fun TodayScreen(
 
         Spacer(Modifier.height(K1Sp.lg))
 
+        // Filter meetings to the selected date. The legacy calendar view used the
+        // selectedDate as the primary axis — meetings for that day get rendered
+        // under Right Now / Up next (future) or Completed (past day).
+        val dayMeetings = mergedMeetings
+            .filter { it.date == selectedDate && !it.isArchived }
+            .sortedBy { it.time }
+        val isTodaySelected = selectedDate == todayDate
+        val isPastDaySelected = selectedDate < todayDate
+
         // ── RIGHT NOW ─────────────────────────────────────────────────────
-        val nowMeetings = meetings.filter { !it.isPast && !it.isArchived }.take(1)
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            K1SectionHeader(
-                "Right now",
-                dotColor = when {
-                    isRecording -> KlikAlert
-                    nowMeetings.isNotEmpty() -> KlikAlert
-                    else -> KlikLineMute
-                }
-            )
-            Spacer(Modifier.height(K1Sp.s))
-            when {
-                isRecording -> RecordingActiveCard(
-                    onOpen = onOpenLiveRecording,
-                    onStop = onStopRecording,
+        // Only show the recording / in-conversation card on today. Past or
+        // future days skip this section and go straight to the day's meetings.
+        if (isTodaySelected) {
+            val liveMeeting = dayMeetings.firstOrNull { !it.isPast }
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                K1SectionHeader(
+                    "Right now",
+                    dotColor = when {
+                        isRecording -> KlikAlert
+                        liveMeeting != null -> KlikAlert
+                        else -> KlikLineMute
+                    },
                 )
-                nowMeetings.isNotEmpty() -> LiveSessionCard(nowMeetings.first())
-                else -> QuietCard(onStart = onStartRecording)
+                Spacer(Modifier.height(K1Sp.s))
+                when {
+                    isRecording -> RecordingActiveCard(
+                        onOpen = onOpenLiveRecording,
+                        onStop = onStopRecording,
+                    )
+                    liveMeeting != null -> LiveSessionCard(liveMeeting, onClick = { onMeetingClick(liveMeeting) })
+                    else -> QuietCard(onStart = onStartRecording)
+                }
             }
+            Spacer(Modifier.height(K1Sp.xxl))
         }
 
-        Spacer(Modifier.height(K1Sp.xxl))
-
-        // ── UP NEXT ───────────────────────────────────────────────────────
-        val upcoming = meetings.filter { !it.isPast && !it.isArchived }.drop(1).take(4)
-        if (upcoming.isNotEmpty()) {
+        // ── DAY MEETINGS ──────────────────────────────────────────────────
+        // For today, skip the one already shown in RIGHT NOW. For past/future
+        // days, render every meeting under an appropriate section header.
+        val listForDay = if (isTodaySelected) {
+            dayMeetings.drop(dayMeetings.indexOfFirst { !it.isPast }.coerceAtLeast(0) + 1)
+                .ifEmpty { dayMeetings.filter { it.isPast } } // edge cases
+        } else dayMeetings
+        if (listForDay.isNotEmpty()) {
+            val header = when {
+                isPastDaySelected -> "Completed"
+                isTodaySelected -> "Up next"
+                else -> "Scheduled"
+            }
+            val dot = if (isPastDaySelected) KlikCommitmentAccent else null
             Column(Modifier.padding(horizontal = 20.dp)) {
-                K1SectionHeader("Up next", count = upcoming.size)
+                K1SectionHeader(header, count = listForDay.size, dotColor = dot)
                 Spacer(Modifier.height(K1Sp.s))
-                upcoming.forEach { m ->
+                listForDay.forEach { m ->
                     MeetingRow(m, onClick = { onMeetingClick(m) })
                     Spacer(Modifier.height(6.dp))
                 }
@@ -230,10 +263,28 @@ fun TodayScreen(
                 K1SectionHeader("Brief")
                 Spacer(Modifier.height(K1Sp.s))
                 K1Card(soft = true) {
-                    Text(brief.summary, style = K1Type.bodySm)
+                    io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                        text = brief.summary,
+                        tasks = tasks,
+                        meetings = meetings,
+                        projects = projects,
+                        people = people,
+                        organizations = organizations,
+                        onEntityClick = onEntityClick,
+                        style = K1Type.bodySm,
+                    )
                     if (brief.topPriority != null) {
                         Spacer(Modifier.height(K1Sp.s))
-                        Text("Top priority — ${brief.topPriority}", style = K1Type.caption)
+                        io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                            text = "Top priority — ${brief.topPriority}",
+                            tasks = tasks,
+                            meetings = meetings,
+                            projects = projects,
+                            people = people,
+                            organizations = organizations,
+                            onEntityClick = onEntityClick,
+                            style = K1Type.caption,
+                        )
                     }
                 }
             }
@@ -258,13 +309,31 @@ fun TodayScreen(
                     Spacer(Modifier.height(K1Sp.s))
                     K1Card {
                         if (summaryTrim.isNotBlank()) {
-                            Text(summaryTrim, style = K1Type.bodySm)
+                            io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                                text = summaryTrim,
+                                tasks = tasks,
+                                meetings = meetings,
+                                projects = projects,
+                                people = people,
+                                organizations = organizations,
+                                onEntityClick = onEntityClick,
+                                style = K1Type.bodySm,
+                            )
                             if (extraHighlights.isNotEmpty()) Spacer(Modifier.height(K1Sp.s))
                         }
                         extraHighlights.forEach { h ->
                             Row {
                                 Text("·  ", style = K1Type.caption)
-                                Text(h, style = K1Type.bodySm)
+                                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                                    text = h,
+                                    tasks = tasks,
+                                    meetings = meetings,
+                                    projects = projects,
+                                    people = people,
+                                    organizations = organizations,
+                                    onEntityClick = onEntityClick,
+                                    style = K1Type.bodySm,
+                                )
                             }
                             Spacer(Modifier.height(4.dp))
                         }
@@ -276,8 +345,8 @@ fun TodayScreen(
 }
 
 @Composable
-private fun LiveSessionCard(m: Meeting) {
-    K1Card {
+private fun LiveSessionCard(m: Meeting, onClick: () -> Unit = {}) {
+    K1Card(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             K1RecDot()
             Spacer(Modifier.width(8.dp))
@@ -298,16 +367,22 @@ private fun LiveSessionCard(m: Meeting) {
 private fun QuietCard(onStart: () -> Unit) {
     K1Card(soft = true, onClick = onStart) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            K1Waveform(heights = listOf(6f, 10f, 4f, 8f), color = KlikInkMuted)
-            Spacer(Modifier.width(12.dp))
+            K1Waveform(
+                heights = listOf(10f, 18f, 6f, 14f, 8f, 12f),
+                barWidth = 3.dp,
+                gap = 2.5.dp,
+                color = KlikInkMuted,
+            )
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text("Quiet.", style = K1Type.bodyMd)
+                Spacer(Modifier.height(2.dp))
                 Text("Tap to start listening.", style = K1Type.caption)
             }
             // Record dot glyph — tap-hint
             Box(
                 Modifier
-                    .size(28.dp)
+                    .size(32.dp)
                     .background(
                         io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary,
                         androidx.compose.foundation.shape.CircleShape,
@@ -320,7 +395,7 @@ private fun QuietCard(onStart: () -> Unit) {
                         .background(
                             io.github.fletchmckee.liquid.samples.app.theme.KlikAlert,
                             androidx.compose.foundation.shape.CircleShape,
-                        )
+                        ),
                 )
             }
         }
