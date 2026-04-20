@@ -2120,6 +2120,14 @@ fun MainApp() {
                                     lastMainRoute = currentRoute
                                     currentRoute = "live_recording"
                                 },
+                                onCalendarToggle = {
+                                    isCalendarExpanded = !isCalendarExpanded
+                                    // Mutual exclusivity: closing the Ask sheet if calendar opens.
+                                    if (isCalendarExpanded) {
+                                        showAskKlik = false
+                                        expandMeetingSessionId = null
+                                    }
+                                },
                             )
                             "function" -> MovesScreen(
                                 isLoading = isEventsLoading,

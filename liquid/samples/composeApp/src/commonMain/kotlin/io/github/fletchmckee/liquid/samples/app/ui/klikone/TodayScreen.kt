@@ -10,6 +10,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -76,8 +80,24 @@ fun TodayScreen(
     onStartRecording: () -> Unit = {},
     onStopRecording: () -> Unit = {},
     onOpenLiveRecording: () -> Unit = {},
+    onCalendarToggle: () -> Unit = {},
 ) {
     val scroll = rememberScrollState()
+    val todayDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    // Picker view state — tracks the displayed month/year separately from selectedDate
+    // so the user can browse forward/back without changing the selection.
+    var pickerMonth by remember(selectedDate.monthNumber) {
+        mutableStateOf(selectedDate.monthNumber)
+    }
+    var pickerYear by remember(selectedDate.year) {
+        mutableStateOf(selectedDate.year)
+    }
+    val meetingsCountByDay = remember(meetings, pickerMonth, pickerYear) {
+        io.github.fletchmckee.liquid.samples.app.model.getMeetingsCountForMonth(
+            meetings, pickerYear, pickerMonth
+        )
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -85,8 +105,8 @@ fun TodayScreen(
             .verticalScroll(scroll)
             .padding(top = 52.dp, bottom = 120.dp)
     ) {
-        // Header with date navigation — prev / today-label / next, tap label jumps to today
-        val todayDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        // Header with date navigation — prev / date-chip / next. Tap the chip to
+        // expand an inline mini calendar; long-tap jumps to today.
         val prevDate = selectedDate.minus(DatePeriod(days = 1))
         val nextDate = selectedDate.plus(DatePeriod(days = 1))
         K1Header(
@@ -97,13 +117,59 @@ fun TodayScreen(
                     Spacer(Modifier.width(4.dp))
                     K1Chip(
                         label = dateLabel(selectedDate),
-                        onClick = if (selectedDate != todayDate) ({ onDateChange(todayDate) }) else null,
+                        selected = isCalendarExpanded,
+                        onClick = onCalendarToggle,
                     )
                     Spacer(Modifier.width(4.dp))
                     DateChevron(pointRight = true, onClick = { onDateChange(nextDate) })
                 }
             }
         )
+
+        // Expanded mini calendar picker
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isCalendarExpanded,
+            enter = androidx.compose.animation.expandVertically(
+                animationSpec = androidx.compose.animation.core.tween(220),
+                expandFrom = Alignment.Top,
+            ) + androidx.compose.animation.fadeIn(
+                animationSpec = androidx.compose.animation.core.tween(220),
+            ),
+            exit = androidx.compose.animation.shrinkVertically(
+                animationSpec = androidx.compose.animation.core.tween(180),
+                shrinkTowards = Alignment.Top,
+            ) + androidx.compose.animation.fadeOut(
+                animationSpec = androidx.compose.animation.core.tween(180),
+            ),
+        ) {
+            Box(
+                Modifier
+                    .padding(horizontal = 20.dp, vertical = K1Sp.s)
+                    .fillMaxWidth()
+                    .clip(K1R.card)
+                    .background(
+                        io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard,
+                    )
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+            ) {
+                io.github.fletchmckee.liquid.samples.app.ui.components.MiniCalendar(
+                    currentMonth = pickerMonth,
+                    currentYear = pickerYear,
+                    selectedDate = selectedDate,
+                    todayDate = todayDate,
+                    meetingsCountByDay = meetingsCountByDay,
+                    onDateSelected = { date ->
+                        onDateChange(date)
+                        onCalendarToggle() // collapse picker after pick
+                    },
+                    onMonthChange = { m, y ->
+                        pickerMonth = m
+                        pickerYear = y
+                    },
+                )
+            }
+        }
+
         Spacer(Modifier.height(K1Sp.lg))
 
         // ── RIGHT NOW ─────────────────────────────────────────────────────
