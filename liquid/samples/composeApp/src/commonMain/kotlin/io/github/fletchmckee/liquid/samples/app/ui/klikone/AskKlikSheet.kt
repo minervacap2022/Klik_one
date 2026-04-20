@@ -257,7 +257,10 @@ private fun KlikBubble(message: ChatMessage, onSourceClick: (ChatSource) -> Unit
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
                 Column {
-                    Text(message.text, style = K1Type.bodySm)
+                    io.github.fletchmckee.liquid.samples.app.ui.components.MarkdownText(
+                        text = message.text,
+                        style = K1Type.bodySm,
+                    )
                     val cards = message.sources.filter { !it.content.isNullOrBlank() }
                     if (cards.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
@@ -323,7 +326,11 @@ private fun TypingRow(streaming: String) {
                 .background(KlikPaperChip)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            if (streaming.isNotBlank()) Text(streaming, style = K1Type.bodySm)
+            if (streaming.isNotBlank())
+                io.github.fletchmckee.liquid.samples.app.ui.components.MarkdownText(
+                    text = streaming,
+                    style = K1Type.bodySm,
+                )
             else CircularProgressIndicator(
                 strokeWidth = 1.dp,
                 color = KlikInkTertiary,

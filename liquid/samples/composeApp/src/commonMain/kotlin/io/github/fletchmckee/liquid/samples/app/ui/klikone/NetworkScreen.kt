@@ -10,7 +10,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,11 +43,14 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.SubscriptionFeatur
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
 import io.github.fletchmckee.liquid.samples.app.presentation.worklife.WorkLifeViewModel
 import io.github.fletchmckee.liquid.samples.app.theme.*
+import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
+import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
 
 /** Klik One — Network. Drop-in replacement for `WorkLifeScreen`. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NetworkScreen(
     viewModel: WorkLifeViewModel = rememberViewModel { WorkLifeViewModel() },
@@ -90,6 +96,12 @@ fun NetworkScreen(
         }
         .take(3)
 
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        state = rememberPullToRefreshState(),
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize().background(KlikPaperApp),
+    ) {
     Column(
         Modifier
             .fillMaxSize()
@@ -99,6 +111,103 @@ fun NetworkScreen(
     ) {
         K1Header(title = "Network", trailing = { SearchIcon() })
         Spacer(Modifier.height(K1Sp.md))
+
+        // Growth · user level + XP progress + streak
+        userLevelData?.let { level ->
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(K1R.card)
+                        .background(KlikPaperCard)
+                        .clickable(onClick = onGrowthTreeClick)
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        val title = level.levelTitle.takeIf { it.isNotBlank() } ?: "Level ${level.level}"
+                        K1Eyebrow("Growth · $title")
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            if (level.xpToNextLevel > 0) "${level.xpToNextLevel} XP to next level"
+                            else "Max level reached",
+                            style = K1Type.bodyMd,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        val totalForLevel = (level.currentXp + level.xpToNextLevel).coerceAtLeast(1)
+                        val pct = (level.currentXp.toFloat() / totalForLevel).coerceIn(0f, 1f)
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(K1R.pill)
+                                .background(KlikLineHairline),
+                        ) {
+                            Box(
+                                Modifier.fillMaxHeight().fillMaxWidth(pct).background(KlikCommitmentAccent),
+                            )
+                        }
+                        if (level.streakDays > 0) {
+                            Spacer(Modifier.height(6.dp))
+                            Text("${level.streakDays}-day streak", style = K1Type.metaSm)
+                        }
+                    }
+                    Spacer(Modifier.width(K1Sp.m))
+                    // Right-pointing chevron to hint this opens the growth tree
+                    androidx.compose.foundation.Canvas(Modifier.size(14.dp)) {
+                        val w = 1.4.dp.toPx()
+                        drawLine(
+                            color = KlikInkMuted,
+                            strokeWidth = w,
+                            cap = StrokeCap.Round,
+                            start = Offset(4.dp.toPx(), 3.dp.toPx()),
+                            end = Offset(9.dp.toPx(), 7.dp.toPx()),
+                        )
+                        drawLine(
+                            color = KlikInkMuted,
+                            strokeWidth = w,
+                            cap = StrokeCap.Round,
+                            start = Offset(9.dp.toPx(), 7.dp.toPx()),
+                            end = Offset(4.dp.toPx(), 11.dp.toPx()),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(K1Sp.xl))
+        }
+
+        // Goals list
+        goalsData?.goals?.takeIf { it.isNotEmpty() }?.let { goalList ->
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                K1SectionHeader("Goals", count = goalList.size, dotColor = KlikCommitmentAccent)
+                Spacer(Modifier.height(K1Sp.s))
+                goalList.take(4).forEach { g ->
+                    K1Card(soft = true) {
+                        Text(g.goal.ifBlank { "Untitled goal" }, style = K1Type.bodyMd)
+                        // GoalDto.currentProgress is 0..1 on the backend schema
+                        val progress = g.currentProgress.coerceIn(0f, 1f)
+                        if (g.category.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(g.category, style = K1Type.metaSm)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Box(
+                            Modifier.fillMaxWidth().height(3.dp).clip(K1R.pill)
+                                .background(KlikLineHairline),
+                        ) {
+                            Box(
+                                Modifier.fillMaxHeight().fillMaxWidth(progress)
+                                    .background(KlikInkPrimary),
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("${(progress * 100).toInt()}%", style = K1Type.metaSm)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+            Spacer(Modifier.height(K1Sp.xl))
+        }
 
         // Segmented control: People / Projects / Orgs
         Row(
@@ -138,6 +247,7 @@ fun NetworkScreen(
             )
         }
     }
+    } // end PullToRefreshBox
 }
 
 @Composable

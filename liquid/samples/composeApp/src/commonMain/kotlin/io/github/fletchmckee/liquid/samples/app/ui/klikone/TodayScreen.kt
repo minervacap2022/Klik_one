@@ -8,7 +8,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +53,7 @@ import kotlinx.datetime.toLocalDateTime
  * MainApp.kt's routing `"today" -> CalendarScreen(...)` can switch to
  * `"today" -> TodayScreen(...)` with no call-site edits.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodayScreen(
     selectedDate: LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date,
@@ -108,6 +112,12 @@ fun TodayScreen(
         )
     }
 
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        state = rememberPullToRefreshState(),
+        onRefresh = onRefreshMeetings,
+        modifier = Modifier.fillMaxSize().background(KlikPaperApp),
+    ) {
     Column(
         Modifier
             .fillMaxSize()
@@ -342,6 +352,7 @@ fun TodayScreen(
             }
         }
     }
+    } // end PullToRefreshBox
 }
 
 @Composable
