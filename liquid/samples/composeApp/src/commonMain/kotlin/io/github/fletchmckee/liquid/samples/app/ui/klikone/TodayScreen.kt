@@ -357,7 +357,9 @@ fun TodayScreen(
 
 @Composable
 private fun LiveSessionCard(m: Meeting, onClick: () -> Unit = {}) {
-    K1Card(onClick = onClick) {
+    // Focal card per spec §2 / §7 — Today's primary session uses #F6F7F9
+    // with radius 14 and padding 18 to separate it from the raised rows below.
+    K1Card(focal = true, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             K1RecDot()
             Spacer(Modifier.width(8.dp))

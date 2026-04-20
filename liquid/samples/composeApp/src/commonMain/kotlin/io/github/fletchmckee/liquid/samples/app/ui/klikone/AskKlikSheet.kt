@@ -385,7 +385,7 @@ private fun InputBar(value: String, sending: Boolean, onValueChange: (String) ->
                     style = TextStyle(
                         color = KlikPaperCard,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Medium,
                     ),
                 )
             }

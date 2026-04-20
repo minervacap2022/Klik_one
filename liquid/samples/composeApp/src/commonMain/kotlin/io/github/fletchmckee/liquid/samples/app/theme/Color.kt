@@ -11,21 +11,27 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // ─── Klik One core tokens ─────────────────────────────────────────────────
-val KlikInkPrimary   = Color(0xFF1C1D21)
-val KlikInkSecondary = Color(0xFF5A5D64)
-val KlikInkTertiary  = Color(0xFF7A7D85)
-val KlikInkMuted     = Color(0xFFA8ABB2)
-val KlikInkFaint     = Color(0xFFB0B3BA)
+// Text stack — spec v1.0 §2.
+val KlikInkPrimary   = Color(0xFF1C1D21) // text/primary — headlines, icons, buttons
+val KlikInkBody      = Color(0xFF3A3D44) // text/body — paragraphs on white (rare; usually primary)
+val KlikInkSecondary = Color(0xFF5A5D64) // text/chip — secondary UI + chip text
+val KlikInkTertiary  = Color(0xFF7A7D85) // text/secondary — subtitles, meta
+val KlikInkMuted     = Color(0xFFA8ABB2) // text/tertiary — timestamps, hints, counts
+val KlikInkFaint     = Color(0xFFB0B3BA) // text/quiet — eyebrow, weekend dates
 
-val KlikPaperApp  = Color(0xFFEFEFF3)
-val KlikPaperCard = Color(0xFFFFFFFF)
-val KlikPaperSoft = Color(0xFFF9FAFB)
-val KlikPaperChip = Color(0xFFF4F5F7)
+// Surfaces — spec v1.0 §2. Note: surface/base is WHITE, not gray.
+// The app background is pure white; cards pick up the raised #F9FAFB tint.
+val KlikPaperApp   = Color(0xFFFFFFFF) // surface/base — main app bg
+val KlikPaperCard  = Color(0xFFFFFFFF) // surface/base — card surface on gray pages
+val KlikPaperSoft  = Color(0xFFF9FAFB) // surface/raised — session cards, raised cards
+val KlikPaperFocal = Color(0xFFF6F7F9) // surface/focal — today's primary session card
+val KlikPaperChip  = Color(0xFFF4F5F7) // surface/chip — chips, segmented track, inputs
 
-val KlikLineHairline = Color(0xFFE8E9EC)
-val KlikLineSoft     = Color(0xFFEDEEF1)
-val KlikLineMute     = Color(0xFFD4D6DB)
-val KlikLineTick     = Color(0xFFC8C9CD)
+// Lines & dividers — spec v1.0 §2.
+val KlikLineHairline = Color(0xFFE8E9EC) // divider/default — card borders, sub-tab underline
+val KlikLineSoft     = Color(0xFFEDEEF1) // divider/primary — tab bar top border
+val KlikLineMute     = Color(0xFFD4D6DB) // sheet grabber + misc
+val KlikLineTick     = Color(0xFFC8C9CD) // icon/disabled — unchecked checkboxes, empty-state icons
 
 // Signal — decision (amber), commitment (green), risk (pink), alert, warn, running.
 val KlikDecisionBg      = Color(0xFFFAEEDA)
@@ -34,8 +40,9 @@ val KlikDecisionSubtext = Color(0xFF854F0B)
 val KlikDecisionAccent  = Color(0xFFBA7517)
 
 val KlikCommitmentBg      = Color(0xFFE1F5EE)
-val KlikCommitmentText    = Color(0xFF04342C)
-val KlikCommitmentSubtext = Color(0xFF085041)
+val KlikCommitmentText    = Color(0xFF04342C)      // teal/ink — body inside teal fills
+val KlikCommitmentSubtext = Color(0xFF085041)      // teal/label — inline label ("COMMITMENT")
+val KlikCommitmentStatus  = Color(0xFF0F6E56)      // teal/text — status label "COMPLETED" on white
 val KlikCommitmentAccent  = Color(0xFF1D9E75)
 
 val KlikRiskBg      = Color(0xFFFBEAF0)

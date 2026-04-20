@@ -65,6 +65,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikLineSoft
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperFocal
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
 import io.github.fletchmckee.liquid.samples.app.theme.KlikRiskAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikRiskBg
@@ -76,37 +77,66 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import kotlin.math.abs
 
 // ─── Type scale ───────────────────────────────────────────────────────────
+// Matches klik_design_spec.html v1.0 §3. Only FontWeight.Normal (400) and
+// FontWeight.Medium (500) are used anywhere — never 600 or 700.
 object K1Type {
+    // type/display — marketing / onboarding hero; not in the spec type table
     val display   = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = 38.sp, color = KlikInkPrimary)
-    val h1        = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = 32.sp, color = KlikInkPrimary)
+    // type/xxl — page title ("Today") — 28 / 500 / -0.8 / 1.2
+    val h1        = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = (28 * 1.2f).sp, color = KlikInkPrimary)
+    // h2 — non-spec; kept as a deliberate mid-size for sub-page titles
     val h2        = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp, lineHeight = 28.sp, color = KlikInkPrimary)
-    val h3        = TextStyle(fontSize = 19.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.3).sp, lineHeight = 24.sp, color = KlikInkPrimary)
-    val body      = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal, lineHeight = 22.sp, color = KlikInkPrimary)
-    val bodySm    = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, lineHeight = 20.sp, color = KlikInkPrimary)
-    val bodyMd    = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 18.sp, color = KlikInkPrimary)
-    val caption   = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, lineHeight = 18.sp, color = KlikInkTertiary)
-    val meta      = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, color = KlikInkTertiary)
-    val metaSm    = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Normal, color = KlikInkMuted)
-    val eyebrow   = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, color = KlikInkTertiary)
+    // type/xl — meeting title, detail hero — 19 / 500 / -0.3 / 1.25
+    val h3        = TextStyle(fontSize = 19.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.3).sp, lineHeight = (19 * 1.25f).sp, color = KlikInkPrimary)
+    // type/lg — card title ("Investor call") — 15 / 500 / 0 / 1.4
+    val cardTitle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = (15 * 1.4f).sp, color = KlikInkPrimary)
+    // type/base — body — 13 / 400 / 0 / 1.55
+    val bodySm    = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, lineHeight = (13 * 1.55f).sp, color = KlikInkPrimary)
+    // type/base-500 — row primary, list item title
+    val bodyMd    = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = (13 * 1.4f).sp, color = KlikInkPrimary)
+    // body 14 — kept for long-form reading blocks that benefit from a hair more size
+    val body      = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal, lineHeight = (14 * 1.55f).sp, color = KlikInkPrimary)
+    // type/sm — 12 / 400 / 0 / 1.55 — sub-tab + inline captions on white
+    val caption   = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, lineHeight = (12 * 1.55f).sp, color = KlikInkTertiary)
+    // type/xs — 11 / 400 / 0 / 1.5 — chip text, row meta
+    val meta      = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Normal, lineHeight = (11 * 1.5f).sp, color = KlikInkTertiary)
+    // type/xxs — 10 / 400 / 0 / 1.5 — timestamps
+    val metaSm    = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Normal, lineHeight = (10 * 1.5f).sp, color = KlikInkMuted)
+    // type/label — 9 / 500 / 0.8 — UPPERCASE section labels ("IN 3 LINES")
+    val eyebrow   = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, color = KlikInkTertiary)
+    // type/eyebrow — 11 / 500 / 1.2 — KLIK ONE brand eyebrow
     val eyebrowLg = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp, color = KlikInkFaint)
     val timer     = TextStyle(fontSize = 36.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp, color = KlikInkPrimary)
 }
 
 // ─── Spacing ──────────────────────────────────────────────────────────────
+// Matches spec §4 — space/1 … space/14. Do not invent new values mid-build.
 object K1Sp {
-    val xxs = 4.dp; val xs = 6.dp; val s = 8.dp; val sm = 10.dp
-    val m = 12.dp; val md = 14.dp; val lg = 16.dp; val xl = 20.dp
-    val xxl = 24.dp; val xxxl = 32.dp; val huge = 48.dp
+    val xxs = 4.dp      // space/1 — icon→text micro gap
+    val xs = 6.dp       // space/2 — between chips
+    val s = 8.dp        // space/3 — between cards in a list
+    val sm = 10.dp      // space/4 — sub-elements within a card
+    val m = 12.dp       // space/5 — card vertical padding, sibling sections
+    val md = 14.dp      // space/6 — card horizontal padding
+    val lg = 16.dp      // space/7 — between distinct UI blocks
+    val xl = 20.dp      // space/8 — page margin, between major sections
+    val xll = 22.dp     // space/9 — between section groups on long pages
+    val xxl = 24.dp     // space/10 — below page header
+    val xxxl = 32.dp    // space/12 — between hero sections in onboarding
+    val huge = 48.dp    // space/14 — above bottom CTA in onboarding
 }
 
 // ─── Radii ────────────────────────────────────────────────────────────────
+// Matches spec §5. Tight, crisp corners; avoid mixing random values.
 object K1R {
-    val chip   = RoundedCornerShape(7.dp)
-    val soft   = RoundedCornerShape(10.dp)
-    val card   = RoundedCornerShape(12.dp)
-    val tight  = RoundedCornerShape(14.dp)
-    val sheet  = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    val pill   = RoundedCornerShape(999.dp)
+    val xs     = RoundedCornerShape(5.dp)   // radius/xs — small inline buttons (Play)
+    val chip   = RoundedCornerShape(7.dp)   // radius/sm — chips, small pills, secondary buttons
+    val inline = RoundedCornerShape(8.dp)   // radius/md — inline Decision / Commitment / stat cards
+    val soft   = RoundedCornerShape(10.dp)  // radius/lg — raised cards, segmented control
+    val card   = RoundedCornerShape(12.dp)  // radius/xl — primary CTA, major cards
+    val tight  = RoundedCornerShape(14.dp)  // radius/2xl — live recording waveform container, option cards
+    val sheet  = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // radius/sheet
+    val pill   = RoundedCornerShape(999.dp) // radius/full — circular
 }
 
 // ─── Waveform mark (static + animated) ────────────────────────────────────
@@ -289,24 +319,38 @@ fun K1ButtonGhost(label: String, onClick: () -> Unit, modifier: Modifier = Modif
 }
 
 // ─── Cards ────────────────────────────────────────────────────────────────
+/**
+ * K1 card surface. Spec v1.0 §7 card rules:
+ *  - Raised card (default) — `#F9FAFB`, radius 10, padding 14.
+ *  - Focal card (`focal = true`) — `#F6F7F9`, radius 14, padding 18. Used for
+ *    the primary/current session card on Today.
+ *  - Borderless. The raised tint gives depth against the white app bg; we don't
+ *    add hairline borders per spec.
+ *
+ * `soft` is kept as an alias of the default raised surface for back-compat with
+ * early K1 screens.
+ */
 @Composable
 fun K1Card(
     modifier: Modifier = Modifier,
-    soft: Boolean = false,
+    soft: Boolean = true,
+    focal: Boolean = false,
     onClick: (() -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    val bg = if (soft) KlikPaperSoft else KlikPaperCard
+    val bg = if (focal) KlikPaperFocal else KlikPaperSoft
+    val shape = if (focal) K1R.tight else K1R.soft
+    val pad = if (focal) 18.dp else 14.dp
     Column(
         modifier
-            .clip(K1R.card)
+            .clip(shape)
             .background(bg)
-            .then(if (!soft) Modifier.border(0.5.dp, KlikLineHairline, K1R.card) else Modifier)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(14.dp),
+            .padding(pad),
         content = content,
     )
 }
+
 
 /** Signal callout card — decision / commitment / risk. */
 enum class K1Signal { Decision, Commitment, Risk }
@@ -354,22 +398,36 @@ fun K1SignalCard(
 private data class Quad(val a: Color, val b: Color, val c: Color, val d: Color)
 
 // ─── Avatar ───────────────────────────────────────────────────────────────
-private fun paletteIdx(initials: String): Int {
-    if (initials.isEmpty()) return 0
-    val n = initials.fold(0) { a, ch -> a + ch.code }
+/**
+ * Deterministic avatar palette index. Spec v1.0 §6 says to hash the person's
+ * **canonical ID** (not display name — names change, ids don't). Callers that
+ * only know initials still get a stable color for that spelling.
+ */
+private fun paletteIdx(seed: String): Int {
+    if (seed.isEmpty()) return 0
+    // Simple FNV-ish fold so the same seed always yields the same index.
+    val n = seed.fold(0) { a, ch -> (a * 31 + ch.code) }
     return abs(n) % KlikAvatarBg.size
 }
 
 @Composable
-fun K1Avatar(initials: String, size: Dp = 36.dp, modifier: Modifier = Modifier) {
-    val i = paletteIdx(initials)
+fun K1Avatar(
+    initials: String,
+    size: Dp = 36.dp,
+    modifier: Modifier = Modifier,
+    /** Prefer passing the person's canonical id (Person.id) as seed so the
+     *  avatar color stays stable across display-name edits. Falls back to
+     *  initials when caller doesn't have the id. */
+    idSeed: String? = null,
+) {
+    val i = paletteIdx(idSeed?.takeIf { it.isNotBlank() } ?: initials)
     val bg = KlikAvatarBg[i]; val fg = KlikAvatarFg[i]
     val fontSize = when {
         size <= 20.dp -> 9.sp
         size <= 28.dp -> 10.sp
         size <= 36.dp -> 12.sp
         size <= 48.dp -> 14.sp
-        else -> 18.sp
+        else -> 16.sp   // spec §6: 56px avatar uses 16/500
     }
     Box(modifier.size(size).background(bg, CircleShape), contentAlignment = Alignment.Center) {
         Text(initials.take(2).uppercase(), style = TextStyle(
@@ -380,13 +438,14 @@ fun K1Avatar(initials: String, size: Dp = 36.dp, modifier: Modifier = Modifier) 
 
 @Composable
 fun K1AvatarStack(initialsList: List<String>, size: Dp = 24.dp, modifier: Modifier = Modifier) {
+    // Spec §6 stacking rule: overlap 30–35% with a 1.5px border matching the bg.
     Row(modifier) {
         initialsList.forEachIndexed { i, ini ->
             Box(
                 Modifier
-                    .then(if (i > 0) Modifier.padding(start = (size.value * -0.25f).dp) else Modifier)
+                    .then(if (i > 0) Modifier.padding(start = (size.value * -0.3f).dp) else Modifier)
                     .size(size)
-                    .background(KlikPaperSoft, CircleShape)
+                    .background(KlikPaperApp, CircleShape) // border color = bg per spec
                     .padding(1.5.dp)
             ) { K1Avatar(ini, size = size - 3.dp) }
         }
