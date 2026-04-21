@@ -112,11 +112,19 @@ fun TodayScreen(
         )
     }
 
+    val ptrState = rememberPullToRefreshState()
     PullToRefreshBox(
         isRefreshing = isRefreshing,
-        state = rememberPullToRefreshState(),
+        state = ptrState,
         onRefresh = onRefreshMeetings,
         modifier = Modifier.fillMaxSize().background(KlikPaperApp),
+        indicator = {
+            K1PullRefreshIndicator(
+                state = ptrState,
+                isRefreshing = isRefreshing,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        },
     ) {
     Column(
         Modifier
@@ -200,29 +208,36 @@ fun TodayScreen(
             .sortedBy { it.time }
         val isTodaySelected = selectedDate == todayDate
         val isPastDaySelected = selectedDate < todayDate
+        val rightNow = if (isTodaySelected) {
+            rightNowCardState(isRecording, dayMeetings)
+        } else {
+            RightNowCardState.Quiet
+        }
 
         // ── RIGHT NOW ─────────────────────────────────────────────────────
         // Only show the recording / in-conversation card on today. Past or
         // future days skip this section and go straight to the day's meetings.
         if (isTodaySelected) {
-            val liveMeeting = dayMeetings.firstOrNull { !it.isPast }
             Column(Modifier.padding(horizontal = 20.dp)) {
                 K1SectionHeader(
                     "Right now",
-                    dotColor = when {
-                        isRecording -> KlikAlert
-                        liveMeeting != null -> KlikAlert
-                        else -> KlikLineMute
+                    dotColor = when (rightNow) {
+                        is RightNowCardState.Recording -> KlikAlert
+                        is RightNowCardState.Live -> KlikAlert
+                        is RightNowCardState.Quiet -> KlikLineMute
                     },
                 )
                 Spacer(Modifier.height(K1Sp.s))
-                when {
-                    isRecording -> RecordingActiveCard(
+                when (rightNow) {
+                    is RightNowCardState.Recording -> RecordingActiveCard(
                         onOpen = onOpenLiveRecording,
                         onStop = onStopRecording,
                     )
-                    liveMeeting != null -> LiveSessionCard(liveMeeting, onClick = { onMeetingClick(liveMeeting) })
-                    else -> QuietCard(onStart = onStartRecording)
+                    is RightNowCardState.Live -> LiveSessionCard(
+                        rightNow.meeting,
+                        onClick = { onMeetingClick(rightNow.meeting) },
+                    )
+                    is RightNowCardState.Quiet -> QuietCard(onStart = onStartRecording)
                 }
             }
             Spacer(Modifier.height(K1Sp.xxl))
@@ -232,8 +247,8 @@ fun TodayScreen(
         // For today, skip the one already shown in RIGHT NOW. For past/future
         // days, render every meeting under an appropriate section header.
         val listForDay = if (isTodaySelected) {
-            dayMeetings.drop(dayMeetings.indexOfFirst { !it.isPast }.coerceAtLeast(0) + 1)
-                .ifEmpty { dayMeetings.filter { it.isPast } } // edge cases
+            val rightNowMeetingId = (rightNow as? RightNowCardState.Live)?.meeting?.id
+            dayMeetings.filter { it.id != rightNowMeetingId }
         } else dayMeetings
         if (listForDay.isNotEmpty()) {
             val header = when {
@@ -301,56 +316,8 @@ fun TodayScreen(
             Spacer(Modifier.height(K1Sp.xxl))
         }
 
-        // ── INSIGHTS ──────────────────────────────────────────────────────
-        // Backend often echoes the summary as the first highlight — de-dupe so
-        // the card doesn't read the same line twice.
-        insights?.let { ins ->
-            val summaryTrim = ins.summary.trim()
-            val extraHighlights = ins.highlights
-                .asSequence()
-                .map { it.trim() }
-                .filter { it.isNotBlank() && !it.equals(summaryTrim, ignoreCase = true) }
-                .distinctBy { it.lowercase() }
-                .take(3)
-                .toList()
-            if (summaryTrim.isNotBlank() || extraHighlights.isNotEmpty()) {
-                Column(Modifier.padding(horizontal = 20.dp)) {
-                    K1SectionHeader("This week")
-                    Spacer(Modifier.height(K1Sp.s))
-                    K1Card {
-                        if (summaryTrim.isNotBlank()) {
-                            io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-                                text = summaryTrim,
-                                tasks = tasks,
-                                meetings = meetings,
-                                projects = projects,
-                                people = people,
-                                organizations = organizations,
-                                onEntityClick = onEntityClick,
-                                style = K1Type.bodySm,
-                            )
-                            if (extraHighlights.isNotEmpty()) Spacer(Modifier.height(K1Sp.s))
-                        }
-                        extraHighlights.forEach { h ->
-                            Row {
-                                Text("·  ", style = K1Type.caption)
-                                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-                                    text = h,
-                                    tasks = tasks,
-                                    meetings = meetings,
-                                    projects = projects,
-                                    people = people,
-                                    organizations = organizations,
-                                    onEntityClick = onEntityClick,
-                                    style = K1Type.bodySm,
-                                )
-                            }
-                            Spacer(Modifier.height(4.dp))
-                        }
-                    }
-                }
-            }
-        }
+        // Weekly/worklife insights are rendered on the Network screen, not Today.
+        // Today stays focused on the daily brief + today's actions.
     }
     } // end PullToRefreshBox
 }
@@ -443,7 +410,7 @@ private fun RecordingActiveCard(
                 Modifier
                     .clip(K1R.chip)
                     .background(io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary)
-                    .clickable(onClick = onStop)
+                    .k1Clickable(onClick = onStop)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -523,7 +490,7 @@ private fun DateChevron(pointRight: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
             .size(28.dp)
-            .clickable(onClick = onClick),
+            .k1Clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.size(12.dp)) {

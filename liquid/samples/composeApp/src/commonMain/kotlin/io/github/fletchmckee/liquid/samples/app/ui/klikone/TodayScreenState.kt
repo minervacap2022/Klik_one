@@ -15,14 +15,17 @@ sealed class RightNowCardState {
 /**
  * Decide which RIGHT NOW card to show.
  *
- * Mirrors the selection logic TodayScreen uses inline so it can be covered
- * by unit tests.
+ * A Klik fixed-session recording always wins — the user sees the Stop pill.
+ * Otherwise, show LiveSessionCard only for a real scheduled meeting on today's
+ * date, identified by having at least one participant. This filters out the
+ * zero-participant stub the backend creates for a just-completed Klik session,
+ * which would otherwise hijack the slot and hide the record button.
  */
 fun rightNowCardState(
     isRecording: Boolean,
     dayMeetings: List<Meeting>,
 ): RightNowCardState {
     if (isRecording) return RightNowCardState.Recording
-    val live = dayMeetings.firstOrNull { !it.isPast }
+    val live = dayMeetings.firstOrNull { !it.isPast && it.participants.isNotEmpty() }
     return if (live != null) RightNowCardState.Live(live) else RightNowCardState.Quiet
 }
