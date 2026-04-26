@@ -3,6 +3,7 @@
 // All primitives the redesigned screens compose from. One file, one source of truth.
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,12 +34,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +83,21 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikRunning
 import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import kotlin.math.abs
+
+// ─── Ripple-less click helper ─────────────────────────────────────────────
+// K1 is an editorial system: we never flash a grey rounded rectangle behind
+// a tap. Every interactive surface uses this instead of raw .clickable, which
+// would otherwise drop a default Compose indication under the finger.
+@Composable
+fun Modifier.k1Clickable(enabled: Boolean = true, onClick: () -> Unit): Modifier {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    return this.clickable(
+        interactionSource = interaction,
+        indication = null,
+        enabled = enabled,
+        onClick = onClick,
+    )
+}
 
 // ─── Type scale ───────────────────────────────────────────────────────────
 // Matches klik_design_spec.html v1.0 §3. Only FontWeight.Normal (400) and
@@ -152,7 +175,8 @@ fun K1Waveform(
     color: Color = KlikInkPrimary,
 ) {
     val maxH = heights.maxOrNull() ?: 20f
-    Canvas(modifier = modifier.height(maxH.dp).wrapContentHeight()) {
+    val intrinsicWidth = barWidth * heights.size + gap * (heights.size - 1).coerceAtLeast(0)
+    Canvas(modifier = Modifier.width(intrinsicWidth).height(maxH.dp).then(modifier)) {
         val bw = barWidth.toPx(); val g = gap.toPx()
         heights.forEachIndexed { i, h ->
             val x = i * (bw + g)
@@ -185,7 +209,8 @@ fun K1WaveformLive(
         )
     }
     val bases = listOf(22f, 36f, 28f, 44f, 24f)
-    Canvas(modifier = modifier.height(44.dp)) {
+    val intrinsicWidth = barWidth * 5 + gap * 4
+    Canvas(modifier = Modifier.width(intrinsicWidth).height(44.dp).then(modifier)) {
         val bw = barWidth.toPx(); val g = gap.toPx()
         anims.forEachIndexed { i, a ->
             val h = (bases[i] * a.value).coerceAtLeast(6f)
@@ -215,6 +240,129 @@ fun K1RecDot(modifier: Modifier = Modifier, color: Color = KlikAlert, size: Dp =
         .size(size)
         .background(color.copy(alpha = a), CircleShape)
     )
+}
+
+/**
+ * Processing-in-flight banner — paper card with an indeterminate ink stripe
+ * and the current pipeline stage. Use on TodayScreen right after a session
+ * stops so the user can see: Transcribing → Analyzing → Tasks → Finalizing.
+ */
+@Composable
+fun K1ProcessingBanner(
+    stage: String,
+    elapsedLabel: String = "",
+    progressFraction: Float? = null,
+    modifier: Modifier = Modifier,
+    onTap: (() -> Unit)? = null,
+) {
+    // Indeterminate shimmer used when we don't yet have a real % from the
+    // backend. Once we do, we draw a true filled bar instead.
+    val infinite = rememberInfiniteTransition(label = "proc")
+    val shimmer by infinite.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1600)),
+        label = "shimmer",
+    )
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(KlikPaperCard)
+            .border(0.75.dp, KlikLineHairline, RoundedCornerShape(14.dp))
+            .then(if (onTap != null) Modifier.k1Clickable(onClick = onTap) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            K1Eyebrow("Processing")
+            Spacer(Modifier.weight(1f))
+            val right = buildString {
+                if (progressFraction != null) {
+                    append((progressFraction * 100).toInt()).append('%')
+                    if (elapsedLabel.isNotBlank()) append(" · ")
+                }
+                append(elapsedLabel)
+            }
+            if (right.isNotBlank()) {
+                Text(right, style = K1Type.metaSm.copy(color = KlikInkTertiary))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(stage, style = K1Type.bodyMd.copy(color = KlikInkPrimary))
+        Spacer(Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(KlikLineHairline),
+        ) {
+            if (progressFraction != null) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(progressFraction.coerceIn(0f, 1f))
+                        .height(2.dp)
+                        .background(KlikInkPrimary),
+                )
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.28f)
+                        .offset(x = ((-0.28f + shimmer * 1.28f) * 360).dp)
+                        .height(2.dp)
+                        .background(KlikInkPrimary),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Recording-started banner — paper card, hairline border, pulsing alert dot,
+ * K1 editorial type. Auto-dismisses after [durationMillis].
+ */
+@Composable
+fun K1RecordingBanner(
+    visible: Boolean,
+    title: String,
+    subtitle: String,
+    durationMillis: Long = 4000L,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.runtime.LaunchedEffect(visible) {
+        if (visible) {
+            kotlinx.coroutines.delay(durationMillis)
+            onDismiss()
+        }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.slideInVertically(
+            initialOffsetY = { -it },
+            animationSpec = tween(280),
+        ) + androidx.compose.animation.fadeIn(tween(200)),
+        exit = androidx.compose.animation.slideOutVertically(
+            targetOffsetY = { -it },
+            animationSpec = tween(220),
+        ) + androidx.compose.animation.fadeOut(tween(180)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(KlikPaperCard)
+                .border(0.75.dp, KlikLineHairline, RoundedCornerShape(14.dp))
+                .k1Clickable(onClick = onDismiss)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            K1RecDot(size = 10.dp)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = K1Type.bodyMd.copy(color = KlikInkPrimary))
+                Spacer(Modifier.height(2.dp))
+                Text(subtitle, style = K1Type.metaSm.copy(color = KlikInkTertiary))
+            }
+        }
+    }
 }
 
 // ─── Eyebrow ──────────────────────────────────────────────────────────────
@@ -266,7 +414,7 @@ fun K1Chip(
         modifier
             .clip(K1R.chip)
             .background(bg)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 9.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -292,7 +440,7 @@ fun K1ButtonPrimary(
         modifier
             .clip(shape)
             .background(bg)
-            .clickable(enabled = enabled, onClick = onClick)
+            .k1Clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = K1Type.bodyMd.copy(color = fg, fontSize = 14.sp)) }
@@ -304,7 +452,7 @@ fun K1ButtonSecondary(label: String, onClick: () -> Unit, modifier: Modifier = M
         modifier
             .clip(K1R.card)
             .border(0.5.dp, KlikInkMuted, K1R.card)
-            .clickable(onClick = onClick)
+            .k1Clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontSize = 14.sp)) }
@@ -313,7 +461,7 @@ fun K1ButtonSecondary(label: String, onClick: () -> Unit, modifier: Modifier = M
 @Composable
 fun K1ButtonGhost(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier.clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier.k1Clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = K1Type.bodyMd.copy(color = KlikInkTertiary, fontSize = 13.sp)) }
 }
@@ -345,12 +493,97 @@ fun K1Card(
         modifier
             .clip(shape)
             .background(bg)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
             .padding(pad),
         content = content,
     )
 }
 
+
+// ─── Skeleton (lazy / breathing) loaders ──────────────────────────────────
+// A single shimmering bar — used to compose larger skeleton blocks. Driven
+// by a 1300ms in/out tween so the page feels alive while real data lands.
+@Composable
+fun K1SkeletonLine(
+    modifier: Modifier = Modifier,
+    width: Dp? = null,
+    height: Dp = 12.dp,
+    shape: RoundedCornerShape = K1R.pill,
+) {
+    val infinite = rememberInfiniteTransition(label = "skel")
+    val a by infinite.animateFloat(
+        initialValue = 0.35f, targetValue = 0.75f,
+        animationSpec = infiniteRepeatable(tween(1300), RepeatMode.Reverse),
+        label = "skelA",
+    )
+    Box(
+        modifier
+            .then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
+            .height(height)
+            .clip(shape)
+            .background(KlikLineHairline.copy(alpha = a))
+    )
+}
+
+/**
+ * Skeleton card matching K1Card's surface — three breathing lines (~85%, 100%,
+ * 60%) inside a rounded paper-soft container. Use everywhere we'd otherwise
+ * render an empty area while waiting on the network / LLM.
+ */
+@Composable
+fun K1SkeletonCard(
+    modifier: Modifier = Modifier,
+    lines: Int = 3,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(K1R.soft)
+            .background(KlikPaperSoft)
+            .padding(14.dp),
+    ) {
+        val widths = listOf(0.85f, 1f, 0.6f, 0.9f, 0.5f)
+        repeat(lines) { idx ->
+            val frac = widths[idx % widths.size]
+            Box(Modifier.fillMaxWidth(frac)) { K1SkeletonLine() }
+            if (idx < lines - 1) Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+/**
+ * Expandable card — collapses long body text behind a "Show more" affordance.
+ * Tap anywhere on the card to toggle. Animates with the K1 tween (220ms),
+ * truncating to [collapsedMaxLines] when collapsed (default 3 lines).
+ */
+@Composable
+fun K1ExpandableCard(
+    modifier: Modifier = Modifier,
+    soft: Boolean = true,
+    focal: Boolean = false,
+    initiallyExpanded: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.(expanded: Boolean) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(initiallyExpanded) }
+    val bg = if (focal) KlikPaperFocal else KlikPaperSoft
+    val shape = if (focal) K1R.tight else K1R.soft
+    val pad = if (focal) 18.dp else 14.dp
+    Column(
+        modifier
+            .animateContentSize(tween(220))
+            .clip(shape)
+            .background(bg)
+            .k1Clickable { expanded = !expanded }
+            .padding(pad),
+    ) {
+        content(this, expanded)
+        Spacer(Modifier.height(K1Sp.s))
+        Text(
+            if (expanded) "Show less" else "Show more",
+            style = K1Type.meta.copy(color = KlikInkSecondary, fontWeight = FontWeight.Medium),
+        )
+    }
+}
 
 /** Signal callout card — decision / commitment / risk. */
 enum class K1Signal { Decision, Commitment, Risk }
@@ -439,11 +672,14 @@ fun K1Avatar(
 @Composable
 fun K1AvatarStack(initialsList: List<String>, size: Dp = 24.dp, modifier: Modifier = Modifier) {
     // Spec §6 stacking rule: overlap 30–35% with a 1.5px border matching the bg.
+    // Compose's padding modifier rejects negative values on Android (runtime
+    // crash `IllegalArgumentException: Padding must be non-negative`). Use
+    // offset to pull each subsequent avatar back over the previous one.
     Row(modifier) {
         initialsList.forEachIndexed { i, ini ->
             Box(
                 Modifier
-                    .then(if (i > 0) Modifier.padding(start = (size.value * -0.3f).dp) else Modifier)
+                    .then(if (i > 0) Modifier.offset(x = (size.value * -0.3f).dp) else Modifier)
                     .size(size)
                     .background(KlikPaperApp, CircleShape) // border color = bg per spec
                     .padding(1.5.dp)
@@ -453,31 +689,39 @@ fun K1AvatarStack(initialsList: List<String>, size: Dp = 24.dp, modifier: Modifi
 }
 
 // ─── Floating Ask button ──────────────────────────────────────────────────
+// Editorial minimal: a single 4-point sparkle glyph, centered in a small black
+// disc. No text, no waveform — the mark reads as "AI spark" on first glance.
 @Composable
 fun K1AskFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier
-            .size(60.dp)
+            .size(56.dp)
             .background(KlikInkPrimary, CircleShape)
-            .clickable(onClick = onClick),
+            .k1Clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            K1Waveform(
-                heights = listOf(8f, 13f, 6f, 11f, 7f),
-                barWidth = 2.5.dp, gap = 2.dp,
-                color = KlikPaperCard,
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                "ASK",
-                style = TextStyle(
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 1.sp,
-                    color = KlikPaperCard,
-                ),
-            )
+        Canvas(Modifier.size(22.dp)) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            val r = size.minDimension / 2f
+            // Main vertical diamond
+            val mainPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx, cy - r)
+                lineTo(cx + r * 0.22f, cy)
+                lineTo(cx, cy + r)
+                lineTo(cx - r * 0.22f, cy)
+                close()
+            }
+            // Horizontal diamond (shorter, narrower — secondary arm)
+            val armPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx - r * 0.72f, cy)
+                lineTo(cx, cy - r * 0.18f)
+                lineTo(cx + r * 0.72f, cy)
+                lineTo(cx, cy + r * 0.18f)
+                close()
+            }
+            drawPath(mainPath, color = KlikPaperCard)
+            drawPath(armPath, color = KlikPaperCard)
         }
     }
 }
@@ -509,7 +753,7 @@ fun K1BottomNav(
                 Column(
                     Modifier
                         .width(64.dp)
-                        .clickable(onClick = { onSelect(item.route) })
+                        .k1Clickable { onSelect(item.route) }
                         .padding(bottom = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -545,75 +789,106 @@ fun K1BottomNav(
     }
 }
 
-// ─── Mini icons (line, 18dp, 1.2px stroke equivalent) ─────────────────────
+// ─── Mini icons (line, 18dp canvas, 1.4px stroke, rounded-square language) ─
+// Every nav icon is drawn on an 18×18 canvas with identical stroke width,
+// all corners radius 2dp, all strokes cap=Round and join=Round. Glyphs are
+// centered vertically within the 18dp canvas so every tab reads the same
+// optical weight. Do not introduce a sharp corner anywhere in this block.
 @Composable
 fun K1IconToday(active: Boolean) { K1LineIcon(active) { w, c ->
-    // Calendar glyph: outer rounded rect, top line, two tick marks
-    drawRoundRect(color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w), cornerRadius = CornerRadius(1.5.dp.toPx()),
-        topLeft = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 4.dp.toPx()),
-        size = Size(12.dp.toPx(), 11.dp.toPx()))
-    drawLine(color = c, strokeWidth = w, start = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 7.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(15.dp.toPx(), 7.dp.toPx()))
-    drawLine(color = c, strokeWidth = w, start = androidx.compose.ui.geometry.Offset(6.5.dp.toPx(), 2.5.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(6.5.dp.toPx(), 5.5.dp.toPx()), cap = androidx.compose.ui.graphics.StrokeCap.Round)
-    drawLine(color = c, strokeWidth = w, start = androidx.compose.ui.geometry.Offset(11.5.dp.toPx(), 2.5.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(11.5.dp.toPx(), 5.5.dp.toPx()), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    // Calendar glyph: rounded outer square + top divider + two tick marks.
+    val r = 2.dp.toPx()
+    drawRoundRect(
+        color = c,
+        style = Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round),
+        cornerRadius = CornerRadius(r, r),
+        topLeft = androidx.compose.ui.geometry.Offset(2.5.dp.toPx(), 4.dp.toPx()),
+        size = Size(13.dp.toPx(), 11.5.dp.toPx()),
+    )
+    drawLine(
+        color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        start = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 7.5.dp.toPx()),
+        end = androidx.compose.ui.geometry.Offset(15.dp.toPx(), 7.5.dp.toPx()),
+    )
+    drawLine(
+        color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        start = androidx.compose.ui.geometry.Offset(6.5.dp.toPx(), 2.5.dp.toPx()),
+        end = androidx.compose.ui.geometry.Offset(6.5.dp.toPx(), 5.dp.toPx()),
+    )
+    drawLine(
+        color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        start = androidx.compose.ui.geometry.Offset(11.5.dp.toPx(), 2.5.dp.toPx()),
+        end = androidx.compose.ui.geometry.Offset(11.5.dp.toPx(), 5.dp.toPx()),
+    )
 } }
 
 @Composable
 fun K1IconMoves(active: Boolean) { K1LineIcon(active) { w, c ->
-    // Folded doc with check
-    val path = androidx.compose.ui.graphics.Path().apply {
-        moveTo(5.5.dp.toPx(), 2.5.dp.toPx())
-        lineTo(2.5.dp.toPx(), 5.5.dp.toPx())
-        lineTo(2.5.dp.toPx(), 15.dp.toPx())
-        lineTo(15.5.dp.toPx(), 15.dp.toPx())
-        lineTo(15.5.dp.toPx(), 5.5.dp.toPx())
-        lineTo(12.5.dp.toPx(), 2.5.dp.toPx())
-        close()
-    }
-    drawPath(path, color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
-    // check mark
-    drawLine(color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
-        start = androidx.compose.ui.geometry.Offset(6.dp.toPx(), 9.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(7.8.dp.toPx(), 10.8.dp.toPx()))
-    drawLine(color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
-        start = androidx.compose.ui.geometry.Offset(7.8.dp.toPx(), 10.8.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(11.5.dp.toPx(), 7.dp.toPx()))
+    // Rounded-square checkbox — same corner radius as Today. Inner check glyph
+    // is centered in the square, not offset to the upper-left.
+    val r = 2.dp.toPx()
+    drawRoundRect(
+        color = c,
+        style = Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round),
+        cornerRadius = CornerRadius(r, r),
+        topLeft = androidx.compose.ui.geometry.Offset(2.5.dp.toPx(), 2.5.dp.toPx()),
+        size = Size(13.dp.toPx(), 13.dp.toPx()),
+    )
+    drawLine(
+        color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        start = androidx.compose.ui.geometry.Offset(5.8.dp.toPx(), 9.3.dp.toPx()),
+        end = androidx.compose.ui.geometry.Offset(8.2.dp.toPx(), 11.3.dp.toPx()),
+    )
+    drawLine(
+        color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        start = androidx.compose.ui.geometry.Offset(8.2.dp.toPx(), 11.3.dp.toPx()),
+        end = androidx.compose.ui.geometry.Offset(12.2.dp.toPx(), 6.8.dp.toPx()),
+    )
 } }
 
 @Composable
 fun K1IconNetwork(active: Boolean) { K1LineIcon(active) { w, c ->
-    drawCircle(color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w),
-        radius = 2.2.dp.toPx(), center = androidx.compose.ui.geometry.Offset(6.5.dp.toPx(), 6.5.dp.toPx()))
-    drawCircle(color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w),
-        radius = 1.8.dp.toPx(), center = androidx.compose.ui.geometry.Offset(12.5.dp.toPx(), 7.5.dp.toPx()))
-    drawLine(color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
-        start = androidx.compose.ui.geometry.Offset(1.dp.toPx(), 13.5.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(8.2.dp.toPx(), 13.5.dp.toPx()))
-    drawLine(color = c, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
-        start = androidx.compose.ui.geometry.Offset(8.5.dp.toPx(), 13.5.dp.toPx()),
-        end = androidx.compose.ui.geometry.Offset(14.9.dp.toPx(), 13.5.dp.toPx()))
+    // Two tangent rings centered on 9,9 — editorial "network" mark. Radii
+    // sized so the pair sits dead-center in the 18dp canvas.
+    val cy = 9.dp.toPx()
+    drawCircle(
+        color = c, style = Stroke(w),
+        radius = 2.6.dp.toPx(),
+        center = androidx.compose.ui.geometry.Offset(6.dp.toPx(), cy),
+    )
+    drawCircle(
+        color = c, style = Stroke(w),
+        radius = 2.6.dp.toPx(),
+        center = androidx.compose.ui.geometry.Offset(12.dp.toPx(), cy),
+    )
 } }
 
 @Composable
 fun K1IconYou(active: Boolean) { K1LineIcon(active) { w, c ->
-    drawCircle(color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w),
-        radius = 2.7.dp.toPx(), center = androidx.compose.ui.geometry.Offset(9.dp.toPx(), 6.5.dp.toPx()))
+    // Head + shoulder arc, centered on x=9. Arc baseline sits at y=15.5
+    // so the glyph has the same optical weight as the calendar/checkbox.
+    drawCircle(
+        color = c, style = Stroke(w),
+        radius = 2.7.dp.toPx(),
+        center = androidx.compose.ui.geometry.Offset(9.dp.toPx(), 6.2.dp.toPx()),
+    )
     val p = androidx.compose.ui.graphics.Path().apply {
-        moveTo(3.5.dp.toPx(), 15.dp.toPx())
+        moveTo(3.5.dp.toPx(), 15.3.dp.toPx())
         cubicTo(
-            3.5.dp.toPx(), 12.3.dp.toPx(),
-            5.8.dp.toPx(), 10.5.dp.toPx(),
-            9.dp.toPx(), 10.5.dp.toPx()
+            3.5.dp.toPx(), 12.2.dp.toPx(),
+            5.8.dp.toPx(), 10.3.dp.toPx(),
+            9.dp.toPx(), 10.3.dp.toPx(),
         )
         cubicTo(
-            12.2.dp.toPx(), 10.5.dp.toPx(),
-            14.5.dp.toPx(), 12.3.dp.toPx(),
-            14.5.dp.toPx(), 15.dp.toPx()
+            12.2.dp.toPx(), 10.3.dp.toPx(),
+            14.5.dp.toPx(), 12.2.dp.toPx(),
+            14.5.dp.toPx(), 15.3.dp.toPx(),
         )
     }
-    drawPath(p, color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    drawPath(
+        p, color = c,
+        style = Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round),
+    )
 } }
 
 @Composable
@@ -623,7 +898,7 @@ private fun K1LineIcon(
 ) {
     val color = if (active) KlikInkPrimary else KlikInkMuted
     Canvas(Modifier.size(18.dp)) {
-        val w = 1.2.dp.toPx()
+        val w = 1.4.dp.toPx()
         draw(w, color)
     }
 }
@@ -659,7 +934,7 @@ fun K1SettingsRow(
     Row(
         modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -715,7 +990,7 @@ fun K1TopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
-            Box(Modifier.size(32.dp).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(32.dp).k1Clickable(onClick = onBack), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(16.dp)) {
                     val w = 1.3.dp.toPx()
                     drawLine(color = KlikInkPrimary, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round,
@@ -744,5 +1019,65 @@ fun K1Header(title: String, eyebrow: String = "KLIK", trailing: (@Composable () 
             Text(title, style = K1Type.h1)
         }
         if (trailing != null) trailing()
+    }
+}
+
+// ─── Pull-to-refresh indicator ────────────────────────────────────────────
+// Editorial K1 refresh: a small raised disc with the same 4-point sparkle as
+// the ASK FAB. While pulling the sparkle fades in and rotates with distance;
+// while refreshing it spins continuously. No shadow, no material blue ring.
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun K1PullRefreshIndicator(
+    state: androidx.compose.material3.pulltorefresh.PullToRefreshState,
+    isRefreshing: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val target = if (isRefreshing) 1f else state.distanceFraction.coerceIn(0f, 1f)
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = target,
+        animationSpec = tween(durationMillis = 180),
+        label = "k1-refresh-scale",
+    )
+    val rotation: Float = if (isRefreshing) {
+        val infinite = rememberInfiniteTransition(label = "k1-refresh-spin")
+        val a by infinite.animateFloat(
+            initialValue = 0f, targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(900, easing = androidx.compose.animation.core.LinearEasing)),
+            label = "k1-refresh-angle",
+        )
+        a
+    } else state.distanceFraction * 220f
+
+    if (scale > 0.01f) {
+        Box(
+            modifier = modifier
+                .padding(top = 56.dp)
+                .size(36.dp)
+                .scale(scale)
+                .background(KlikPaperSoft, CircleShape)
+                .border(0.5.dp, KlikLineHairline, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(
+                Modifier
+                    .size(16.dp)
+                    .rotate(rotation),
+            ) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val r = size.minDimension / 2f
+                val mainPath = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(cx, cy - r); lineTo(cx + r * 0.22f, cy)
+                    lineTo(cx, cy + r); lineTo(cx - r * 0.22f, cy); close()
+                }
+                val armPath = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(cx - r * 0.72f, cy); lineTo(cx, cy - r * 0.18f)
+                    lineTo(cx + r * 0.72f, cy); lineTo(cx, cy + r * 0.18f); close()
+                }
+                drawPath(mainPath, color = KlikInkPrimary)
+                drawPath(armPath, color = KlikInkPrimary)
+            }
+        }
     }
 }

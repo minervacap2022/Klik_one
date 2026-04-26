@@ -29,6 +29,7 @@ import kotlinx.datetime.plus
 import io.github.fletchmckee.liquid.samples.app.domain.entity.DailyBriefing
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Insights
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
+import io.github.fletchmckee.liquid.samples.app.domain.entity.MeetingSource
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Organization
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Person
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Project
@@ -36,6 +37,10 @@ import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
 import io.github.fletchmckee.liquid.samples.app.theme.KlikLineMute
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
 import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
@@ -82,6 +87,13 @@ fun TodayScreen(
     onSegmentClick: (TracedSegmentNavigation) -> Unit = {},
     onMeetingClick: (Meeting) -> Unit = {},
     isRecording: Boolean = false,
+    processingStartedAtMillis: Long? = null,
+    processingStage: String? = null,
+    processingStatus: String? = null,
+    processingMessage: String? = null,
+    processingProgressPct: Double? = null,
+    processingError: String? = null,
+    onDismissProcessing: () -> Unit = {},
     onStartRecording: () -> Unit = {},
     onStopRecording: () -> Unit = {},
     onOpenLiveRecording: () -> Unit = {},
@@ -200,72 +212,170 @@ fun TodayScreen(
 
         Spacer(Modifier.height(K1Sp.lg))
 
-        // Filter meetings to the selected date. The legacy calendar view used the
-        // selectedDate as the primary axis — meetings for that day get rendered
-        // under Right Now / Up next (future) or Completed (past day).
-        val dayMeetings = mergedMeetings
-            .filter { it.date == selectedDate && !it.isArchived }
-            .sortedBy { it.time }
-        val isTodaySelected = selectedDate == todayDate
-        val isPastDaySelected = selectedDate < todayDate
-        val rightNow = if (isTodaySelected) {
-            rightNowCardState(isRecording, dayMeetings)
-        } else {
-            RightNowCardState.Quiet
+        // Post-session processing banner — reflects KK_orchestrator's REAL
+        // pipeline state: stage (denoise → asr → diarization → speaker_names
+        // → knowledge_graph → meeting_minutes → tasks → dropbox), progress %
+        // and any terminal error. Falls back to orchestrator's `message`
+        // when we don't know the stage yet, or to a short "uploading" copy
+        // during the first couple seconds before the first poll.
+        processingStartedAtMillis?.let { startedAt ->
+            var nowMs by remember(startedAt) {
+                mutableStateOf(kotlinx.datetime.Clock.System.now().toEpochMilliseconds())
+            }
+            androidx.compose.runtime.LaunchedEffect(startedAt) {
+                while (true) {
+                    kotlinx.coroutines.delay(1_000)
+                    nowMs = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                }
+            }
+            val elapsed = (nowMs - startedAt).coerceAtLeast(0L)
+            val elapsedLabel = run {
+                val secs = elapsed / 1_000
+                if (secs < 60) "${secs}s" else "${secs / 60}m ${secs % 60}s"
+            }
+            val statusLc = processingStatus?.lowercase().orEmpty()
+            val humanStage =
+                io.github.fletchmckee.liquid.samples.app.humaniseOrchestratorStage(processingStage)
+            val copy: String = when {
+                statusLc == "failed" -> {
+                    processingError?.takeIf { it.isNotBlank() }
+                        ?.let { "Pipeline error — $it" }
+                        ?: processingMessage?.let { "Pipeline error — $it" }
+                        ?: "Pipeline ran into an error."
+                }
+                statusLc == "cancelled" -> "Cancelled."
+                statusLc == "succeeded" || statusLc == "completed" ->
+                    "Done — your session is ready."
+                humanStage != null -> humanStage
+                !processingMessage.isNullOrBlank() -> processingMessage
+                statusLc == "queued" -> "Uploading your session…"
+                else -> "Connecting to Klik…"
+            }
+            // Only allow dismissing when the pipeline is in a terminal state —
+            // otherwise a stray tap would hide the status the user wants to see.
+            val statusIsTerminal = statusLc in setOf("succeeded", "completed", "failed", "cancelled")
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                K1ProcessingBanner(
+                    stage = copy,
+                    elapsedLabel = elapsedLabel,
+                    progressFraction = processingProgressPct?.let { (it / 100.0).coerceIn(0.0, 1.0).toFloat() },
+                    onTap = if (statusIsTerminal) onDismissProcessing else null,
+                )
+            }
+            Spacer(Modifier.height(K1Sp.lg))
         }
 
+        val dayMeetings = run {
+            val raw = mergedMeetings.filter { it.date == selectedDate && !it.isArchived }
+            // Dedup: same title+time = same real event. Keep KLIK (recorded) over APPLE_CALENDAR.
+            val grouped = raw.groupBy { "${it.title.trim().lowercase()}|${it.time}" }
+            grouped.values.map { group ->
+                group.firstOrNull { it.source == MeetingSource.KLIK } ?: group.first()
+            }.sortedByDescending { it.time }
+        }
+        val isTodaySelected = selectedDate == todayDate
+        val isPastDaySelected = selectedDate < todayDate
+
+        // Current time-of-day for splitting today's meetings into past vs upcoming.
+        val nowTime = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).time
+
         // ── RIGHT NOW ─────────────────────────────────────────────────────
-        // Only show the recording / in-conversation card on today. Past or
-        // future days skip this section and go straight to the day's meetings.
+        // Always visible on today — shows the recording affordance. If the
+        // user is actively recording, the stop card; otherwise the quiet
+        // record prompt so the tap target never moves around on the user.
         if (isTodaySelected) {
             Column(Modifier.padding(horizontal = 20.dp)) {
                 K1SectionHeader(
                     "Right now",
-                    dotColor = when (rightNow) {
-                        is RightNowCardState.Recording -> KlikAlert
-                        is RightNowCardState.Live -> KlikAlert
-                        is RightNowCardState.Quiet -> KlikLineMute
-                    },
+                    dotColor = if (isRecording) KlikAlert else KlikLineMute,
                 )
                 Spacer(Modifier.height(K1Sp.s))
-                when (rightNow) {
-                    is RightNowCardState.Recording -> RecordingActiveCard(
+                if (isRecording) {
+                    RecordingActiveCard(
                         onOpen = onOpenLiveRecording,
                         onStop = onStopRecording,
                     )
-                    is RightNowCardState.Live -> LiveSessionCard(
-                        rightNow.meeting,
-                        onClick = { onMeetingClick(rightNow.meeting) },
-                    )
-                    is RightNowCardState.Quiet -> QuietCard(onStart = onStartRecording)
+                } else {
+                    QuietCard(onStart = onStartRecording)
                 }
             }
             Spacer(Modifier.height(K1Sp.xxl))
         }
 
         // ── DAY MEETINGS ──────────────────────────────────────────────────
-        // For today, skip the one already shown in RIGHT NOW. For past/future
-        // days, render every meeting under an appropriate section header.
-        val listForDay = if (isTodaySelected) {
-            val rightNowMeetingId = (rightNow as? RightNowCardState.Live)?.meeting?.id
-            dayMeetings.filter { it.id != rightNowMeetingId }
-        } else dayMeetings
-        if (listForDay.isNotEmpty()) {
-            val header = when {
-                isPastDaySelected -> "Completed"
-                isTodaySelected -> "Up next"
-                else -> "Scheduled"
-            }
-            val dot = if (isPastDaySelected) KlikCommitmentAccent else null
+        // While the initial meetings list is in flight, show a couple of
+        // breathing rows so the page reads as "loading" instead of "empty".
+        if (isLoading && dayMeetings.isEmpty() && mergedMeetings.isEmpty()) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                K1SectionHeader(header, count = listForDay.size, dotColor = dot)
+                K1SectionHeader(if (isTodaySelected) "Sessions" else "Scheduled")
                 Spacer(Modifier.height(K1Sp.s))
-                listForDay.forEach { m ->
-                    MeetingRow(m, onClick = { onMeetingClick(m) })
+                repeat(3) {
+                    K1SkeletonCard(lines = 2)
                     Spacer(Modifier.height(6.dp))
                 }
             }
             Spacer(Modifier.height(K1Sp.xxl))
+        }
+        // Today: split into "Processed" (already happened) and "Up next" (upcoming).
+        // Past day: all under "Sessions". Future day: "Scheduled".
+        when {
+            isTodaySelected -> {
+                val processed = dayMeetings.filter { it.startTime <= nowTime }
+                val upcoming  = dayMeetings.filter { it.startTime > nowTime }.sortedBy { it.time }
+
+                if (processed.isNotEmpty()) {
+                    Column(Modifier.padding(horizontal = 20.dp)) {
+                        K1SectionHeader("Processed", count = processed.size, dotColor = KlikCommitmentAccent)
+                        Spacer(Modifier.height(K1Sp.s))
+                        processed.forEach { m ->
+                            MeetingRow(m, onClick = { onMeetingClick(m) })
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(K1Sp.xxl))
+                }
+
+                if (upcoming.isNotEmpty()) {
+                    Column(Modifier.padding(horizontal = 20.dp)) {
+                        K1SectionHeader("Up next", count = upcoming.size)
+                        Spacer(Modifier.height(K1Sp.s))
+                        upcoming.forEach { m ->
+                            MeetingRow(m, onClick = { onMeetingClick(m) })
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(K1Sp.xxl))
+                }
+
+                // Right Now is rendered above unconditionally, so no
+                // separate empty-state prompt here.
+            }
+            isPastDaySelected -> {
+                if (dayMeetings.isNotEmpty()) {
+                    Column(Modifier.padding(horizontal = 20.dp)) {
+                        K1SectionHeader("Sessions", count = dayMeetings.size, dotColor = KlikCommitmentAccent)
+                        Spacer(Modifier.height(K1Sp.s))
+                        dayMeetings.forEach { m ->
+                            MeetingRow(m, onClick = { onMeetingClick(m) })
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(K1Sp.xxl))
+                }
+            }
+            else -> {
+                if (dayMeetings.isNotEmpty()) {
+                    Column(Modifier.padding(horizontal = 20.dp)) {
+                        K1SectionHeader("Scheduled", count = dayMeetings.size)
+                        Spacer(Modifier.height(K1Sp.s))
+                        dayMeetings.forEach { m ->
+                            MeetingRow(m, onClick = { onMeetingClick(m) })
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(K1Sp.xxl))
+                }
+            }
         }
 
         // ── MOVES FOR YOU ─────────────────────────────────────────────────
@@ -282,35 +392,46 @@ fun TodayScreen(
             Spacer(Modifier.height(K1Sp.xxl))
         }
 
-        // ── BRIEF ─────────────────────────────────────────────────────────
-        dailyBriefing?.let { brief ->
+        // ── INSIGHTS ──────────────────────────────────────────────────────
+        // Real AI-generated insights from KK_tools. While the LLM endpoint is
+        // still in flight, show a breathing skeleton so the page never feels
+        // blank. Insight summaries can be long → render via K1ExpandableCard:
+        // tap to expand, tap again to collapse. The previous "highlights"
+        // bullet list duplicated content already in `summary` and read as a
+        // grey echo, so it's been removed.
+        val hasInsights = !insights?.summary.isNullOrBlank()
+        val hasBriefFallback = !dailyBriefing?.summary.isNullOrBlank() && !hasInsights
+        val showInsightsSection = hasInsights || hasBriefFallback || isLlmDataLoading || isLoading
+        if (showInsightsSection) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                K1SectionHeader("Brief")
+                K1SectionHeader("Insights")
                 Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-                        text = brief.summary,
-                        tasks = tasks,
-                        meetings = meetings,
-                        projects = projects,
-                        people = people,
-                        organizations = organizations,
-                        onEntityClick = onEntityClick,
-                        style = K1Type.bodySm,
-                    )
-                    if (brief.topPriority != null) {
-                        Spacer(Modifier.height(K1Sp.s))
-                        io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-                            text = "Top priority — ${brief.topPriority}",
-                            tasks = tasks,
-                            meetings = meetings,
-                            projects = projects,
-                            people = people,
-                            organizations = organizations,
-                            onEntityClick = onEntityClick,
-                            style = K1Type.caption,
-                        )
+                when {
+                    hasInsights -> {
+                        val ins = insights!!
+                        K1ExpandableCard(soft = true) { expanded ->
+                            io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                                text = ins.summary,
+                                tasks = tasks,
+                                meetings = meetings,
+                                projects = projects,
+                                people = people,
+                                organizations = organizations,
+                                onEntityClick = onEntityClick,
+                                style = K1Type.bodySm,
+                                maxLines = if (expanded) Int.MAX_VALUE else 3,
+                            )
+                        }
                     }
+                    hasBriefFallback -> {
+                        K1Card(soft = true) {
+                            Text(
+                                dailyBriefing!!.summary,
+                                style = K1Type.bodySm.copy(color = KlikInkSecondary),
+                            )
+                        }
+                    }
+                    else -> K1SkeletonCard(lines = 3)
                 }
             }
             Spacer(Modifier.height(K1Sp.xxl))
@@ -429,24 +550,71 @@ private fun RecordingActiveCard(
 
 @Composable
 private fun MeetingRow(m: Meeting, onClick: () -> Unit = {}) {
-    K1Card(onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.width(64.dp)) {
-                Text(m.time, style = K1Type.bodyMd.copy(fontSize = 13.sp))
-            }
+    val isCalendar = m.source == MeetingSource.APPLE_CALENDAR
+    if (isCalendar) {
+        // Calendar event — lightweight, no transcript/summary expected
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .k1Clickable(onClick = onClick)
+                .padding(vertical = 10.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Thin left accent line
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .height(36.dp)
+                    .clip(K1R.pill)
+                    .background(
+                        if (m.sourceColor != null)
+                            androidx.compose.ui.graphics.Color(m.sourceColor)
+                        else KlikInkMuted
+                    )
+            )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(m.title.ifBlank { "Untitled meeting" }, style = K1Type.bodyMd)
-                if (m.summary.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(m.summary.take(60), style = K1Type.caption)
-                }
+                Text(
+                    m.title.ifBlank { "Event" },
+                    style = K1Type.bodySm.copy(color = KlikInkPrimary),
+                )
+                Text(
+                    m.time,
+                    style = K1Type.meta.copy(color = KlikInkTertiary),
+                )
             }
             if (m.participants.isNotEmpty()) {
                 K1AvatarStack(
                     initialsList = m.participants.take(3).map { p -> initialsOf(p.name) },
-                    size = 20.dp
+                    size = 18.dp,
                 )
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
+    } else {
+        // Recorded Klik session — full card with summary
+        K1Card(onClick = onClick) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.width(72.dp)) {
+                    Text(m.time, style = K1Type.meta.copy(color = KlikInkSecondary, fontSize = 12.sp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(m.title.ifBlank { "Untitled session" }, style = K1Type.bodyMd)
+                    if (m.summary.isNotBlank()) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            m.summary.take(80),
+                            style = K1Type.caption.copy(color = KlikInkTertiary),
+                        )
+                    }
+                }
+                if (m.participants.isNotEmpty()) {
+                    Spacer(Modifier.width(8.dp))
+                    K1AvatarStack(
+                        initialsList = m.participants.take(3).map { p -> initialsOf(p.name) },
+                        size = 20.dp,
+                    )
+                }
             }
         }
     }

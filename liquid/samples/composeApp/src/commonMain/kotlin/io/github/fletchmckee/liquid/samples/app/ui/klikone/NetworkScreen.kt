@@ -96,11 +96,19 @@ fun NetworkScreen(
         }
         .take(3)
 
+    val ptrState = rememberPullToRefreshState()
     PullToRefreshBox(
         isRefreshing = isLoading,
-        state = rememberPullToRefreshState(),
+        state = ptrState,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize().background(KlikPaperApp),
+        indicator = {
+            K1PullRefreshIndicator(
+                state = ptrState,
+                isRefreshing = isLoading,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        },
     ) {
     Column(
         Modifier
@@ -120,7 +128,7 @@ fun NetworkScreen(
                         .fillMaxWidth()
                         .clip(K1R.card)
                         .background(KlikPaperCard)
-                        .clickable(onClick = onGrowthTreeClick)
+                        .k1Clickable(onClick = onGrowthTreeClick)
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -170,6 +178,76 @@ fun NetworkScreen(
                             start = Offset(9.dp.toPx(), 7.dp.toPx()),
                             end = Offset(4.dp.toPx(), 11.dp.toPx()),
                         )
+                    }
+                }
+            }
+            Spacer(Modifier.height(K1Sp.xl))
+        }
+
+        // ── HIGHLIGHTS — encourage message + worklife recommendations ────
+        val encourageMsg = encourageData?.message?.trim()?.takeIf { it.isNotBlank() }
+        val recommendations = worklifeData?.insights
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinctBy { it.lowercase() }
+            ?.take(4)
+            ?.takeIf { it.isNotEmpty() }
+        if (encourageMsg == null && recommendations == null && isLlmDataLoading) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                K1SectionHeader("Highlights")
+                Spacer(Modifier.height(K1Sp.s))
+                K1SkeletonCard(lines = 3)
+            }
+            Spacer(Modifier.height(K1Sp.xl))
+        }
+        if (encourageMsg != null || recommendations != null) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
+                K1SectionHeader("Highlights")
+                Spacer(Modifier.height(K1Sp.s))
+                // Encourage + worklife recommendations can run multiple
+                // paragraphs — collapse behind a tap so the section header
+                // stays scannable.
+                K1ExpandableCard { expanded ->
+                    if (encourageMsg != null) {
+                        io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                            text = encourageMsg,
+                            tasks = tasks,
+                            meetings = meetings,
+                            projects = projects,
+                            people = people,
+                            organizations = orgs,
+                            onEntityClick = onEntityClick,
+                            style = K1Type.bodySm,
+                            maxLines = if (expanded) Int.MAX_VALUE else 3,
+                        )
+                    }
+                    if (expanded && encourageMsg != null && recommendations != null) {
+                        Spacer(Modifier.height(K1Sp.m))
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(0.5.dp)
+                                .background(KlikLineHairline)
+                        )
+                        Spacer(Modifier.height(K1Sp.m))
+                    }
+                    if (expanded && recommendations != null) {
+                        recommendations.forEach { line ->
+                            Row {
+                                Text("·  ", style = K1Type.caption)
+                                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                                    text = line,
+                                    tasks = tasks,
+                                    meetings = meetings,
+                                    projects = projects,
+                                    people = people,
+                                    organizations = orgs,
+                                    onEntityClick = onEntityClick,
+                                    style = K1Type.bodySm,
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                        }
                     }
                 }
             }
@@ -256,7 +334,7 @@ private fun SegmentTab(label: String, selected: Boolean, modifier: Modifier = Mo
         modifier
             .clip(K1R.chip)
             .background(if (selected) KlikPaperCard else Color.Transparent)
-            .clickable(onClick = onClick)
+            .k1Clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -366,7 +444,7 @@ private fun KlikItButton(onClick: () -> Unit) {
         Modifier
             .clip(K1R.chip)
             .background(KlikInkPrimary)
-            .clickable(onClick = onClick)
+            .k1Clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center,
     ) {

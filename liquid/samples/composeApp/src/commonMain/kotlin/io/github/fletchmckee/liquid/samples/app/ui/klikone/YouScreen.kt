@@ -1,7 +1,9 @@
 // Copyright 2025, Klik — Klik One redesign of the You tab (legacy ProfileScreen).
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,13 +14,26 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.cos
+import kotlin.math.sin
 import io.github.fletchmckee.liquid.samples.app.core.rememberViewModel
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Subscription
 import io.github.fletchmckee.liquid.samples.app.presentation.profile.ProfileViewModel
@@ -50,6 +65,8 @@ fun YouScreen(
         Spacer(Modifier.height(K1Sp.md))
 
         // Identity card
+        var showAvatarPicker by remember { mutableStateOf(false) }
+        var selectedAvatarIdx by remember { mutableIntStateOf(-1) } // -1 = show initials
         Column(Modifier.padding(horizontal = 20.dp)) {
             K1Card {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -58,7 +75,16 @@ fun YouScreen(
                         ?.take(2)
                         ?.joinToString("") { it.take(1).uppercase() }
                         ?: "—"
-                    K1Avatar(initials, size = 56.dp)
+                    Box(
+                        Modifier.size(56.dp).k1Clickable { showAvatarPicker = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (selectedAvatarIdx >= 0) {
+                            K1AvatarIcon(selectedAvatarIdx, size = 56.dp)
+                        } else {
+                            K1Avatar(initials, size = 56.dp)
+                        }
+                    }
                     Spacer(Modifier.width(K1Sp.m))
                     Column(Modifier.weight(1f)) {
                         Text(user?.name ?: "—", style = K1Type.h3)
@@ -69,6 +95,13 @@ fun YouScreen(
                 }
             }
         }
+        if (showAvatarPicker) {
+            AvatarPickerOverlay(
+                selectedIdx = selectedAvatarIdx,
+                onSelect = { idx -> selectedAvatarIdx = idx; showAvatarPicker = false },
+                onDismiss = { showAvatarPicker = false },
+            )
+        }
 
         Spacer(Modifier.height(K1Sp.xxl))
 
@@ -76,35 +109,97 @@ fun YouScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
             K1SectionHeader("Plan")
             Spacer(Modifier.height(K1Sp.s))
-            K1Card(onClick = onNavigateToPricing) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            subscription?.displayName ?: (user?.planType?.label ?: "Starter"),
-                            style = K1Type.bodyMd,
-                            modifier = Modifier.weight(1f)
+            val planName = subscription?.displayName ?: (user?.planType?.label ?: "Starter")
+            val isPro = planName.contains("pro", ignoreCase = true) ||
+                user?.planType?.tierCode?.contains("pro", ignoreCase = true) == true ||
+                subscription?.planCode?.contains("pro", ignoreCase = true) == true
+            if (isPro) {
+                // Pro — warm amber/gold card with sparkle accent
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(K1R.soft)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFFFFF8EC), Color(0xFFFAEEDA))
+                            )
                         )
-                        subscription?.billingCycle?.let {
-                            Text(it.replaceFirstChar { c -> c.uppercase() }, style = K1Type.metaSm)
+                        .border(1.dp, Color(0xFFE8C87A), K1R.soft)
+                        .k1Clickable(onClick = onNavigateToPricing)
+                        .padding(14.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("✦", style = K1Type.bodySm.copy(color = KlikDecisionAccent))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                planName,
+                                style = K1Type.bodyMd.copy(
+                                    color = KlikDecisionText,
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                modifier = Modifier.weight(1f),
+                            )
+                            subscription?.billingCycle?.let {
+                                Text(
+                                    it.replaceFirstChar { c -> c.uppercase() },
+                                    style = K1Type.metaSm.copy(color = KlikDecisionSubtext),
+                                )
+                            }
+                        }
+                        subscription?.usage?.let { usage ->
+                            Spacer(Modifier.height(8.dp))
+                            val frac = if (usage.asrMinutesLimit > 0)
+                                usage.asrMinutesUsed.toFloat() / usage.asrMinutesLimit
+                            else 0f
+                            Box(
+                                Modifier.fillMaxWidth().height(3.dp).clip(K1R.pill)
+                                    .background(Color(0xFFE8C87A).copy(alpha = 0.35f))
+                            ) {
+                                Box(
+                                    Modifier.fillMaxHeight().fillMaxWidth(frac.coerceIn(0f, 1f))
+                                        .background(KlikDecisionAccent)
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "ASR ${usage.asrMinutesUsed} / ${usage.asrMinutesLimit} min",
+                                style = K1Type.metaSm.copy(color = KlikDecisionSubtext),
+                            )
                         }
                     }
-                    subscription?.usage?.let { usage ->
-                        Spacer(Modifier.height(6.dp))
-                        val frac = if (usage.asrMinutesLimit > 0)
-                            usage.asrMinutesUsed.toFloat() / usage.asrMinutesLimit
-                        else 0f
-                        Box(
-                            Modifier.fillMaxWidth().height(3.dp).clip(K1R.pill)
-                                .background(KlikLineHairline)
-                        ) {
-                            Box(Modifier.fillMaxHeight().fillMaxWidth(frac.coerceIn(0f, 1f))
-                                .background(KlikInkPrimary))
+                }
+            } else {
+                K1Card(onClick = onNavigateToPricing) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                planName,
+                                style = K1Type.bodyMd,
+                                modifier = Modifier.weight(1f),
+                            )
+                            subscription?.billingCycle?.let {
+                                Text(it.replaceFirstChar { c -> c.uppercase() }, style = K1Type.metaSm)
+                            }
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "ASR ${usage.asrMinutesUsed} / ${usage.asrMinutesLimit} min",
-                            style = K1Type.metaSm
-                        )
+                        subscription?.usage?.let { usage ->
+                            Spacer(Modifier.height(6.dp))
+                            val frac = if (usage.asrMinutesLimit > 0)
+                                usage.asrMinutesUsed.toFloat() / usage.asrMinutesLimit
+                            else 0f
+                            Box(
+                                Modifier.fillMaxWidth().height(3.dp).clip(K1R.pill)
+                                    .background(KlikLineHairline)
+                            ) {
+                                Box(Modifier.fillMaxHeight().fillMaxWidth(frac.coerceIn(0f, 1f))
+                                    .background(KlikInkPrimary))
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "ASR ${usage.asrMinutesUsed} / ${usage.asrMinutesLimit} min",
+                                style = K1Type.metaSm,
+                            )
+                        }
                     }
                 }
             }
@@ -219,7 +314,7 @@ fun YouScreen(
                     .fillMaxWidth()
                     .clip(K1R.card)
                     .background(KlikPaperSoft)
-                    .clickable(onClick = { viewModel.showLogoutConfirmation() })
+                    .k1Clickable(onClick = { viewModel.showLogoutConfirmation() })
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -275,7 +370,7 @@ private fun IntegrationRow(
 ) {
     Row(
         Modifier.fillMaxWidth()
-            .clickable(onClick = onClick)
+            .k1Clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -307,7 +402,7 @@ private fun EditProfileDialog(
     Box(
         Modifier.fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
+            .k1Clickable(onClick = onCancel),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -316,7 +411,7 @@ private fun EditProfileDialog(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(KlikPaperCard)
-                .clickable(enabled = false) {}
+                .k1Clickable(enabled = false) {}
                 .padding(24.dp),
         ) {
             Text("Edit profile", style = K1Type.h3)
@@ -360,13 +455,13 @@ private fun EditProfileDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
                     Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
-                        .clickable(onClick = onCancel).padding(vertical = 14.dp),
+                        .k1Clickable(onClick = onCancel).padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) { Text("Cancel", style = K1Type.bodyMd) }
                 Box(
                     Modifier.weight(1f).clip(K1R.pill)
                         .background(if (isSaving) KlikInkMuted else KlikInkPrimary)
-                        .clickable(enabled = !isSaving, onClick = onSave).padding(vertical = 14.dp),
+                        .k1Clickable(enabled = !isSaving, onClick = onSave).padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -390,12 +485,12 @@ private fun DeleteAccountDialog(
     Box(
         Modifier.fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
+            .k1Clickable(onClick = onCancel),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             Modifier.padding(horizontal = 24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(KlikPaperCard).clickable(enabled = false) {}.padding(24.dp),
+                .background(KlikPaperCard).k1Clickable(enabled = false) {}.padding(24.dp),
         ) {
             Text("Delete account", style = K1Type.h3)
             Spacer(Modifier.height(K1Sp.s))
@@ -407,12 +502,12 @@ private fun DeleteAccountDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(
                     Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
-                        .clickable(onClick = onCancel).padding(vertical = 14.dp),
+                        .k1Clickable(onClick = onCancel).padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) { Text("Cancel", style = K1Type.bodyMd) }
                 Box(
                     Modifier.weight(1f).clip(K1R.pill).background(KlikAlert)
-                        .clickable(enabled = !isDeleting, onClick = onConfirm).padding(vertical = 14.dp),
+                        .k1Clickable(enabled = !isDeleting, onClick = onConfirm).padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -433,7 +528,7 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
+            .k1Clickable(onClick = onCancel),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -442,7 +537,7 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
                 .background(KlikPaperCard)
-                .clickable(enabled = false) {} // absorb taps on card
+                .k1Clickable(enabled = false) {} // absorb taps on card
                 .padding(24.dp),
         ) {
             Text("Sign out of Klik?", style = K1Type.h3)
@@ -458,7 +553,7 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
                         .weight(1f)
                         .clip(K1R.pill)
                         .background(KlikPaperChip)
-                        .clickable(onClick = onCancel)
+                        .k1Clickable(onClick = onCancel)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -469,7 +564,7 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
                         .weight(1f)
                         .clip(K1R.pill)
                         .background(KlikAlert)
-                        .clickable(onClick = onConfirm)
+                        .k1Clickable(onClick = onConfirm)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -491,7 +586,7 @@ private fun SettingsRow(label: String, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .k1Clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -513,4 +608,140 @@ private fun SettingsRow(label: String, onClick: () -> Unit) {
 private fun Divider() {
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline)
         .padding(horizontal = 16.dp))
+}
+
+// ── Avatar pool: 10 K1-aesthetic geometric icons ─────────────────────────
+private val AVATAR_POOL_SIZE = 10
+
+@Composable
+fun K1AvatarIcon(index: Int, size: Dp = 40.dp, modifier: Modifier = Modifier) {
+    val bg = KlikAvatarBg[index % KlikAvatarBg.size]
+    val ink = KlikInkPrimary
+    Box(
+        modifier.size(size).clip(CircleShape).background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(size * 0.6f)) {
+            val w = this.size.width * 0.09f
+            val r = this.size.width * 0.4f
+            val pi = 3.14159265f
+            when (index % AVATAR_POOL_SIZE) {
+                0 -> drawCircle(color = ink, radius = r, style = Stroke(w, cap = StrokeCap.Round))
+                1 -> {
+                    val h = r * 1.1f
+                    drawLine(ink, Offset(center.x - h, center.y), Offset(center.x + h, center.y), w, StrokeCap.Round)
+                    drawLine(ink, Offset(center.x, center.y - h), Offset(center.x, center.y + h), w, StrokeCap.Round)
+                }
+                2 -> {
+                    drawPath(Path().apply {
+                        moveTo(center.x, center.y - r)
+                        lineTo(center.x + r * 0.866f, center.y + r * 0.5f)
+                        lineTo(center.x - r * 0.866f, center.y + r * 0.5f)
+                        close()
+                    }, color = ink, style = Stroke(w, cap = StrokeCap.Round))
+                }
+                3 -> {
+                    drawPath(Path().apply {
+                        moveTo(center.x, center.y - r)
+                        lineTo(center.x + r * 0.7f, center.y)
+                        lineTo(center.x, center.y + r)
+                        lineTo(center.x - r * 0.7f, center.y)
+                        close()
+                    }, color = ink, style = Stroke(w, cap = StrokeCap.Round))
+                }
+                4 -> {
+                    drawCircle(color = ink, radius = r, style = Stroke(w))
+                    drawCircle(color = ink, radius = r * 0.5f, style = Stroke(w))
+                }
+                5 -> {
+                    drawPath(Path().apply {
+                        moveTo(center.x - r, center.y)
+                        cubicTo(center.x - r * 0.5f, center.y - r * 0.7f, center.x + r * 0.5f, center.y + r * 0.7f, center.x + r, center.y)
+                    }, color = ink, style = Stroke(w, cap = StrokeCap.Round))
+                }
+                6 -> {
+                    drawPath(Path().apply {
+                        for (i in 0..5) {
+                            val angle = pi / 180f * (60 * i - 30)
+                            val x = center.x + r * cos(angle)
+                            val y = center.y + r * sin(angle)
+                            if (i == 0) moveTo(x, y) else lineTo(x, y)
+                        }
+                        close()
+                    }, color = ink, style = Stroke(w, cap = StrokeCap.Round))
+                }
+                7 -> {
+                    for (i in 0..5) {
+                        val angle = pi / 180f * (60 * i)
+                        drawLine(
+                            ink,
+                            Offset(center.x + r * 0.25f * cos(angle), center.y + r * 0.25f * sin(angle)),
+                            Offset(center.x + r * cos(angle), center.y + r * sin(angle)),
+                            w, StrokeCap.Round,
+                        )
+                    }
+                }
+                8 -> {
+                    val half = r * 0.78f
+                    drawRect(color = ink, topLeft = Offset(center.x - half, center.y - half), size = Size(half * 2, half * 2), style = Stroke(w))
+                }
+                else -> {
+                    drawLine(ink, Offset(center.x - r * 0.7f, center.y + r * 0.7f), Offset(center.x + r * 0.7f, center.y - r * 0.7f), w, StrokeCap.Round)
+                    drawLine(ink, Offset(center.x - r * 0.2f, center.y + r * 0.8f), Offset(center.x + r * 0.8f, center.y - r * 0.2f), w, StrokeCap.Round)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvatarPickerOverlay(
+    selectedIdx: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).k1Clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .padding(32.dp)
+                .clip(K1R.card)
+                .background(KlikPaperCard)
+                .k1Clickable { } // absorb taps
+                .padding(20.dp),
+        ) {
+            K1Eyebrow("Choose your icon")
+            Spacer(Modifier.height(K1Sp.m))
+            // Non-lazy grid — only 10 avatars; chunk into rows of 5 to avoid the
+            // LazyVerticalGrid + verticalScroll infinite-constraints crash.
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                (0 until AVATAR_POOL_SIZE).chunked(5).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        row.forEach { idx ->
+                            Box(
+                                Modifier
+                                    .size(48.dp)
+                                    .then(
+                                        if (idx == selectedIdx) Modifier.border(2.dp, KlikInkPrimary, CircleShape)
+                                        else Modifier
+                                    )
+                                    .k1Clickable { onSelect(idx) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                K1AvatarIcon(idx, size = 48.dp)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(K1Sp.m))
+            Text(
+                "Tap your icon to select",
+                style = K1Type.caption.copy(color = KlikInkTertiary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }

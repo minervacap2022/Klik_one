@@ -63,14 +63,12 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.animation.core.updateTransition
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateIntOffset
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.platform.LocalDensity
 import io.github.fletchmckee.liquid.samples.app.theme.LocalLiquidGlassSettings
@@ -123,19 +121,14 @@ import io.github.fletchmckee.liquid.samples.app.ui.klikone.LiveRecordingScreen
 import io.github.fletchmckee.liquid.samples.app.data.storage.KlikOneOnboardingKeys
 import io.github.fletchmckee.liquid.samples.app.domain.entity.ChatSource
 import io.github.fletchmckee.liquid.samples.app.domain.entity.ChatSourceType
-import io.github.fletchmckee.liquid.samples.app.ui.screens.AuthScreen
-import io.github.fletchmckee.liquid.samples.app.ui.screens.CalendarScreen
-import io.github.fletchmckee.liquid.samples.app.ui.screens.EventsScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.GrowthTreeScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.NotificationsScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.PricingScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.PrivacySettingsScreen
-import io.github.fletchmckee.liquid.samples.app.ui.screens.ProfileScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.RecordingConsentScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.AccountSecurityScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.BiometricConsentScreen
 import io.github.fletchmckee.liquid.samples.app.ui.screens.NotificationSettingsScreen
-import io.github.fletchmckee.liquid.samples.app.ui.screens.WorkLifeScreen
 import io.github.fletchmckee.liquid.samples.app.ui.components.UpgradeRequiredDialog
 import io.github.fletchmckee.liquid.samples.app.presentation.auth.AuthViewModel
 import io.github.fletchmckee.liquid.samples.app.data.repository.IntegrationRepositoryImpl
@@ -369,6 +362,66 @@ fun MainApp() {
 
   // Fixed Session recording state
   var isFixedSessionRecording by remember { mutableStateOf(false) }
+  val isFixedSessionPaused by FixedSessionAudioStreamer.isPaused.collectAsState()
+  // Feeds the K1 post-session processing banner with REAL orchestrator state.
+  // Polls KK_orchestrator's /api/v1/pipeline/session/{sid}/status (exposed
+  // via nginx as /api/orchestrator/...). Cleared when is_terminal=true.
+  var processingStartedAtMillis by remember { mutableStateOf<Long?>(null) }
+  var processingSessionId       by remember { mutableStateOf<String?>(null) }
+  var processingStage           by remember { mutableStateOf<String?>(null) }
+  var processingStatus          by remember { mutableStateOf<String?>(null) }
+  var processingMessage         by remember { mutableStateOf<String?>(null) }
+  var processingProgressPct     by remember { mutableStateOf<Double?>(null) }
+  var processingError           by remember { mutableStateOf<String?>(null) }
+  val dismissProcessing: () -> Unit = {
+      processingStartedAtMillis = null
+      processingSessionId = null
+      processingStage = null
+      processingStatus = null
+      processingMessage = null
+      processingProgressPct = null
+      processingError = null
+  }
+
+  // Increments on each successful pipeline completion. Observed below (after
+  // meetingsRefreshKey/tasksRefreshKey are declared) to trigger a list reload
+  // so the newly processed session shows up without a manual pull-to-refresh.
+  var pipelineCompletedTrigger by remember { mutableStateOf(0) }
+
+  // Poll KK_orchestrator every 2s while there's an active session. Stops when
+  // is_terminal=true, holds the terminal state for 1.5s so the user sees it,
+  // 10-minute hard cap on pathological runs.
+  LaunchedEffect(processingStartedAtMillis, processingSessionId) {
+      val startedAt = processingStartedAtMillis ?: return@LaunchedEffect
+      val sid = processingSessionId
+      val deadline = startedAt + 10 * 60 * 1000L
+      while (kotlinx.datetime.Clock.System.now().toEpochMilliseconds() < deadline) {
+          if (sid != null) {
+              try {
+                  val snap = RemoteDataFetcher.fetchOrchestratorSessionStatus(sid)
+                  if (snap != null) {
+                      processingStatus      = snap.status.lowercase()
+                      processingStage       = snap.stage
+                      processingMessage     = snap.message
+                      processingProgressPct = snap.progressPct
+                      processingError       = snap.error
+                      if (snap.isTerminal) {
+                          if (snap.error == null) {
+                              pipelineCompletedTrigger++
+                          }
+                          kotlinx.coroutines.delay(1_500)
+                          dismissProcessing()
+                          return@LaunchedEffect
+                      }
+                  }
+              } catch (e: Exception) {
+                  KlikLogger.w("MainApp", "orchestrator status poll failed: ${e.message}")
+              }
+          }
+          kotlinx.coroutines.delay(2_000)
+      }
+      dismissProcessing()
+  }
   var fixedSessionId by remember { mutableStateOf<String?>(null) }
   // Prominent in-app recording-started banner (replaces Material snackbar)
   var showRecordingStartedBanner by remember { mutableStateOf(false) }
@@ -584,6 +637,7 @@ fun MainApp() {
           throw e
       } catch (e: Exception) {
           KlikLogger.w("MainApp", "Could not check recording consent status: ${e.message}")
+          hasRecordingConsent = false
       }
     }
   }
@@ -599,16 +653,22 @@ fun MainApp() {
           throw e
       } catch (e: Exception) {
           KlikLogger.w("MainApp", "Could not check biometric consent status: ${e.message}")
+          hasBiometricConsent = false
       }
     }
   }
 
   // Read Klik One first-run completion from SecureStorage once auth is ready.
-  LaunchedEffect(isAuthReady) {
+  // Use authState.userId (Compose state) — CurrentUser.userId may not be set yet at
+  // this point because saveAuthState updates the state flow before calling CurrentUser.setUser.
+  LaunchedEffect(isAuthReady, authState.userId) {
     if (isAuthReady && hasCompletedKlikOnboarding == null) {
-      val uid = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId
-      hasCompletedKlikOnboarding = if (uid.isNullOrBlank()) false
-        else onboardingStorage.getString(KlikOneOnboardingKeys.completedKey(uid)) == "true"
+      val uid = authState.userId
+      // Stay null if userId not loaded yet — effect re-fires when userId arrives
+      if (!uid.isNullOrBlank()) {
+        hasCompletedKlikOnboarding =
+          onboardingStorage.getString(KlikOneOnboardingKeys.completedKey(uid)) == "true"
+      }
     }
   }
 
@@ -758,6 +818,24 @@ fun MainApp() {
   // (e.g., foreground events, recomposition). This cooldown blocks automatic re-triggering
   // for 10 seconds after a failure, while still allowing explicit user pull-to-refresh.
   var lastTasksRefreshFailedAt by remember { mutableStateOf(0L) }
+
+  // Auto-refresh meetings + tasks as soon as the orchestrator reports a
+  // successful pipeline completion. Triggered from the polling LaunchedEffect
+  // above so the newly processed session appears on Today without the user
+  // pulling to refresh.
+  LaunchedEffect(pipelineCompletedTrigger) {
+    if (pipelineCompletedTrigger > 0) {
+      KlikLogger.i("MainApp", "pipeline_completed → refreshing meetings + tasks (trigger=$pipelineCompletedTrigger)")
+      meetingsRefreshKey++
+      val now = Clock.System.now().toEpochMilliseconds()
+      val timeSinceTasksFailure = now - lastTasksRefreshFailedAt
+      if (lastTasksRefreshFailedAt > 0 && timeSinceTasksFailure < 10_000) {
+        KlikLogger.d("MainApp", "pipeline_completed refresh skipping tasks — last refresh failed ${timeSinceTasksFailure}ms ago")
+      } else {
+        tasksRefreshKey++
+      }
+    }
+  }
 
   // Function to refresh tasks data (pull-to-refresh on EventsScreen)
   val onRefreshTasks: () -> Unit = {
@@ -1696,65 +1774,15 @@ fun MainApp() {
           else -> "main"
       }
 
-      // Hero Logo Transition (Overlay)
-      // Defined here to be accessible by BottomNavBar and rendered on top
+      // Splash → app transition. The logo stays centered and simply fades out
+      // (no drift, no morph) — the previous animation traveled the logo across
+      // the screen and shrank it into a corner pill, which read as ugly.
       val heroTransition = updateTransition(appState, label = "HeroLogoTransition")
-      
-      val logoSize by heroTransition.animateDp(
-          transitionSpec = { tween(800, easing = androidx.compose.animation.core.FastOutSlowInEasing) },
-          label = "LogoSize"
-      ) { state ->
-          if (state == "loading") 144.dp else 64.dp
-      }
-      
-      val iconSize by heroTransition.animateDp(
-          transitionSpec = { tween(800, easing = androidx.compose.animation.core.FastOutSlowInEasing) },
-          label = "IconSize"
-      ) { state ->
-          if (state == "loading") 144.dp else 40.dp
-      }
-      
-      val logoCorner by heroTransition.animateDp(
-          transitionSpec = { tween(800, easing = androidx.compose.animation.core.FastOutSlowInEasing) },
-          label = "LogoCorner"
-      ) { state ->
-          // Keep logo circular: corner radius = half of logoSize (144dp→72dp, 64dp→32dp)
-          if (state == "loading") 72.dp else 32.dp
-      }
 
-      val fabColor = klikPrimaryColor
-      val logoContainerColor by heroTransition.animateColor(
-          transitionSpec = { tween(800) },
-          label = "ContainerColor"
-      ) { state ->
-          if (state == "loading") Color.Transparent else fabColor.copy(alpha = 0.35f)
-      }
-      
-      val logoIconTint by heroTransition.animateColor(
-           transitionSpec = { tween(800) },
-           label = "IconTint"
-      ) { state ->
-          if (state == "loading") Color.Black else Color.White
-      }
-
-      // Calculate Target Offset
-      val targetX = 118.dp
-      val targetY = (maxHeight / 2) - 72.dp
-      
-      val density = LocalDensity.current
-      val targetXPx = with(density) { targetX.roundToPx() }
-      val targetYPx = with(density) { targetY.roundToPx() }
-
-      val logoOffset by heroTransition.animateIntOffset(
-          transitionSpec = { tween(800, easing = androidx.compose.animation.core.FastOutSlowInEasing) },
-          label = "LogoOffset"
-      ) { state ->
-          if (state != "loading") {
-              IntOffset(targetXPx, targetYPx)
-          } else {
-              IntOffset.Zero
-          }
-      }
+      val logoAlpha by heroTransition.animateFloat(
+          transitionSpec = { tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing) },
+          label = "LogoAlpha"
+      ) { state -> if (state == "loading") 1f else 0f }
 
       // Record-session start/stop actions — extracted so both legacy TopStatusDock
       // and the K1 TodayScreen record pill can invoke the same code path.
@@ -1802,12 +1830,26 @@ fun MainApp() {
           isFixedSessionRecording = false
           fixedSessionId = null
           recordingStartedAtMillis = null
+          // Surface the post-session processing pipeline on Today. Stage /
+          // runId get populated by the poll loop once the backend responds.
+          processingStartedAtMillis = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+          processingStage = null
+          processingStatus = "queued"
+          processingMessage = "Uploading your session…"
+          processingProgressPct = 0.0
+          processingError = null
           if (currentRoute == "live_recording") currentRoute = lastMainRoute
           CoroutineScope(Dispatchers.Default + SupervisorJob()).launch {
               try {
                   FixedSessionAudioStreamer.stopStreaming()
                   val response = RemoteDataFetcher.stopFixedSession()
                   KlikLogger.i("MainApp", "Fixed session stopped: ${response.message}, session: ${response.sessionId ?: "none"}, duration: ${response.durationSeconds ?: 0.0}s")
+                  if (response.errorType == "no_audio_frames") {
+                      // No audio was captured — dismiss processing banner immediately
+                      dismissProcessing()
+                  } else {
+                      response.sessionId?.let { processingSessionId = it }
+                  }
               } catch (e: Exception) {
                   KlikLogger.e("MainApp", "Failed to stop fixed session: ${e.message}", e)
               }
@@ -1886,6 +1928,22 @@ fun MainApp() {
                  }
               }
               "main" -> {
+                  // Shared entity navigation: routes any EntityNavigationData to the correct detail screen
+                  val navigateToEntity: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = { nav ->
+                      when (nav.entityType) {
+                          EntityType.TASK -> { taskDetailId = nav.entityId; currentRoute = "task_detail" }
+                          EntityType.PERSON -> { personDetailId = nav.entityId; currentRoute = "person_detail" }
+                          EntityType.PROJECT -> { projectDetailId = nav.entityId; currentRoute = "project_detail" }
+                          EntityType.ORGANIZATION -> { orgDetailId = nav.entityId; currentRoute = "org_detail" }
+                          EntityType.MEETING -> {
+                              val target = meetings.find { it.id == nav.entityId }
+                              if (target != null) {
+                                  sessionDetailMeeting = target
+                                  currentRoute = "session_detail"
+                              }
+                          }
+                      }
+                  }
                   // Main App Content - User is logged in
                   // Background Layer - use key to force recomposition when background changes
                   Box(Modifier.fillMaxSize()) {
@@ -1933,10 +1991,11 @@ fun MainApp() {
                           .pointerInput(isCalendarExpanded) {
                             if (isCalendarExpanded) {
                               awaitPointerEventScope {
-                                // Wait for any touch event in Initial pass (before children)
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                if (event.changes.any { it.pressed }) {
-                                  // Collapse calendar - do NOT consume the event so scroll works
+                                // Final pass: only fire if a child did NOT consume (i.e. tap
+                                // landed outside chip/mini-calendar). Initial pass would steal
+                                // the chip's own toggle click and lock the calendar open.
+                                val event = awaitPointerEvent(PointerEventPass.Final)
+                                if (event.changes.any { it.pressed && !it.isConsumed }) {
                                   isCalendarExpanded = false
                                 }
                               }
@@ -2114,6 +2173,13 @@ fun MainApp() {
                                     currentRoute = "session_detail"
                                 },
                                 isRecording = isFixedSessionRecording,
+                                processingStartedAtMillis = processingStartedAtMillis,
+                                processingStage = processingStage,
+                                processingStatus = processingStatus,
+                                processingMessage = processingMessage,
+                                processingProgressPct = processingProgressPct,
+                                processingError = processingError,
+                                onDismissProcessing = dismissProcessing,
                                 onStartRecording = startFixedSessionAction,
                                 onStopRecording = stopFixedSessionAction,
                                 onOpenLiveRecording = {
@@ -2596,7 +2662,7 @@ fun MainApp() {
                             )
                             "klikone_onboarding" -> OnboardingScreen(
                                 onComplete = { pickedRole ->
-                                    val uid = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId
+                                    val uid = authState.userId
                                     if (!uid.isNullOrBlank()) {
                                         onboardingStorage.saveString(
                                             KlikOneOnboardingKeys.completedKey(uid), "true"
@@ -2606,6 +2672,8 @@ fun MainApp() {
                                                 KlikOneOnboardingKeys.roleKey(uid), it
                                             )
                                         }
+                                    } else {
+                                        KlikLogger.e("MainApp", "Klik One onboarding complete but authState.userId is null — completion not persisted")
                                     }
                                     KlikLogger.i("MainApp", "Klik One onboarding complete (role=${pickedRole?.id})")
                                     hasCompletedKlikOnboarding = true
@@ -2625,20 +2693,7 @@ fun MainApp() {
                                             sessionDetailMeeting = null
                                             currentRoute = "today"
                                         },
-                                        onEntityClick = { nav ->
-                                            lastMainRoute = "today"
-                                            sessionDetailMeeting = null
-                                            when (nav.entityType) {
-                                                EntityType.TASK -> { taskDetailId = nav.entityId; currentRoute = "task_detail" }
-                                                EntityType.PERSON -> { personDetailId = nav.entityId; currentRoute = "person_detail" }
-                                                EntityType.PROJECT -> { projectDetailId = nav.entityId; currentRoute = "project_detail" }
-                                                EntityType.ORGANIZATION -> { orgDetailId = nav.entityId; currentRoute = "org_detail" }
-                                                EntityType.MEETING -> {
-                                                    expandMeetingSessionId = nav.entityId
-                                                    currentRoute = "today"
-                                                }
-                                            }
-                                        },
+                                        onEntityClick = { nav -> navigateToEntity(nav) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = "today" }
@@ -2656,6 +2711,7 @@ fun MainApp() {
                                             taskDetailId = null
                                             currentRoute = lastMainRoute
                                         },
+                                        onEntityClick = { nav -> navigateToEntity(nav) },
                                         onApprove = if (t.needsConfirmation) {
                                             {
                                                 integrationScope.launch {
@@ -2757,6 +2813,7 @@ fun MainApp() {
                                             personDetailId = null
                                             currentRoute = lastMainRoute
                                         },
+                                        onEntityClick = { nav -> navigateToEntity(nav) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -2773,6 +2830,7 @@ fun MainApp() {
                                             projectDetailId = null
                                             currentRoute = lastMainRoute
                                         },
+                                        onEntityClick = { nav -> navigateToEntity(nav) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -2789,6 +2847,7 @@ fun MainApp() {
                                             orgDetailId = null
                                             currentRoute = lastMainRoute
                                         },
+                                        onEntityClick = { nav -> navigateToEntity(nav) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -2796,8 +2855,14 @@ fun MainApp() {
                             }
                             "live_recording" -> {
                                 val startedAt = recordingStartedAtMillis
-                                val nowMs = Clock.System.now().toEpochMilliseconds()
-                                val elapsedSec = if (startedAt != null) ((nowMs - startedAt) / 1000L).coerceAtLeast(0) else 0L
+                                var tickMs by remember { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
+                                LaunchedEffect(Unit) {
+                                    while (true) {
+                                        kotlinx.coroutines.delay(1000)
+                                        tickMs = Clock.System.now().toEpochMilliseconds()
+                                    }
+                                }
+                                val elapsedSec = if (startedAt != null) ((tickMs - startedAt) / 1000L).coerceAtLeast(0) else 0L
                                 val mm = elapsedSec / 60
                                 val ss = elapsedSec % 60
                                 val elapsedLabel = "${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}"
@@ -2808,23 +2873,13 @@ fun MainApp() {
                                     elapsed = elapsedLabel,
                                     recentTurns = emptyList(),   // wired once §12 live-transcript WS lands
                                     detections = emptyList(),
-                                    isPaused = !isFixedSessionRecording,
+                                    isPaused = isFixedSessionPaused,
                                     onMinimize = { currentRoute = lastMainRoute },
-                                    onPauseResume = {},
-                                    onStop = {
-                                        isFixedSessionRecording = false
-                                        fixedSessionId = null
-                                        recordingStartedAtMillis = null
-                                        archiveScope.launch {
-                                            try {
-                                                FixedSessionAudioStreamer.stopStreaming()
-                                                RemoteDataFetcher.stopFixedSession()
-                                            } catch (e: Exception) {
-                                                KlikLogger.e("MainApp", "Failed to stop fixed session: ${e.message}", e)
-                                            }
-                                        }
-                                        currentRoute = lastMainRoute
+                                    onPauseResume = {
+                                        if (isFixedSessionPaused) FixedSessionAudioStreamer.resumeStreaming()
+                                        else FixedSessionAudioStreamer.pauseStreaming()
                                     },
+                                    onStop = stopFixedSessionAction,
                                     onAddContext = {},
                                 )
                             }
@@ -3221,18 +3276,17 @@ fun MainApp() {
                         }
                       }
 
-                      // Recording-started prominent banner (replaces Material snackbar)
+                      // Recording-started banner — K1 editorial: paper card, hairline border,
+                      // pulsing alert dot, no Material chrome.
                       Box(
                         modifier = Modifier
                           .align(Alignment.TopCenter)
-                          .padding(top = 54.dp)
+                          .padding(top = 54.dp, start = 20.dp, end = 20.dp)
                       ) {
-                        io.github.fletchmckee.liquid.samples.app.ui.components.LiquidGlassBanner(
+                        io.github.fletchmckee.liquid.samples.app.ui.klikone.K1RecordingBanner(
                           visible = showRecordingStartedBanner,
                           title = stringResource(Res.string.recording_started),
                           subtitle = stringResource(Res.string.recording_started_subtitle),
-                          accentColor = Color(0xFFE53935),
-                          showPulse = true,
                           durationMillis = 4000L,
                           onDismiss = { showRecordingStartedBanner = false }
                         )
@@ -3242,22 +3296,20 @@ fun MainApp() {
           }
       }
 
-      // Render Hero Logo Overlay (Last = Top Z-Index)
-      if (appState == "loading" || (heroTransition.currentState == "loading" && appState == "main")) {
+      // Splash logo overlay. Stays centered, fades out as we reach "main"/"auth".
+      if (logoAlpha > 0f) {
           Box(
               modifier = Modifier
                   .align(Alignment.Center)
-                  .offset { logoOffset }
-                  .size(logoSize)
-                  .background(logoContainerColor, RoundedCornerShape(logoCorner))
-                  .clip(RoundedCornerShape(logoCorner)),
+                  .size(144.dp)
+                  .alpha(logoAlpha),
               contentAlignment = Alignment.Center
           ) {
               Icon(
                   painter = klikLogoPainter(),
                   contentDescription = null,
-                  modifier = Modifier.size(iconSize),
-                  tint = logoIconTint
+                  modifier = Modifier.size(144.dp),
+                  tint = Color.Black
               )
           }
       }
@@ -3878,4 +3930,29 @@ fun NavIconWithBadge(
       }
     }
   }
+}
+
+/**
+ * Map an orchestrator `stage` code to a one-second-readable verb for the
+ * K1 processing banner. Orchestrator stage values as emitted by KK_orchestrator:
+ *   denoise, asr, diarization, speaker_names, knowledge_graph,
+ *   meeting_minutes, tasks, dropbox
+ */
+fun humaniseOrchestratorStage(stage: String?): String? {
+    val s = stage?.lowercase()?.trim().orEmpty()
+    return when (s) {
+        "", "queued"         -> null // let caller fall back to `message`
+        "denoise"            -> "Cleaning up the audio…"
+        "asr", "transcribe"  -> "Transcribing what was said…"
+        "diarization"        -> "Separating who spoke when…"
+        "speaker_names"      -> "Identifying speakers…"
+        "knowledge_graph",
+        "entity_extraction"  -> "Mapping people and projects…"
+        "meeting_minutes"    -> "Drafting meeting minutes…"
+        "tasks",
+        "task_extraction"    -> "Pulling out tasks and commitments…"
+        "dropbox",
+        "cloud_backup"       -> "Backing up to cloud storage…"
+        else -> s.replace('_', ' ').replaceFirstChar { it.uppercase() } + "…"
+    }
 }
