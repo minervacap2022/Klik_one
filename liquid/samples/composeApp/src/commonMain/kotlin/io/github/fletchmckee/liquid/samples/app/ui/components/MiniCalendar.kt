@@ -2,7 +2,6 @@ package io.github.fletchmckee.liquid.samples.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,15 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,9 +25,13 @@ import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.model.getDaysInMonth
 import io.github.fletchmckee.liquid.samples.app.model.getDaysInPrevMonth
 import io.github.fletchmckee.liquid.samples.app.model.getFirstDayOfWeek
-import io.github.fletchmckee.liquid.samples.app.theme.EngageColor
-import io.github.fletchmckee.liquid.samples.app.theme.KlikPrimary
-import io.github.fletchmckee.liquid.samples.app.theme.StriveColor
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Type
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.k1Clickable
 import kotlinx.datetime.LocalDate
 
 @Composable
@@ -49,36 +45,37 @@ fun MiniCalendar(
     onMonthChange: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Clamp month/year into valid ranges so upstream state glitches can't crash date construction.
+    val safeMonth = currentMonth.coerceIn(1, 12)
+    val safeYear = currentYear.coerceIn(1970, 9999)
+
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
-        // Month/Year Header
-        CalendarHeader(
-            month = currentMonth,
-            year = currentYear,
+        K1CalendarHeader(
+            month = safeMonth,
+            year = safeYear,
             onPreviousMonth = {
-                val newMonth = if (currentMonth == 1) 12 else currentMonth - 1
-                val newYear = if (currentMonth == 1) currentYear - 1 else currentYear
+                val newMonth = if (safeMonth == 1) 12 else safeMonth - 1
+                val newYear = if (safeMonth == 1) safeYear - 1 else safeYear
                 onMonthChange(newMonth, newYear)
             },
             onNextMonth = {
-                val newMonth = if (currentMonth == 12) 1 else currentMonth + 1
-                val newYear = if (currentMonth == 12) currentYear + 1 else currentYear
+                val newMonth = if (safeMonth == 12) 1 else safeMonth + 1
+                val newYear = if (safeMonth == 12) safeYear + 1 else safeYear
                 onMonthChange(newMonth, newYear)
             }
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
-        // Weekday labels
-        WeekdayRow()
+        K1WeekdayRow()
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
 
-        // Date grid
-        DateGrid(
-            year = currentYear,
-            month = currentMonth,
+        K1DateGrid(
+            year = safeYear,
+            month = safeMonth,
             selectedDate = selectedDate,
             todayDate = todayDate,
             meetingsCountByDay = meetingsCountByDay,
@@ -88,7 +85,7 @@ fun MiniCalendar(
 }
 
 @Composable
-private fun CalendarHeader(
+private fun K1CalendarHeader(
     month: Int,
     year: Int,
     onPreviousMonth: () -> Unit,
@@ -98,72 +95,57 @@ private fun CalendarHeader(
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
     )
-    val monthShortNames = listOf(
+    val monthShort = listOf(
         "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     )
 
-    val prevMonthIndex = if (month == 1) 11 else month - 2
-    val nextMonthIndex = if (month == 12) 0 else month
+    val prevIdx = if (month == 1) 11 else month - 2
+    val nextIdx = if (month == 12) 0 else month
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start, // Left aligned
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Previous Month (Short)
         Text(
-            text = monthShortNames[prevMonthIndex],
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            text = monthShort[prevIdx].uppercase(),
+            style = K1Type.eyebrow.copy(color = KlikInkMuted),
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onPreviousMonth() }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .k1Clickable(onClick = onPreviousMonth)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
         )
-
-        // Current Month Year
+        Spacer(Modifier.size(6.dp))
         Text(
             text = "${monthNames[month - 1]} $year",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            style = K1Type.h3.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium)
         )
-
-        // Next Month (Short)
+        Spacer(Modifier.size(6.dp))
         Text(
-            text = monthShortNames[nextMonthIndex],
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            text = monthShort[nextIdx].uppercase(),
+            style = K1Type.eyebrow.copy(color = KlikInkMuted),
             modifier = Modifier
-                .padding(start = 8.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onNextMonth() }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .k1Clickable(onClick = onNextMonth)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
         )
     }
 }
 
 @Composable
-private fun WeekdayRow() {
+private fun K1WeekdayRow() {
     val days = listOf("S", "M", "T", "W", "T", "F", "S")
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        days.forEach { day ->
+        days.forEach { d ->
             Box(
                 modifier = Modifier.size(36.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = day,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    fontWeight = FontWeight.Medium,
+                    text = d,
+                    style = K1Type.metaSm.copy(color = KlikInkTertiary, fontWeight = FontWeight.Medium),
                     textAlign = TextAlign.Center
                 )
             }
@@ -172,7 +154,7 @@ private fun WeekdayRow() {
 }
 
 @Composable
-private fun DateGrid(
+private fun K1DateGrid(
     year: Int,
     month: Int,
     selectedDate: LocalDate,
@@ -181,12 +163,10 @@ private fun DateGrid(
     onDateSelected: (LocalDate) -> Unit
 ) {
     val daysInMonth = getDaysInMonth(year, month)
-    val firstDayOfWeek = getFirstDayOfWeek(year, month)
+    val firstDayOfWeek = getFirstDayOfWeek(year, month).coerceIn(0, 6)
     val prevMonthDays = getDaysInPrevMonth(year, month)
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         for (row in 0 until 6) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -195,36 +175,39 @@ private fun DateGrid(
                 for (col in 0 until 7) {
                     val cellIndex = row * 7 + col
                     val (day, isCurrentMonth) = when {
-                        cellIndex < firstDayOfWeek -> {
-                            // Previous month days
-                            Pair(prevMonthDays - firstDayOfWeek + cellIndex + 1, false)
-                        }
-                        cellIndex - firstDayOfWeek >= daysInMonth -> {
-                            // Next month days
-                            Pair(cellIndex - firstDayOfWeek - daysInMonth + 1, false)
-                        }
-                        else -> {
-                            // Current month days
-                            Pair(cellIndex - firstDayOfWeek + 1, true)
-                        }
+                        cellIndex < firstDayOfWeek ->
+                            (prevMonthDays - firstDayOfWeek + cellIndex + 1) to false
+                        cellIndex - firstDayOfWeek >= daysInMonth ->
+                            (cellIndex - firstDayOfWeek - daysInMonth + 1) to false
+                        else ->
+                            (cellIndex - firstDayOfWeek + 1) to true
                     }
 
-                    val cellDate = if (isCurrentMonth) {
-                        LocalDate(year, month, day)
-                    } else null
+                    // `getDaysInMonth` already accounts for leap years, so the
+                    // (year, month, day) tuple should always be valid here.
+                    // Catch IllegalArgumentException explicitly to guard
+                    // against month bounds drifting in `getDaysInMonth` —
+                    // we'd rather render an inactive cell than crash the grid.
+                    val cellDate: LocalDate? =
+                        if (isCurrentMonth && day in 1..daysInMonth) {
+                            try {
+                                LocalDate(year, month, day)
+                            } catch (e: IllegalArgumentException) {
+                                io.github.fletchmckee.liquid.samples.app.logging.KlikLogger.w(
+                                    "MiniCalendar",
+                                    "Skipping invalid cell date $year-$month-$day: ${e.message}",
+                                )
+                                null
+                            }
+                        } else null
 
-                    val isToday = cellDate == todayDate
-                    val isSelected = cellDate == selectedDate
-
-                    DateCell(
+                    K1DateCell(
                         day = day,
-                        isToday = isToday,
-                        isSelected = isSelected,
+                        isToday = cellDate != null && cellDate == todayDate,
+                        isSelected = cellDate != null && cellDate == selectedDate,
                         isCurrentMonth = isCurrentMonth,
-                        meetingCount = if (isCurrentMonth) meetingsCountByDay[day] ?: 0 else 0,
-                        onClick = {
-                            cellDate?.let { onDateSelected(it) }
-                        }
+                        meetingCount = if (isCurrentMonth) (meetingsCountByDay[day] ?: 0) else 0,
+                        onClick = { cellDate?.let { onDateSelected(it) } }
                     )
                 }
             }
@@ -233,7 +216,7 @@ private fun DateGrid(
 }
 
 @Composable
-private fun DateCell(
+private fun K1DateCell(
     day: Int,
     isToday: Boolean,
     isSelected: Boolean,
@@ -241,70 +224,59 @@ private fun DateCell(
     meetingCount: Int,
     onClick: () -> Unit
 ) {
-    val cellShape = RoundedCornerShape(8.dp)
-
-    val backgroundColor = when {
-        isToday -> KlikPrimary
-        else -> Color.Transparent
-    }
+    val shape = RoundedCornerShape(10.dp)
 
     val textColor = when {
-        isToday -> Color.White
-        isSelected -> KlikPrimary
-        isCurrentMonth -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+        isToday -> KlikPaperCard
+        isSelected -> KlikInkPrimary
+        isCurrentMonth -> KlikInkPrimary
+        else -> KlikInkMuted
+    }
+    val bg = when {
+        isToday -> KlikInkPrimary
+        else -> Color.Transparent
     }
 
     Box(
         modifier = Modifier.size(36.dp),
         contentAlignment = Alignment.TopCenter
     ) {
-        // Date box - clickable area only covers this, not the dots
-        // Fixed position at top with consistent spacing
         Box(
             modifier = Modifier
                 .padding(top = 2.dp)
-                .size(28.dp)
-                .clip(cellShape)
-                .clickable(enabled = isCurrentMonth) { onClick() }
-                .background(backgroundColor, cellShape)
+                .size(30.dp)
+                .clip(shape)
+                .background(bg, shape)
                 .then(
-                    if (isSelected && !isToday) {
-                        Modifier.border(2.dp, KlikPrimary, cellShape)
-                    } else {
-                        Modifier
-                    }
-                ),
+                    if (isSelected && !isToday)
+                        Modifier.border(1.dp, KlikInkPrimary, shape)
+                    else Modifier
+                )
+                .k1Clickable(enabled = isCurrentMonth, onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = day.toString(),
-                style = MaterialTheme.typography.bodySmall,
-                color = textColor,
-                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                style = K1Type.bodySm.copy(
+                    color = textColor,
+                    fontWeight = if (isToday || isSelected) FontWeight.Medium else FontWeight.Normal
+                ),
                 textAlign = TextAlign.Center
             )
         }
 
-        // Meeting dots - fixed position at bottom
         if (meetingCount > 0 && isCurrentMonth) {
             Box(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp)
             ) {
-                MeetingDots(count = meetingCount.coerceAtMost(3))
+                K1MeetingDots(count = meetingCount.coerceAtMost(3))
             }
         }
     }
 }
 
 @Composable
-private fun MeetingDots(count: Int) {
-    val dotColor = when (count) {
-        1 -> KlikPrimary
-        2 -> EngageColor
-        else -> StriveColor
-    }
-
+private fun K1MeetingDots(count: Int) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -312,8 +284,8 @@ private fun MeetingDots(count: Int) {
         repeat(count) {
             Box(
                 modifier = Modifier
-                    .size(4.dp)
-                    .background(dotColor, CircleShape)
+                    .size(3.5.dp)
+                    .background(KlikInkSecondary, CircleShape)
             )
         }
     }
