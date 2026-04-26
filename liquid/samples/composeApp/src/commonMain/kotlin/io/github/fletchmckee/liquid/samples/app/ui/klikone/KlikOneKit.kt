@@ -1010,13 +1010,23 @@ fun K1TopBar(
 
 // ─── Brand eyebrow header (KLIK ONE + title) ──────────────────────────────
 @Composable
-fun K1Header(title: String, eyebrow: String = "KLIK", trailing: (@Composable () -> Unit)? = null, modifier: Modifier = Modifier) {
+fun K1Header(
+    title: String,
+    eyebrow: String = "KLIK",
+    trailing: (@Composable () -> Unit)? = null,
+    onTitleClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     Row(modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             K1Eyebrow(eyebrow, large = true)
             Spacer(Modifier.height(4.dp))
-            Text(title, style = K1Type.h1)
+            Text(
+                title,
+                style = K1Type.h1,
+                modifier = if (onTitleClick != null) Modifier.k1Clickable(onClick = onTitleClick) else Modifier,
+            )
         }
         if (trailing != null) trailing()
     }

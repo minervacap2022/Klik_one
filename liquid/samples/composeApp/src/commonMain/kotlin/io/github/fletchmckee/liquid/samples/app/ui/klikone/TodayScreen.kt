@@ -151,6 +151,7 @@ fun TodayScreen(
         val nextDate = selectedDate.plus(DatePeriod(days = 1))
         K1Header(
             title = "Today",
+            onTitleClick = { if (selectedDate != todayDate) onDateChange(todayDate) },
             trailing = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     DateChevron(pointRight = false, onClick = { onDateChange(prevDate) })
