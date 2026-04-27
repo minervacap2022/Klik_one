@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.domain.usecase.organization
 
 import io.github.fletchmckee.liquid.samples.app.core.Result
@@ -9,21 +11,17 @@ import kotlinx.coroutines.flow.Flow
  * Use case for getting organizations.
  */
 class GetOrganizationsUseCase(
-    private val organizationRepository: OrganizationRepository
+  private val organizationRepository: OrganizationRepository,
 ) {
-    suspend operator fun invoke(
-        industry: String? = null,
-        topOnly: Boolean = false,
-        limit: Int = 10
-    ): Result<List<Organization>> {
-        return when {
-            topOnly -> organizationRepository.getTopOrganizations(limit)
-            industry != null -> organizationRepository.getOrganizationsByIndustry(industry)
-            else -> organizationRepository.getOrganizations()
-        }
-    }
+  suspend operator fun invoke(
+    industry: String? = null,
+    topOnly: Boolean = false,
+    limit: Int = 10,
+  ): Result<List<Organization>> = when {
+    topOnly -> organizationRepository.getTopOrganizations(limit)
+    industry != null -> organizationRepository.getOrganizationsByIndustry(industry)
+    else -> organizationRepository.getOrganizations()
+  }
 
-    fun observeOrganizations(): Flow<Result<List<Organization>>> {
-        return organizationRepository.getOrganizationsFlow()
-    }
+  fun observeOrganizations(): Flow<Result<List<Organization>>> = organizationRepository.getOrganizationsFlow()
 }

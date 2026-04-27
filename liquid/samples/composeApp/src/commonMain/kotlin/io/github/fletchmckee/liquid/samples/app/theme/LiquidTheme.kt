@@ -6,13 +6,13 @@ package io.github.fletchmckee.liquid.samples.app.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -23,7 +23,7 @@ data class LiquidGlassSettings(
   val refraction: Float = 0.4f,
   val curve: Float = 0.3f,
   val edge: Float = 0.02f,
-  val applyToCards: Boolean = true
+  val applyToCards: Boolean = true,
 )
 
 private val LightColorScheme = lightColorScheme(

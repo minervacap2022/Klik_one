@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.domain.usecase.organization
 
 import io.github.fletchmckee.liquid.samples.app.core.Result
@@ -8,9 +10,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.repository.OrganizationRe
  * Use case for toggling organization pin status.
  */
 class ToggleOrganizationPinUseCase(
-    private val organizationRepository: OrganizationRepository
+  private val organizationRepository: OrganizationRepository,
 ) {
-    suspend operator fun invoke(organizationId: String): Result<Organization> {
-        return organizationRepository.toggleOrganizationPin(organizationId)
-    }
+  suspend operator fun invoke(organizationId: String): Result<Organization> = organizationRepository.toggleOrganizationPin(organizationId)
 }

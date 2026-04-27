@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.domain.usecase.person
 
 import io.github.fletchmckee.liquid.samples.app.core.Result
@@ -8,9 +10,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.repository.PersonReposito
  * Use case for getting top influencers.
  */
 class GetTopInfluencersUseCase(
-    private val personRepository: PersonRepository
+  private val personRepository: PersonRepository,
 ) {
-    suspend operator fun invoke(limit: Int = 10): Result<List<Person>> {
-        return personRepository.getTopInfluencers(limit)
-    }
+  suspend operator fun invoke(limit: Int = 10): Result<List<Person>> = personRepository.getTopInfluencers(limit)
 }

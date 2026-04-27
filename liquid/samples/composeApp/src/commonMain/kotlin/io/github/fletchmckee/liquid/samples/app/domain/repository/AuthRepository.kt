@@ -14,69 +14,69 @@ import kotlinx.coroutines.flow.Flow
  * Repository interface for authentication operations
  */
 interface AuthRepository {
-    /**
-     * Login with email and password
-     */
-    suspend fun login(credentials: LoginCredentials): Result<AuthResponse>
+  /**
+   * Login with email and password
+   */
+  suspend fun login(credentials: LoginCredentials): Result<AuthResponse>
 
-    /**
-     * Signup with email, password, and name
-     */
-    suspend fun signup(credentials: SignupCredentials): Result<AuthResponse>
+  /**
+   * Signup with email, password, and name
+   */
+  suspend fun signup(credentials: SignupCredentials): Result<AuthResponse>
 
-    /**
-     * Login with Apple Sign In credentials.
-     * Sends identity token to backend for verification.
-     */
-    suspend fun loginWithApple(credentials: AppleSignInCredentials): Result<AuthResponse>
+  /**
+   * Login with Apple Sign In credentials.
+   * Sends identity token to backend for verification.
+   */
+  suspend fun loginWithApple(credentials: AppleSignInCredentials): Result<AuthResponse>
 
-    /**
-     * Logout the current user
-     */
-    suspend fun logout(): Result<Unit>
+  /**
+   * Logout the current user
+   */
+  suspend fun logout(): Result<Unit>
 
-    /**
-     * Get the current auth state
-     */
-    suspend fun getAuthState(): AuthState
+  /**
+   * Get the current auth state
+   */
+  suspend fun getAuthState(): AuthState
 
-    /**
-     * Observe auth state changes
-     */
-    fun observeAuthState(): Flow<AuthState>
+  /**
+   * Observe auth state changes
+   */
+  fun observeAuthState(): Flow<AuthState>
 
-    /**
-     * Save auth state to persistent storage
-     */
-    suspend fun saveAuthState(state: AuthState)
+  /**
+   * Save auth state to persistent storage
+   */
+  suspend fun saveAuthState(state: AuthState)
 
-    /**
-     * Clear auth state from persistent storage
-     */
-    suspend fun clearAuthState()
+  /**
+   * Clear auth state from persistent storage
+   */
+  suspend fun clearAuthState()
 
-    /**
-     * Refresh the access token using refresh token
-     */
-    suspend fun refreshToken(): Result<AuthResponse>
+  /**
+   * Refresh the access token using refresh token
+   */
+  suspend fun refreshToken(): Result<AuthResponse>
 
-    /**
-     * Check if the current token is valid
-     */
-    suspend fun isTokenValid(): Boolean
+  /**
+   * Check if the current token is valid
+   */
+  suspend fun isTokenValid(): Boolean
 
-    /**
-     * Request a password reset email
-     */
-    suspend fun requestPasswordReset(email: String): Result<Unit>
+  /**
+   * Request a password reset email
+   */
+  suspend fun requestPasswordReset(email: String): Result<Unit>
 
-    /**
-     * Request email verification for the current user
-     */
-    suspend fun requestEmailVerification(): Result<Unit>
+  /**
+   * Request email verification for the current user
+   */
+  suspend fun requestEmailVerification(): Result<Unit>
 
-    /**
-     * Delete the current user's account
-     */
-    suspend fun deleteAccount(password: String): Result<Unit>
+  /**
+   * Delete the current user's account
+   */
+  suspend fun deleteAccount(password: String): Result<Unit>
 }

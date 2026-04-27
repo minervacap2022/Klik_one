@@ -6,6 +6,7 @@ assertk = "0.28.1"
 benchmark = "1.4.1"
 binaryCompatibility = "0.18.1"
 coilCompose = "3.0.4"
+markdownRenderer = "0.30.0"
 composeHotReload = "1.0.0"
 composeMultiplatform = "1.7.3"
 dokka = "2.1.0"
@@ -31,6 +32,8 @@ uiautomator = "2.3.0"
 [libraries]
 assertk = { module = "com.willowtreeapps.assertk:assertk", version.ref = "assertk" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coilCompose" }
+markdown-renderer = { module = "com.mikepenz:multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
+markdown-renderer-m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }

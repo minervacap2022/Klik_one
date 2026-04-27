@@ -7,13 +7,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import io.github.fletchmckee.liquid.samples.app.platform.DeepLinkHandler
 import io.github.fletchmckee.liquid.samples.app.demos.clock.Clock
 import io.github.fletchmckee.liquid.samples.app.demos.drag.Drag
 import io.github.fletchmckee.liquid.samples.app.demos.grid.Grid
 import io.github.fletchmckee.liquid.samples.app.demos.many.Many
 import io.github.fletchmckee.liquid.samples.app.demos.pulltorefresh.PullToRefresh
 import io.github.fletchmckee.liquid.samples.app.demos.stickyheader.StickyHeader
+import io.github.fletchmckee.liquid.samples.app.platform.DeepLinkHandler
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {

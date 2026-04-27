@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
 
 package io.github.fletchmckee.liquid.samples.app.platform
@@ -22,9 +24,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import platform.AVFAudio.AVAudioEngine
+import platform.AVFAudio.AVAudioFormat
+import platform.AVFAudio.AVAudioPCMFormatFloat32
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryRecord
-import platform.AVFAudio.AVAudioSessionModeMeasurement
+import platform.AVFAudio.AVAudioSessionModeDefault
 import platform.AVFAudio.setActive
 import platform.Foundation.NSError
 
@@ -34,232 +38,261 @@ import platform.Foundation.NSError
  * and uploads chunks to the backend streaming endpoint.
  */
 actual object FixedSessionAudioStreamer {
-    private const val TAG = "FixedSessionAudioStreamer"
-    // Upload when buffer reaches ~1MB
-    private const val UPLOAD_THRESHOLD_BYTES = 1 * 1024 * 1024
+  private const val TAG = "FixedSessionAudioStreamer"
 
-    private val _isStreaming = MutableStateFlow(false)
-    actual val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
+  // Upload every ~1s of audio (100KB at 48kHz Int16 mono ≈ 1.04s)
+  private const val UPLOAD_THRESHOLD_BYTES = 100 * 1024
 
-    private var audioEngine: AVAudioEngine? = null
-    private val pcmBufferLock = platform.Foundation.NSLock()
-    private var pcmBuffer = mutableListOf<Byte>()
-    private var userId: String = ""
-    private var uploadScope: CoroutineScope? = null
-    private var pileCounter = 0
+  private val _isStreaming = MutableStateFlow(false)
+  actual val isStreaming: StateFlow<Boolean> = _isStreaming.asStateFlow()
 
-    actual suspend fun startStreaming(userId: String): Boolean = withContext(Dispatchers.Main) {
-        KlikLogger.i(TAG, "startStreaming called for user=$userId, currentlyStreaming=${_isStreaming.value}")
+  private val _isPaused = MutableStateFlow(false)
+  actual val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
-        if (_isStreaming.value) {
-            KlikLogger.w(TAG, "Already streaming, returning false")
-            return@withContext false
-        }
+  private var audioEngine: AVAudioEngine? = null
+  private val pcmBufferLock = platform.Foundation.NSLock()
+  private var pcmBuffer = mutableListOf<Byte>()
+  private var userId: String = ""
+  private var uploadScope: CoroutineScope? = null
+  private var pileCounter = 0
 
-        val hasPerm = VoiceRecorderService.hasMicrophonePermission()
-        KlikLogger.i(TAG, "Microphone permission check: $hasPerm")
-        if (!hasPerm) {
-            KlikLogger.i(TAG, "Requesting microphone permission...")
-            val granted = VoiceRecorderService.requestMicrophonePermission()
-            KlikLogger.i(TAG, "Microphone permission request result: $granted")
-            if (!granted) {
-                KlikLogger.e(TAG, "Microphone permission denied by user")
-                return@withContext false
-            }
-        }
+  actual suspend fun startStreaming(userId: String): Boolean = withContext(Dispatchers.Main) {
+    KlikLogger.i(TAG, "startStreaming called for user=$userId, currentlyStreaming=${_isStreaming.value}")
 
-        this@FixedSessionAudioStreamer.userId = userId
-        pileCounter = 0
-
-        // Configure audio session
-        val session = AVAudioSession.sharedInstance()
-        KlikLogger.i(TAG, "AVAudioSession category=${session.category}, mode=${session.mode}")
-
-        memScoped {
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-            session.setCategory(AVAudioSessionCategoryRecord, errorPtr.ptr)
-            if (errorPtr.value != null) {
-                KlikLogger.e(TAG, "FAIL at setCategory: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
-                return@withContext false
-            }
-            KlikLogger.i(TAG, "setCategory(Record) OK")
-        }
-        memScoped {
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-            session.setMode(AVAudioSessionModeMeasurement, errorPtr.ptr)
-            if (errorPtr.value != null) {
-                KlikLogger.e(TAG, "FAIL at setMode: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
-                return@withContext false
-            }
-            KlikLogger.i(TAG, "setMode(Measurement) OK")
-        }
-        memScoped {
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-            session.setActive(true, errorPtr.ptr)
-            if (errorPtr.value != null) {
-                KlikLogger.e(TAG, "FAIL at setActive(true): code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
-                return@withContext false
-            }
-            KlikLogger.i(TAG, "setActive(true) OK")
-        }
-
-        KlikLogger.i(TAG, "Creating AVAudioEngine...")
-        val engine = AVAudioEngine()
-        val inputNode = engine.inputNode
-        val inputFormat = inputNode.outputFormatForBus(0u)
-
-        KlikLogger.i(TAG, "Input format: sampleRate=${inputFormat.sampleRate}Hz, channels=${inputFormat.channelCount}, interleaved=${inputFormat.isInterleaved()}, commonFormat=${inputFormat.commonFormat}")
-
-        if (inputFormat.sampleRate == 0.0 || inputFormat.channelCount == 0u) {
-            KlikLogger.e(TAG, "FAIL: Invalid input format (sampleRate=${inputFormat.sampleRate}, channels=${inputFormat.channelCount})")
-            return@withContext false
-        }
-
-        // Create upload scope for background uploads
-        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-        uploadScope = scope
-
-        KlikLogger.i(TAG, "Installing tap on input node bus 0...")
-
-        // Install tap to receive audio buffers
-        var tapCallCount = 0
-        inputNode.installTapOnBus(
-            bus = 0u,
-            bufferSize = 4096u,
-            format = inputFormat
-        ) { buffer, _ ->
-            if (buffer == null) {
-                KlikLogger.w(TAG, "Tap received null buffer")
-                return@installTapOnBus
-            }
-            tapCallCount++
-            val frameCount = buffer.frameLength.toInt()
-            val floatData = buffer.floatChannelData?.get(0)
-            if (floatData == null) {
-                KlikLogger.w(TAG, "Tap buffer has null floatChannelData[0], frameCount=$frameCount")
-                return@installTapOnBus
-            }
-
-            if (tapCallCount <= 3) {
-                KlikLogger.d(TAG, "Tap callback #$tapCallCount: frameCount=$frameCount")
-            }
-
-            // Convert float32 PCM to Int16 PCM bytes (little-endian)
-            val newBytes = ByteArray(frameCount * 2)
-            for (i in 0 until frameCount) {
-                val clamped = floatData[i].coerceIn(-1.0f, 1.0f)
-                val int16 = (clamped * 32767).toInt().toShort()
-                newBytes[i * 2] = (int16.toInt() and 0xFF).toByte()
-                newBytes[i * 2 + 1] = ((int16.toInt() shr 8) and 0xFF).toByte()
-            }
-
-            var dataToUpload: ByteArray? = null
-            var pileNum = 0
-            pcmBufferLock.lock()
-            try {
-                for (b in newBytes) pcmBuffer.add(b)
-                if (pcmBuffer.size >= UPLOAD_THRESHOLD_BYTES) {
-                    dataToUpload = ByteArray(pcmBuffer.size).also { arr ->
-                        for (idx in pcmBuffer.indices) arr[idx] = pcmBuffer[idx]
-                    }
-                    pcmBuffer.clear()
-                    pileCounter++
-                    pileNum = pileCounter
-                }
-            } finally {
-                pcmBufferLock.unlock()
-            }
-
-            dataToUpload?.let { data ->
-                scope.launch {
-                    uploadAudioChunk(data, pileNum)
-                }
-            }
-        }
-
-        // Start the engine
-        KlikLogger.i(TAG, "Starting AVAudioEngine...")
-        memScoped {
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-            engine.startAndReturnError(errorPtr.ptr)
-            if (errorPtr.value != null) {
-                KlikLogger.e(TAG, "FAIL at engine.start: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
-                inputNode.removeTapOnBus(0u)
-                scope.cancel()
-                uploadScope = null
-                return@withContext false
-            }
-        }
-
-        audioEngine = engine
-        _isStreaming.value = true
-        KlikLogger.i(TAG, "Audio streaming started successfully for user $userId, engine.isRunning=${engine.isRunning()}")
-        return@withContext true
+    if (_isStreaming.value) {
+      KlikLogger.w(TAG, "Already streaming, returning false")
+      return@withContext false
     }
 
-    actual suspend fun stopStreaming() = withContext(Dispatchers.Main) {
-        if (!_isStreaming.value) return@withContext
+    val hasPerm = VoiceRecorderService.hasMicrophonePermission()
+    KlikLogger.i(TAG, "Microphone permission check: $hasPerm")
+    if (!hasPerm) {
+      KlikLogger.i(TAG, "Requesting microphone permission...")
+      val granted = VoiceRecorderService.requestMicrophonePermission()
+      KlikLogger.i(TAG, "Microphone permission request result: $granted")
+      if (!granted) {
+        KlikLogger.e(TAG, "Microphone permission denied by user")
+        return@withContext false
+      }
+    }
 
-        // Stop audio engine
-        audioEngine?.inputNode?.removeTapOnBus(0u)
-        audioEngine?.stop()
-        audioEngine = null
+    this@FixedSessionAudioStreamer.userId = userId
+    pileCounter = 0
 
-        // Flush remaining buffer
-        var remainingData: ByteArray? = null
-        var pileNum = 0
-        pcmBufferLock.lock()
-        try {
-            if (pcmBuffer.isNotEmpty()) {
-                remainingData = ByteArray(pcmBuffer.size).also { arr ->
-                    for (idx in pcmBuffer.indices) arr[idx] = pcmBuffer[idx]
-                }
-                pcmBuffer.clear()
-                pileCounter++
-                pileNum = pileCounter
-            }
-        } finally {
-            pcmBufferLock.unlock()
+    // Configure audio session
+    val session = AVAudioSession.sharedInstance()
+    KlikLogger.i(TAG, "AVAudioSession category=${session.category}, mode=${session.mode}")
+
+    memScoped {
+      val errorPtr = alloc<ObjCObjectVar<NSError?>>()
+      session.setCategory(AVAudioSessionCategoryRecord, errorPtr.ptr)
+      if (errorPtr.value != null) {
+        KlikLogger.e(TAG, "FAIL at setCategory: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
+        return@withContext false
+      }
+      KlikLogger.i(TAG, "setCategory(Record) OK")
+    }
+    memScoped {
+      val errorPtr = alloc<ObjCObjectVar<NSError?>>()
+      session.setMode(AVAudioSessionModeDefault, errorPtr.ptr)
+      if (errorPtr.value != null) {
+        KlikLogger.e(TAG, "FAIL at setMode: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
+        return@withContext false
+      }
+      KlikLogger.i(TAG, "setMode(Default) OK")
+    }
+    memScoped {
+      val errorPtr = alloc<ObjCObjectVar<NSError?>>()
+      session.setActive(true, errorPtr.ptr)
+      if (errorPtr.value != null) {
+        KlikLogger.e(TAG, "FAIL at setActive(true): code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
+        return@withContext false
+      }
+      KlikLogger.i(TAG, "setActive(true) OK")
+    }
+
+    KlikLogger.i(TAG, "Creating AVAudioEngine...")
+    val engine = AVAudioEngine()
+    val inputNode = engine.inputNode
+    val nativeFormat = inputNode.outputFormatForBus(0u)
+
+    KlikLogger.i(TAG, "Native input format: sampleRate=${nativeFormat.sampleRate}Hz, channels=${nativeFormat.channelCount}, interleaved=${nativeFormat.isInterleaved()}, commonFormat=${nativeFormat.commonFormat}")
+
+    if (nativeFormat.sampleRate == 0.0 || nativeFormat.channelCount == 0u) {
+      KlikLogger.e(TAG, "FAIL: Invalid input format (sampleRate=${nativeFormat.sampleRate}, channels=${nativeFormat.channelCount})")
+      return@withContext false
+    }
+
+    // Always request Float32 mono 48kHz from AVAudioEngine — it resamples/converts from native hardware format.
+    // Using the native format risks getting non-Float32 data where floatChannelData would be null.
+    val tapFormat = AVAudioFormat(
+      commonFormat = AVAudioPCMFormatFloat32,
+      sampleRate = 48000.0,
+      channels = 1u,
+      interleaved = false,
+    )
+
+    // Create upload scope for background uploads
+    val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    uploadScope = scope
+
+    KlikLogger.i(TAG, "Installing tap on input node bus 0 (Float32 48kHz mono)...")
+
+    // Install tap to receive audio buffers
+    var tapCallCount = 0
+    inputNode.installTapOnBus(
+      bus = 0u,
+      bufferSize = 4096u,
+      format = tapFormat,
+    ) { buffer, _ ->
+      if (buffer == null) {
+        KlikLogger.w(TAG, "Tap received null buffer")
+        return@installTapOnBus
+      }
+      if (_isPaused.value) return@installTapOnBus
+      tapCallCount++
+      val frameCount = buffer.frameLength.toInt()
+      val floatData = buffer.floatChannelData?.get(0)
+      if (floatData == null) {
+        KlikLogger.w(TAG, "Tap buffer has null floatChannelData[0], frameCount=$frameCount")
+        return@installTapOnBus
+      }
+
+      if (tapCallCount <= 3) {
+        KlikLogger.d(TAG, "Tap callback #$tapCallCount: frameCount=$frameCount")
+      }
+
+      // Convert float32 PCM to Int16 PCM bytes (little-endian)
+      val newBytes = ByteArray(frameCount * 2)
+      for (i in 0 until frameCount) {
+        val clamped = floatData[i].coerceIn(-1.0f, 1.0f)
+        val int16 = (clamped * 32767).toInt().toShort()
+        newBytes[i * 2] = (int16.toInt() and 0xFF).toByte()
+        newBytes[i * 2 + 1] = ((int16.toInt() shr 8) and 0xFF).toByte()
+      }
+
+      var dataToUpload: ByteArray? = null
+      var pileNum = 0
+      pcmBufferLock.lock()
+      try {
+        for (b in newBytes) pcmBuffer.add(b)
+        if (pcmBuffer.size >= UPLOAD_THRESHOLD_BYTES) {
+          dataToUpload = ByteArray(pcmBuffer.size).also { arr ->
+            for (idx in pcmBuffer.indices) arr[idx] = pcmBuffer[idx]
+          }
+          pcmBuffer.clear()
+          pileCounter++
+          pileNum = pileCounter
         }
+      } finally {
+        pcmBufferLock.unlock()
+      }
 
-        remainingData?.let { data ->
-            withContext(Dispatchers.Default) {
-                uploadAudioChunk(data, pileNum)
-            }
+      dataToUpload?.let { data ->
+        scope.launch {
+          uploadAudioChunk(data, pileNum)
         }
+      }
+    }
 
-        // Deactivate audio session
-        memScoped {
-            val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-            AVAudioSession.sharedInstance().setActive(false, errorPtr.ptr)
-        }
-
-        uploadScope?.cancel()
+    // Start the engine
+    KlikLogger.i(TAG, "Starting AVAudioEngine...")
+    memScoped {
+      val errorPtr = alloc<ObjCObjectVar<NSError?>>()
+      engine.startAndReturnError(errorPtr.ptr)
+      if (errorPtr.value != null) {
+        KlikLogger.e(TAG, "FAIL at engine.start: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
+        inputNode.removeTapOnBus(0u)
+        scope.cancel()
         uploadScope = null
-        _isStreaming.value = false
-        KlikLogger.i(TAG, "Audio streaming stopped, uploaded $pileCounter piles total")
+        return@withContext false
+      }
     }
 
-    private suspend fun uploadAudioChunk(data: ByteArray, pileNumber: Int) {
-        val url = "${ApiConfig.BASE_URL}${ApiConfig.Endpoints.AUDIO_STREAM}"
-        val headers = mapOf(
-            ApiConfig.Headers.USER_ID to userId,
-            ApiConfig.Headers.RECORDING_MODE to "fixed"
-        )
-        KlikLogger.d(TAG, "Uploading pile #$pileNumber: ${data.size} bytes to $url")
+    audioEngine = engine
+    _isStreaming.value = true
+    KlikLogger.i(TAG, "Audio streaming started successfully for user $userId, engine.isRunning=${engine.isRunning()}")
+    return@withContext true
+  }
 
-        val response = HttpClient.postMultipartUrl(
-            url = url,
-            fileData = data,
-            fileName = "audio_pile_$pileNumber.pcm",
-            fieldName = "file",
-            headers = headers
-        )
+  actual fun pauseStreaming() {
+    if (_isStreaming.value && !_isPaused.value) {
+      _isPaused.value = true
+      KlikLogger.i(TAG, "Audio capture paused")
+    }
+  }
 
-        if (response != null && !response.contains("\"detail\"")) {
-            KlikLogger.i(TAG, "Pile #$pileNumber uploaded successfully (${data.size} bytes)")
-        } else {
-            KlikLogger.e(TAG, "Pile #$pileNumber upload failed: ${response ?: "no response"}")
+  actual fun resumeStreaming() {
+    if (_isStreaming.value && _isPaused.value) {
+      _isPaused.value = false
+      KlikLogger.i(TAG, "Audio capture resumed")
+    }
+  }
+
+  actual suspend fun stopStreaming() = withContext(Dispatchers.Main) {
+    if (!_isStreaming.value) return@withContext
+
+    // Stop audio engine
+    audioEngine?.inputNode?.removeTapOnBus(0u)
+    audioEngine?.stop()
+    audioEngine = null
+
+    // Flush remaining buffer
+    var remainingData: ByteArray? = null
+    var pileNum = 0
+    pcmBufferLock.lock()
+    try {
+      if (pcmBuffer.isNotEmpty()) {
+        remainingData = ByteArray(pcmBuffer.size).also { arr ->
+          for (idx in pcmBuffer.indices) arr[idx] = pcmBuffer[idx]
         }
+        pcmBuffer.clear()
+        pileCounter++
+        pileNum = pileCounter
+      }
+    } finally {
+      pcmBufferLock.unlock()
     }
+
+    remainingData?.let { data ->
+      withContext(Dispatchers.Default) {
+        uploadAudioChunk(data, pileNum)
+      }
+    }
+
+    // Deactivate audio session
+    memScoped {
+      val errorPtr = alloc<ObjCObjectVar<NSError?>>()
+      AVAudioSession.sharedInstance().setActive(false, errorPtr.ptr)
+    }
+
+    uploadScope?.cancel()
+    uploadScope = null
+    _isStreaming.value = false
+    _isPaused.value = false
+    KlikLogger.i(TAG, "Audio streaming stopped, uploaded $pileCounter piles total")
+  }
+
+  private suspend fun uploadAudioChunk(data: ByteArray, pileNumber: Int) {
+    val url = "${ApiConfig.BASE_URL}${ApiConfig.Endpoints.AUDIO_STREAM}"
+    val headers = mapOf(
+      ApiConfig.Headers.USER_ID to userId,
+      ApiConfig.Headers.RECORDING_MODE to "fixed",
+    )
+    KlikLogger.d(TAG, "Uploading pile #$pileNumber: ${data.size} bytes to $url")
+
+    val response = HttpClient.postMultipartUrl(
+      url = url,
+      fileData = data,
+      fileName = "audio_pile_$pileNumber.pcm",
+      fieldName = "file",
+      headers = headers,
+    )
+
+    if (response != null && !response.contains("\"detail\"")) {
+      KlikLogger.i(TAG, "Pile #$pileNumber uploaded successfully (${data.size} bytes)")
+    } else {
+      KlikLogger.e(TAG, "Pile #$pileNumber upload failed: ${response ?: "no response"}")
+    }
+  }
 }

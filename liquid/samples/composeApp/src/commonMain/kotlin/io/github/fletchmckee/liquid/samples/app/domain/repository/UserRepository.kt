@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.domain.repository
 
 import io.github.fletchmckee.liquid.samples.app.core.Result
@@ -12,68 +14,68 @@ import kotlinx.coroutines.flow.Flow
  */
 interface UserRepository {
 
-    /**
-     * Get current user as a reactive flow.
-     */
-    fun getCurrentUserFlow(): Flow<Result<User>>
+  /**
+   * Get current user as a reactive flow.
+   */
+  fun getCurrentUserFlow(): Flow<Result<User>>
 
-    /**
-     * Get current user.
-     */
-    suspend fun getCurrentUser(): Result<User>
+  /**
+   * Get current user.
+   */
+  suspend fun getCurrentUser(): Result<User>
 
-    /**
-     * Update user profile.
-     */
-    suspend fun updateUser(user: User): Result<User>
+  /**
+   * Update user profile.
+   */
+  suspend fun updateUser(user: User): Result<User>
 
-    /**
-     * Get user preferences.
-     */
-    suspend fun getUserPreferences(): Result<UserPreferences>
+  /**
+   * Get user preferences.
+   */
+  suspend fun getUserPreferences(): Result<UserPreferences>
 
-    /**
-     * Update user preferences.
-     */
-    suspend fun updateUserPreferences(preferences: UserPreferences): Result<UserPreferences>
+  /**
+   * Update user preferences.
+   */
+  suspend fun updateUserPreferences(preferences: UserPreferences): Result<UserPreferences>
 
-    /**
-     * Update liquid glass preferences.
-     */
-    suspend fun updateLiquidGlassPreferences(preferences: LiquidGlassPreferences): Result<LiquidGlassPreferences>
+  /**
+   * Update liquid glass preferences.
+   */
+  suspend fun updateLiquidGlassPreferences(preferences: LiquidGlassPreferences): Result<LiquidGlassPreferences>
 
-    /**
-     * Get connected devices.
-     */
-    suspend fun getConnectedDevices(): Result<List<Device>>
+  /**
+   * Get connected devices.
+   */
+  suspend fun getConnectedDevices(): Result<List<Device>>
 
-    /**
-     * Add a connected device.
-     */
-    suspend fun addDevice(device: Device): Result<Device>
+  /**
+   * Add a connected device.
+   */
+  suspend fun addDevice(device: Device): Result<Device>
 
-    /**
-     * Remove a connected device.
-     */
-    suspend fun removeDevice(deviceId: String): Result<Unit>
+  /**
+   * Remove a connected device.
+   */
+  suspend fun removeDevice(deviceId: String): Result<Unit>
 
-    /**
-     * Update device connection status.
-     */
-    suspend fun updateDeviceStatus(deviceId: String, isConnected: Boolean): Result<Device>
+  /**
+   * Update device connection status.
+   */
+  suspend fun updateDeviceStatus(deviceId: String, isConnected: Boolean): Result<Device>
 
-    /**
-     * Update background preference.
-     */
-    suspend fun updateBackgroundIndex(index: Int): Result<UserPreferences>
+  /**
+   * Update background preference.
+   */
+  suspend fun updateBackgroundIndex(index: Int): Result<UserPreferences>
 
-    /**
-     * Logout user.
-     */
-    suspend fun logout(): Result<Unit>
+  /**
+   * Logout user.
+   */
+  suspend fun logout(): Result<Unit>
 
-    /**
-     * Refresh user data from remote source.
-     */
-    suspend fun refreshUser(): Result<Unit>
+  /**
+   * Refresh user data from remote source.
+   */
+  suspend fun refreshUser(): Result<Unit>
 }

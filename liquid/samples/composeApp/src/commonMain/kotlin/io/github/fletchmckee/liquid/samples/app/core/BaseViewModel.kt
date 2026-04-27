@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.core
 
 import androidx.compose.runtime.Composable
@@ -16,50 +18,50 @@ import kotlinx.coroutines.launch
  * Uses coroutines for async operations and StateFlow for state management.
  */
 abstract class BaseViewModel<S, E> {
-    protected val viewModelScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+  protected val viewModelScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    protected abstract val initialState: S
+  protected abstract val initialState: S
 
-    private val _state by lazy { MutableStateFlow(initialState) }
-    val state: StateFlow<S> by lazy { _state.asStateFlow() }
+  private val _state by lazy { MutableStateFlow(initialState) }
+  val state: StateFlow<S> by lazy { _state.asStateFlow() }
 
-    protected val currentState: S get() = _state.value
+  protected val currentState: S get() = _state.value
 
-    protected fun updateState(reducer: S.() -> S) {
-        _state.value = _state.value.reducer()
-    }
+  protected fun updateState(reducer: S.() -> S) {
+    _state.value = _state.value.reducer()
+  }
 
-    protected fun setState(newState: S) {
-        _state.value = newState
-    }
+  protected fun setState(newState: S) {
+    _state.value = newState
+  }
 
-    /**
-     * Handle one-time events (navigation, snackbars, etc.)
-     */
-    private val _events = MutableStateFlow<E?>(null)
-    val events: StateFlow<E?> = _events.asStateFlow()
+  /**
+   * Handle one-time events (navigation, snackbars, etc.)
+   */
+  private val _events = MutableStateFlow<E?>(null)
+  val events: StateFlow<E?> = _events.asStateFlow()
 
-    protected fun sendEvent(event: E) {
-        _events.value = event
-    }
+  protected fun sendEvent(event: E) {
+    _events.value = event
+  }
 
-    fun consumeEvent() {
-        _events.value = null
-    }
+  fun consumeEvent() {
+    _events.value = null
+  }
 
-    /**
-     * Launch a coroutine in viewModelScope
-     */
-    protected fun launch(block: suspend CoroutineScope.() -> Unit) {
-        viewModelScope.launch(block = block)
-    }
+  /**
+   * Launch a coroutine in viewModelScope
+   */
+  protected fun launch(block: suspend CoroutineScope.() -> Unit) {
+    viewModelScope.launch(block = block)
+  }
 
-    /**
-     * Clean up resources when ViewModel is no longer needed
-     */
-    open fun onCleared() {
-        viewModelScope.cancel()
-    }
+  /**
+   * Clean up resources when ViewModel is no longer needed
+   */
+  open fun onCleared() {
+    viewModelScope.cancel()
+  }
 }
 
 /**
@@ -72,7 +74,5 @@ abstract class SimpleViewModel<S> : BaseViewModel<S, Nothing>()
  */
 @Composable
 inline fun <reified VM : BaseViewModel<*, *>> rememberViewModel(
-    crossinline factory: () -> VM
-): VM {
-    return remember { factory() }
-}
+  crossinline factory: () -> VM,
+): VM = remember { factory() }

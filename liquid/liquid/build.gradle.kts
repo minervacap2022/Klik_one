@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -65,7 +67,7 @@ kotlin {
 
   // Force link iOS targets to iosMain (in case default hierarchy failed)
   configure(listOf(iosX64(), iosArm64(), iosSimulatorArm64())) {
-      compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("iosMain"))
+    compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("iosMain"))
   }
 }
 

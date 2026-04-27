@@ -14,6 +14,6 @@ fun LiquidDemos(
   initialDispersion: Float = 0f,
   isBenchmark: Boolean = false,
 ) {
-    // Redirect to the new MainApp which contains the entire Klik Liquid OS implementation.
-    MainApp()
+  // Redirect to the new MainApp which contains the entire Klik Liquid OS implementation.
+  MainApp()
 }

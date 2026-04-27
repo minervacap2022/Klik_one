@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
@@ -7,7 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,10 +27,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,322 +37,225 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.fletchmckee.liquid.samples.app.domain.entity.IntegrationInfo
 import io.github.fletchmckee.liquid.samples.app.domain.entity.IntegrationProviders
-import io.github.fletchmckee.liquid.samples.app.theme.KlikBlack
-import io.github.fletchmckee.liquid.samples.app.theme.KlikPrimary
-import io.github.fletchmckee.liquid.samples.app.theme.montserratFontFamily
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Eyebrow
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Sp
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Type
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.k1Clickable
 import kotlinx.coroutines.delay
 
-/**
- * Dialog that prompts users to connect their integrations.
- * Features:
- * - Auto-dismisses after countdown (default 3 seconds)
- * - Shows unconnected integrations as tappable cards
- * - "Never show again" checkbox option
- *
- * @param isVisible Whether the dialog is visible
- * @param unconnectedIntegrations List of integrations that are not yet connected
- * @param autoDismissSeconds Number of seconds before auto-dismiss (default 3)
- * @param onIntegrationClick Called when user taps an integration to authorize
- * @param onDismiss Called when dialog is dismissed (tap outside, countdown ends, or explicit close)
- * @param onNeverShowAgain Called when user checks "Never show again" and dismisses
- */
 @Composable
 fun IntegrationPromptDialog(
-    isVisible: Boolean,
-    unconnectedIntegrations: List<IntegrationInfo>,
-    autoDismissSeconds: Int = 3,
-    onIntegrationClick: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onNeverShowAgain: () -> Unit
+  isVisible: Boolean,
+  unconnectedIntegrations: List<IntegrationInfo>,
+  autoDismissSeconds: Int = 3,
+  onIntegrationClick: (String) -> Unit,
+  onDismiss: () -> Unit,
+  onNeverShowAgain: () -> Unit,
 ) {
-    var remainingSeconds by remember(isVisible) { mutableStateOf(autoDismissSeconds) }
-    var neverShowAgain by remember(isVisible) { mutableStateOf(false) }
-    var progress by remember(isVisible) { mutableStateOf(1f) }
+  var remainingSeconds by remember(isVisible) { mutableStateOf(autoDismissSeconds) }
+  var neverShowAgain by remember(isVisible) { mutableStateOf(false) }
 
-    // Countdown timer
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            remainingSeconds = autoDismissSeconds
-            progress = 1f
-
-            // Countdown loop
-            while (remainingSeconds > 0) {
-                delay(100) // Update every 100ms for smooth progress
-                progress -= (0.1f / autoDismissSeconds)
-                if (progress <= 0) {
-                    remainingSeconds--
-                    if (remainingSeconds > 0) {
-                        // Don't reset progress on last iteration
-                    }
-                }
-            }
-
-            // Auto-dismiss when countdown finishes
-            if (neverShowAgain) {
-                onNeverShowAgain()
-            } else {
-                onDismiss()
-            }
-        }
+  // Countdown + auto-dismiss. Single effect — previously there were two, which
+  // caused the displayed countdown to race the progress reset loop.
+  LaunchedEffect(isVisible) {
+    if (!isVisible) return@LaunchedEffect
+    remainingSeconds = autoDismissSeconds
+    while (remainingSeconds > 0) {
+      delay(1000)
+      remainingSeconds--
     }
+    if (neverShowAgain) onNeverShowAgain() else onDismiss()
+  }
 
-    // More accurate countdown display
-    LaunchedEffect(isVisible) {
-        if (isVisible) {
-            remainingSeconds = autoDismissSeconds
-            repeat(autoDismissSeconds) {
-                delay(1000)
-                remainingSeconds--
-            }
-        }
-    }
-
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.9f),
-        exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f)
+  AnimatedVisibility(
+    visible = isVisible,
+    enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.96f),
+    exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.96f),
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .background(Color.Black.copy(alpha = 0.32f))
+        .pointerInput(Unit) {
+          detectTapGestures(onTap = {
+            if (neverShowAgain) onNeverShowAgain() else onDismiss()
+          })
+        },
+      contentAlignment = Alignment.Center,
     ) {
-        // Full-screen overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = {
-                        if (neverShowAgain) {
-                            onNeverShowAgain()
-                        } else {
-                            onDismiss()
-                        }
-                    })
-                },
-            contentAlignment = Alignment.Center
+      // Paper card — K1 editorial: hairline border, paper fill, no shadow.
+      Column(
+        modifier = Modifier
+          .widthIn(max = 360.dp)
+          .padding(horizontal = 24.dp)
+          .clip(RoundedCornerShape(20.dp))
+          .background(KlikPaperCard)
+          .border(0.75.dp, KlikLineHairline, RoundedCornerShape(20.dp))
+          .pointerInput(Unit) { detectTapGestures { /* swallow tap so backdrop doesn't fire */ } }
+          .padding(horizontal = 24.dp, vertical = 28.dp),
+      ) {
+        K1Eyebrow("Klik")
+        Spacer(Modifier.height(K1Sp.m))
+        Text(
+          "Connect your apps.",
+          style = K1Type.h1,
+        )
+        Spacer(Modifier.height(K1Sp.s))
+        Text(
+          "Klik works best when it can quietly read your calendar and tasks. Tap a provider to connect.",
+          style = K1Type.bodySm.copy(color = KlikInkSecondary),
+        )
+
+        Spacer(Modifier.height(K1Sp.xl))
+
+        // Integration tiles row
+        LazyRow(
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+          modifier = Modifier.fillMaxWidth(),
         ) {
-            // Dialog card
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 340.dp)
-                    .padding(horizontal = 24.dp)
-                    .shadow(
-                        elevation = 24.dp,
-                        shape = RoundedCornerShape(24.dp),
-                        clip = true
-                    )
-                    .background(Color.White, RoundedCornerShape(24.dp))
-                    .pointerInput(Unit) {
-                        // Consume clicks to prevent dismissing when clicking on dialog
-                        detectTapGestures { }
-                    }
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Header
-                Text(
-                    text = "Connect Your Apps",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = montserratFontFamily()
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = KlikBlack
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    text = "Get the most out of Klik by connecting your favorite apps",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = montserratFontFamily()
-                    ),
-                    color = KlikBlack.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(Modifier.height(20.dp))
-
-                // Integration cards (horizontal scroll)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(
-                        items = unconnectedIntegrations.take(5), // Show max 5
-                        key = { it.providerId }
-                    ) { integration ->
-                        IntegrationPromptCard(
-                            integration = integration,
-                            onClick = { onIntegrationClick(integration.providerId) }
-                        )
-                    }
-                }
-
-                if (unconnectedIntegrations.size > 5) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "+${unconnectedIntegrations.size - 5} more",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
-                    )
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                // Progress bar (countdown indicator)
-                LinearProgressIndicator(
-                    progress = { (remainingSeconds.toFloat() / autoDismissSeconds) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = KlikPrimary,
-                    trackColor = Color.Gray.copy(alpha = 0.2f),
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    text = "Closing in ${remainingSeconds}s",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                // Never show again checkbox
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { neverShowAgain = !neverShowAgain }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Checkbox(
-                        checked = neverShowAgain,
-                        onCheckedChange = { neverShowAgain = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = KlikPrimary,
-                            uncheckedColor = Color.Gray
-                        )
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Don't show this again",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = KlikBlack.copy(alpha = 0.7f)
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // Dismiss button
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Gray.copy(alpha = 0.1f))
-                        .clickable {
-                            if (neverShowAgain) {
-                                onNeverShowAgain()
-                            } else {
-                                onDismiss()
-                            }
-                        }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Maybe Later",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = KlikBlack.copy(alpha = 0.7f)
-                    )
-                }
-            }
+          items(
+            items = unconnectedIntegrations.take(5),
+            key = { it.providerId },
+          ) { integration ->
+            K1IntegrationTile(
+              integration = integration,
+              onClick = { onIntegrationClick(integration.providerId) },
+            )
+          }
         }
+
+        if (unconnectedIntegrations.size > 5) {
+          Spacer(Modifier.height(K1Sp.s))
+          Text(
+            "+${unconnectedIntegrations.size - 5} more",
+            style = K1Type.metaSm.copy(color = KlikInkMuted),
+          )
+        }
+
+        Spacer(Modifier.height(K1Sp.xl))
+
+        // Countdown track — hairline rule with a filling ink bar.
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(2.dp)
+            .background(KlikLineHairline),
+        ) {
+          val fraction = (remainingSeconds.toFloat() / autoDismissSeconds).coerceIn(0f, 1f)
+          Box(
+            Modifier
+              .fillMaxWidth(fraction)
+              .height(2.dp)
+              .background(KlikInkPrimary),
+          )
+        }
+        Spacer(Modifier.height(K1Sp.s))
+        Text(
+          "Closes in ${remainingSeconds}s",
+          style = K1Type.metaSm.copy(color = KlikInkTertiary),
+        )
+
+        Spacer(Modifier.height(K1Sp.m))
+
+        // "Don't show again" — text-only with a minimal check glyph.
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .k1Clickable { neverShowAgain = !neverShowAgain }
+            .padding(vertical = 8.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          K1TinyCheck(checked = neverShowAgain)
+          Text(
+            "Don't show this again",
+            style = K1Type.metaSm.copy(color = KlikInkSecondary),
+          )
+        }
+
+        Spacer(Modifier.height(K1Sp.m))
+
+        // Secondary action — text-pill on soft paper.
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(KlikPaperSoft)
+            .k1Clickable {
+              if (neverShowAgain) onNeverShowAgain() else onDismiss()
+            }
+            .padding(vertical = 14.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            "Maybe later",
+            style = K1Type.bodyMd.copy(color = KlikInkPrimary),
+          )
+        }
+      }
     }
+  }
 }
 
-/**
- * Individual integration card shown in the prompt dialog.
- * Displays differently for Apple native integrations (Calendar, Reminders)
- * vs OAuth integrations (Notion, Slack, etc.)
- */
 @Composable
-private fun IntegrationPromptCard(
-    integration: IntegrationInfo,
-    onClick: () -> Unit
+private fun K1IntegrationTile(
+  integration: IntegrationInfo,
+  onClick: () -> Unit,
 ) {
-    val displayInfo = IntegrationProviders.getDisplayInfo(integration.providerId)
-    val displayName = displayInfo?.name ?: integration.displayName
-    val initial = displayInfo?.initial ?: integration.displayName.take(1)
-    
-    // Check if this is an Apple native integration
-    val isAppleNative = IntegrationProviders.isAppleNativeProvider(integration.providerId)
-    
-    // Apple native integrations have a slightly different color scheme
-    val iconBackgroundColor = if (isAppleNative) {
-        Color(0xFF007AFF).copy(alpha = 0.1f) // iOS blue
-    } else {
-        KlikPrimary.copy(alpha = 0.1f)
-    }
-    val iconTextColor = if (isAppleNative) {
-        Color(0xFF007AFF) // iOS blue
-    } else {
-        KlikPrimary
-    }
+  val displayInfo = IntegrationProviders.getDisplayInfo(integration.providerId)
+  val displayName = displayInfo?.name ?: integration.displayName
 
-    Column(
-        modifier = Modifier
-            .width(72.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Icon circle
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(iconBackgroundColor, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = initial,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFamily = montserratFontFamily()
-                ),
-                fontWeight = FontWeight.Bold,
-                color = iconTextColor
-            )
-        }
+  Column(
+    modifier = Modifier
+      .width(80.dp)
+      .clip(RoundedCornerShape(14.dp))
+      .background(KlikPaperSoft)
+      .k1Clickable(onClick = onClick)
+      .padding(vertical = 12.dp, horizontal = 8.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    K1ProviderIcon(providerId = integration.providerId, size = 36.dp)
+    Text(
+      displayName,
+      style = K1Type.metaSm.copy(color = KlikInkPrimary),
+      maxLines = 1,
+      textAlign = TextAlign.Center,
+    )
+    Text(
+      "Connect",
+      style = K1Type.metaSm.copy(color = KlikInkTertiary),
+    )
+  }
+}
 
-        // Name
-        Text(
-            text = displayName,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = KlikBlack,
-            maxLines = 1,
-            textAlign = TextAlign.Center
-        )
-
-        // Connect label - different text for Apple native
-        Text(
-            text = if (isAppleNative) "Allow" else "Connect",
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-            color = iconTextColor,
-            fontWeight = FontWeight.SemiBold
-        )
+@Composable
+private fun K1TinyCheck(checked: Boolean) {
+  val shape = RoundedCornerShape(3.dp)
+  Box(
+    Modifier
+      .size(16.dp)
+      .clip(shape)
+      .background(if (checked) KlikInkPrimary else KlikPaperCard)
+      .border(0.75.dp, if (checked) KlikInkPrimary else KlikLineHairline, shape),
+    contentAlignment = Alignment.Center,
+  ) {
+    if (checked) {
+      Text("✓", style = K1Type.metaSm.copy(color = KlikPaperCard))
     }
+  }
 }

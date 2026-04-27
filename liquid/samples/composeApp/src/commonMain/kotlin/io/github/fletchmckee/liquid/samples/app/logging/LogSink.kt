@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.logging
 
 /**
@@ -5,7 +7,7 @@ package io.github.fletchmckee.liquid.samples.app.logging
  * Each platform routes log output to its native logging system.
  */
 interface LogSink {
-    fun emit(level: LogLevel, tag: String, message: String, throwable: Throwable?)
+  fun emit(level: LogLevel, tag: String, message: String, throwable: Throwable?)
 }
 
 /**

@@ -10,28 +10,28 @@ import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
  */
 actual class SecureStorage actual constructor() {
 
-    private val memoryStorage = mutableMapOf<String, String>()
+  private val memoryStorage = mutableMapOf<String, String>()
 
-    actual fun saveString(key: String, value: String) {
-        memoryStorage[key] = value
-        KlikLogger.d("SecureStorage", "Saved key: $key (in-memory)")
-    }
+  actual fun saveString(key: String, value: String) {
+    memoryStorage[key] = value
+    KlikLogger.d("SecureStorage", "Saved key: $key (in-memory)")
+  }
 
-    actual fun getString(key: String): String? {
-        val value = memoryStorage[key]
-        if (value != null) {
-            KlikLogger.d("SecureStorage", "Retrieved key: $key (in-memory)")
-        }
-        return value
+  actual fun getString(key: String): String? {
+    val value = memoryStorage[key]
+    if (value != null) {
+      KlikLogger.d("SecureStorage", "Retrieved key: $key (in-memory)")
     }
+    return value
+  }
 
-    actual fun remove(key: String) {
-        memoryStorage.remove(key)
-        KlikLogger.d("SecureStorage", "Removed key: $key (in-memory)")
-    }
+  actual fun remove(key: String) {
+    memoryStorage.remove(key)
+    KlikLogger.d("SecureStorage", "Removed key: $key (in-memory)")
+  }
 
-    actual fun clear() {
-        memoryStorage.clear()
-        KlikLogger.d("SecureStorage", "Cleared all keys (in-memory)")
-    }
+  actual fun clear() {
+    memoryStorage.clear()
+    KlikLogger.d("SecureStorage", "Cleared all keys (in-memory)")
+  }
 }

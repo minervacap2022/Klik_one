@@ -23,7 +23,7 @@ fun LiquidWebViewScreen(
   // WebView disabled - cinterop incompatible with Xcode 26 beta
   Box(
     modifier = modifier.padding(paddingValues).fillMaxSize(),
-    contentAlignment = Alignment.Center
+    contentAlignment = Alignment.Center,
   ) {
     Text("WebView unavailable: $url")
   }

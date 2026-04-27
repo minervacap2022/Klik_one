@@ -1,4 +1,5 @@
-// Copyright 2025, Klik
+// Copyright 2025, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
@@ -7,9 +8,9 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
  * Which card the Today screen's "RIGHT NOW" slot should render.
  */
 sealed class RightNowCardState {
-    object Recording : RightNowCardState()
-    data class Live(val meeting: Meeting) : RightNowCardState()
-    object Quiet : RightNowCardState()
+  object Recording : RightNowCardState()
+  data class Live(val meeting: Meeting) : RightNowCardState()
+  object Quiet : RightNowCardState()
 }
 
 /**
@@ -22,10 +23,10 @@ sealed class RightNowCardState {
  * which would otherwise hijack the slot and hide the record button.
  */
 fun rightNowCardState(
-    isRecording: Boolean,
-    dayMeetings: List<Meeting>,
+  isRecording: Boolean,
+  dayMeetings: List<Meeting>,
 ): RightNowCardState {
-    if (isRecording) return RightNowCardState.Recording
-    val live = dayMeetings.firstOrNull { !it.isPast && it.participants.isNotEmpty() }
-    return if (live != null) RightNowCardState.Live(live) else RightNowCardState.Quiet
+  if (isRecording) return RightNowCardState.Recording
+  val live = dayMeetings.firstOrNull { !it.isPast && it.participants.isNotEmpty() }
+  return if (live != null) RightNowCardState.Live(live) else RightNowCardState.Quiet
 }

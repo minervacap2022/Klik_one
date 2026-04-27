@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.data.source.inmemory
 
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Organization
@@ -9,90 +11,80 @@ import kotlinx.datetime.Clock
  */
 class InMemoryOrganizationDataSource {
 
-    private val organizations = mutableListOf<Organization>()
+  private val organizations = mutableListOf<Organization>()
 
-    fun setOrganizations(organizations: List<Organization>) {
-        this.organizations.clear()
-        this.organizations.addAll(organizations)
+  fun setOrganizations(organizations: List<Organization>) {
+    this.organizations.clear()
+    this.organizations.addAll(organizations)
+  }
+
+  fun getOrganizations(): List<Organization> = organizations.filter { !it.isArchived }
+
+  fun getOrganizationById(id: String): Organization? = organizations.find { it.id == id }
+
+  fun searchOrganizations(query: String): List<Organization> {
+    val lowerQuery = query.lowercase()
+    return organizations.filter {
+      it.name.lowercase().contains(lowerQuery) ||
+        it.industry.lowercase().contains(lowerQuery)
     }
+  }
 
-    fun getOrganizations(): List<Organization> = organizations.filter { !it.isArchived }
+  fun getOrganizationsByIndustry(industry: String): List<Organization> = organizations.filter { it.industry.equals(industry, ignoreCase = true) }
 
-    fun getOrganizationById(id: String): Organization? = organizations.find { it.id == id }
+  fun getTopOrganizations(limit: Int): List<Organization> = organizations
+    .sortedByDescending { it.relationshipScore }
+    .take(limit)
 
-    fun searchOrganizations(query: String): List<Organization> {
-        val lowerQuery = query.lowercase()
-        return organizations.filter {
-            it.name.lowercase().contains(lowerQuery) ||
-            it.industry.lowercase().contains(lowerQuery)
-        }
-    }
+  fun getOrganizationForPerson(personName: String): Organization? = organizations.find { org ->
+    org.employees.any { it.contains(personName, ignoreCase = true) }
+  }
 
-    fun getOrganizationsByIndustry(industry: String): List<Organization> {
-        return organizations.filter { it.industry.equals(industry, ignoreCase = true) }
-    }
+  fun createOrganization(organization: Organization): Organization {
+    val newOrg = organization.copy(id = "org${organizations.size + 1}")
+    organizations.add(newOrg)
+    return newOrg
+  }
 
-    fun getTopOrganizations(limit: Int): List<Organization> {
-        return organizations
-            .sortedByDescending { it.relationshipScore }
-            .take(limit)
-    }
+  fun updateOrganization(organization: Organization): Organization? {
+    val index = organizations.indexOfFirst { it.id == organization.id }
+    if (index == -1) return null
 
-    fun getOrganizationForPerson(personName: String): Organization? {
-        return organizations.find { org ->
-            org.employees.any { it.contains(personName, ignoreCase = true) }
-        }
-    }
+    organizations[index] = organization
+    return organization
+  }
 
-    fun createOrganization(organization: Organization): Organization {
-        val newOrg = organization.copy(id = "org${organizations.size + 1}")
-        organizations.add(newOrg)
-        return newOrg
-    }
+  fun deleteOrganization(organizationId: String): Boolean = organizations.removeAll { it.id == organizationId }
 
-    fun updateOrganization(organization: Organization): Organization? {
-        val index = organizations.indexOfFirst { it.id == organization.id }
-        if (index == -1) return null
+  fun toggleOrganizationPin(organizationId: String): Organization? {
+    val index = organizations.indexOfFirst { it.id == organizationId }
+    if (index == -1) return null
 
-        organizations[index] = organization
-        return organization
-    }
+    val org = organizations[index]
+    val updated = org.copy(
+      isPinned = !org.isPinned,
+      pinnedAt = if (!org.isPinned) Clock.System.now().toEpochMilliseconds() else null,
+    )
+    organizations[index] = updated
+    return updated
+  }
 
-    fun deleteOrganization(organizationId: String): Boolean {
-        return organizations.removeAll { it.id == organizationId }
-    }
+  fun getPinnedOrganizations(): List<Organization> = organizations.filter { it.isPinned && !it.isArchived }
+    .sortedByDescending { it.pinnedAt }
 
-    fun toggleOrganizationPin(organizationId: String): Organization? {
-        val index = organizations.indexOfFirst { it.id == organizationId }
-        if (index == -1) return null
+  fun archiveOrganization(organizationId: String): Boolean {
+    val index = organizations.indexOfFirst { it.id == organizationId }
+    if (index == -1) return false
 
-        val org = organizations[index]
-        val updated = org.copy(
-            isPinned = !org.isPinned,
-            pinnedAt = if (!org.isPinned) Clock.System.now().toEpochMilliseconds() else null
-        )
-        organizations[index] = updated
-        return updated
-    }
+    organizations[index] = organizations[index].copy(isArchived = true, isPinned = false)
+    return true
+  }
 
-    fun getPinnedOrganizations(): List<Organization> {
-        return organizations.filter { it.isPinned && !it.isArchived }
-            .sortedByDescending { it.pinnedAt }
-    }
+  fun unarchiveOrganization(organizationId: String): Boolean {
+    val index = organizations.indexOfFirst { it.id == organizationId }
+    if (index == -1) return false
 
-    fun archiveOrganization(organizationId: String): Boolean {
-        val index = organizations.indexOfFirst { it.id == organizationId }
-        if (index == -1) return false
-
-        organizations[index] = organizations[index].copy(isArchived = true, isPinned = false)
-        return true
-    }
-
-    fun unarchiveOrganization(organizationId: String): Boolean {
-        val index = organizations.indexOfFirst { it.id == organizationId }
-        if (index == -1) return false
-
-        organizations[index] = organizations[index].copy(isArchived = false)
-        return true
-    }
+    organizations[index] = organizations[index].copy(isArchived = false)
+    return true
+  }
 }

@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.components
 
 import androidx.compose.foundation.background
@@ -25,73 +27,73 @@ import coil3.compose.SubcomposeAsyncImage
  */
 @Composable
 fun AvatarImage(
-    avatarUrl: String?,
-    initials: String,
-    size: Dp = 40.dp,
-    backgroundColor: Color = Color.Gray.copy(alpha = 0.1f),
-    initialsColor: Color = Color.Gray,
-    initialsStyle: TextStyle = MaterialTheme.typography.titleSmall,
-    modifier: Modifier = Modifier
+  avatarUrl: String?,
+  initials: String,
+  size: Dp = 40.dp,
+  backgroundColor: Color = Color.Gray.copy(alpha = 0.1f),
+  initialsColor: Color = Color.Gray,
+  initialsStyle: TextStyle = MaterialTheme.typography.titleSmall,
+  modifier: Modifier = Modifier,
 ) {
-    if (!avatarUrl.isNullOrBlank()) {
-        SubcomposeAsyncImage(
-            model = avatarUrl,
-            contentDescription = "Avatar",
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-                .size(size)
-                .clip(CircleShape),
-            loading = {
-                InitialsAvatar(
-                    initials = initials,
-                    size = size,
-                    backgroundColor = backgroundColor,
-                    textColor = initialsColor,
-                    textStyle = initialsStyle
-                )
-            },
-            error = {
-                InitialsAvatar(
-                    initials = initials,
-                    size = size,
-                    backgroundColor = backgroundColor,
-                    textColor = initialsColor,
-                    textStyle = initialsStyle
-                )
-            }
-        )
-    } else {
+  if (!avatarUrl.isNullOrBlank()) {
+    SubcomposeAsyncImage(
+      model = avatarUrl,
+      contentDescription = "Avatar",
+      contentScale = ContentScale.Crop,
+      modifier = modifier
+        .size(size)
+        .clip(CircleShape),
+      loading = {
         InitialsAvatar(
-            initials = initials,
-            size = size,
-            backgroundColor = backgroundColor,
-            textColor = initialsColor,
-            textStyle = initialsStyle,
-            modifier = modifier
+          initials = initials,
+          size = size,
+          backgroundColor = backgroundColor,
+          textColor = initialsColor,
+          textStyle = initialsStyle,
         )
-    }
+      },
+      error = {
+        InitialsAvatar(
+          initials = initials,
+          size = size,
+          backgroundColor = backgroundColor,
+          textColor = initialsColor,
+          textStyle = initialsStyle,
+        )
+      },
+    )
+  } else {
+    InitialsAvatar(
+      initials = initials,
+      size = size,
+      backgroundColor = backgroundColor,
+      textColor = initialsColor,
+      textStyle = initialsStyle,
+      modifier = modifier,
+    )
+  }
 }
 
 @Composable
 private fun InitialsAvatar(
-    initials: String,
-    size: Dp,
-    backgroundColor: Color,
-    textColor: Color,
-    textStyle: TextStyle,
-    modifier: Modifier = Modifier
+  initials: String,
+  size: Dp,
+  backgroundColor: Color,
+  textColor: Color,
+  textStyle: TextStyle,
+  modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .background(backgroundColor, CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initials,
-            style = textStyle,
-            fontWeight = FontWeight.Medium,
-            color = textColor
-        )
-    }
+  Box(
+    modifier = modifier
+      .size(size)
+      .background(backgroundColor, CircleShape),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(
+      text = initials,
+      style = textStyle,
+      fontWeight = FontWeight.Medium,
+      color = textColor,
+    )
+  }
 }

@@ -3,6 +3,7 @@
 package io.github.fletchmckee.liquid.samples.app.utils
 
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -25,7 +26,6 @@ import androidx.compose.ui.unit.IntOffset
 import io.github.fletchmckee.liquid.samples.app.theme.LocalIsBenchmark
 import io.github.fletchmckee.liquid.samples.app.theme.LocalIsScreenshotTest
 import kotlin.math.roundToInt
-import androidx.compose.foundation.gestures.detectTapGestures
 import liquid_root.samples.composeapp.generated.resources.Res
 import liquid_root.samples.composeapp.generated.resources.moon_and_stars
 import org.jetbrains.compose.resources.painterResource
@@ -37,11 +37,11 @@ internal expect fun formatFloat(value: Float, format: String): String
  * Useful for adding feedback capability to elements.
  */
 fun Modifier.onLongPress(
-    onLongPress: () -> Unit
+  onLongPress: () -> Unit,
 ): Modifier = this.pointerInput(Unit) {
-    detectTapGestures(
-        onLongPress = { onLongPress() }
-    )
+  detectTapGestures(
+    onLongPress = { onLongPress() },
+  )
 }
 
 // Used for benchmarks so that we can compare performance with none of the library's effects added.

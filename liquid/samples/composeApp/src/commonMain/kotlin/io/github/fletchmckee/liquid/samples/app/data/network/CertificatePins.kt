@@ -19,18 +19,18 @@ package io.github.fletchmckee.liquid.samples.app.data.network
  */
 object CertificatePins {
 
-    /** SHA-256 SPKI pin of the hiklik.ai leaf certificate. */
-    private const val LEAF_PIN = "SKGnCPNAtqFRixMHV6JcAcjAtd6B3DSF+NJhQBnDIpg="
+  /** SHA-256 SPKI pin of the hiklik.ai leaf certificate. */
+  private const val LEAF_PIN = "SKGnCPNAtqFRixMHV6JcAcjAtd6B3DSF+NJhQBnDIpg="
 
-    /** SHA-256 SPKI pin of the Google Trust Services WE1 intermediate CA. */
-    private const val INTERMEDIATE_PIN = "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
+  /** SHA-256 SPKI pin of the Google Trust Services WE1 intermediate CA. */
+  private const val INTERMEDIATE_PIN = "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
 
-    /** Set of all accepted pins in "sha256/<base64>" format. */
-    val HIKLIK_PINS: Set<String> = setOf(
-        "sha256/$LEAF_PIN",
-        "sha256/$INTERMEDIATE_PIN",
-    )
+  /** Set of all accepted pins in "sha256/<base64>" format. */
+  val HIKLIK_PINS: Set<String> = setOf(
+    "sha256/$LEAF_PIN",
+    "sha256/$INTERMEDIATE_PIN",
+  )
 
-    /** Hostname that pinning applies to. */
-    const val PINNED_HOSTNAME = "hiklik.ai"
+  /** Hostname that pinning applies to. */
+  const val PINNED_HOSTNAME = "hiklik.ai"
 }

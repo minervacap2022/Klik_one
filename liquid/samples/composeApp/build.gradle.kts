@@ -107,6 +107,8 @@ kotlin {
       // implementation(libs.jetbrains.navigation.compose)
       implementation(libs.coil.compose)
       implementation(libs.coil.ktor)
+      implementation(libs.markdown.renderer)
+      implementation(libs.markdown.renderer.m3)
       implementation(libs.ktor.core)
       // implementation(libs.jetbrains.lifecycle.runtimeCompose)
       // implementation(libs.jetbrains.material3.adaptive)

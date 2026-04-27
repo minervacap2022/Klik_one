@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.logging
 
 /**
@@ -5,8 +7,8 @@ package io.github.fletchmckee.liquid.samples.app.logging
  * Ordered by severity: DEBUG < INFO < WARN < ERROR
  */
 enum class LogLevel(val value: Int, val label: String) {
-    DEBUG(0, "DEBUG"),
-    INFO(1, "INFO"),
-    WARN(2, "WARN"),
-    ERROR(3, "ERROR");
+  DEBUG(0, "DEBUG"),
+  INFO(1, "INFO"),
+  WARN(2, "WARN"),
+  ERROR(3, "ERROR"),
 }

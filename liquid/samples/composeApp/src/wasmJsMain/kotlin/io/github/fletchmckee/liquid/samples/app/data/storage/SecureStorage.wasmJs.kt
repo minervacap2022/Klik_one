@@ -12,37 +12,37 @@ import kotlinx.browser.localStorage
  */
 actual class SecureStorage actual constructor() {
 
-    actual fun saveString(key: String, value: String) {
-        localStorage.setItem(key, value)
-        KlikLogger.d("SecureStorage", "Saved key: $key")
-    }
+  actual fun saveString(key: String, value: String) {
+    localStorage.setItem(key, value)
+    KlikLogger.d("SecureStorage", "Saved key: $key")
+  }
 
-    actual fun getString(key: String): String? {
-        val value = localStorage.getItem(key)
-        if (value != null) {
-            KlikLogger.d("SecureStorage", "Retrieved key: $key")
-        }
-        return value
+  actual fun getString(key: String): String? {
+    val value = localStorage.getItem(key)
+    if (value != null) {
+      KlikLogger.d("SecureStorage", "Retrieved key: $key")
     }
+    return value
+  }
 
-    actual fun remove(key: String) {
-        localStorage.removeItem(key)
-        KlikLogger.d("SecureStorage", "Removed key: $key")
-    }
+  actual fun remove(key: String) {
+    localStorage.removeItem(key)
+    KlikLogger.d("SecureStorage", "Removed key: $key")
+  }
 
-    actual fun clear() {
-        // Remove all auth-related keys
-        listOf(
-            AuthStorageKeys.IS_LOGGED_IN,
-            AuthStorageKeys.USER_ID,
-            AuthStorageKeys.ACCESS_TOKEN,
-            AuthStorageKeys.REFRESH_TOKEN,
-            AuthStorageKeys.USER_NAME,
-            AuthStorageKeys.USER_EMAIL,
-            PreferenceKeys.USER_PREFERENCES
-        ).forEach { key ->
-            localStorage.removeItem(key)
-        }
-        KlikLogger.d("SecureStorage", "Cleared all auth keys")
+  actual fun clear() {
+    // Remove all auth-related keys
+    listOf(
+      AuthStorageKeys.IS_LOGGED_IN,
+      AuthStorageKeys.USER_ID,
+      AuthStorageKeys.ACCESS_TOKEN,
+      AuthStorageKeys.REFRESH_TOKEN,
+      AuthStorageKeys.USER_NAME,
+      AuthStorageKeys.USER_EMAIL,
+      PreferenceKeys.USER_PREFERENCES,
+    ).forEach { key ->
+      localStorage.removeItem(key)
     }
+    KlikLogger.d("SecureStorage", "Cleared all auth keys")
+  }
 }

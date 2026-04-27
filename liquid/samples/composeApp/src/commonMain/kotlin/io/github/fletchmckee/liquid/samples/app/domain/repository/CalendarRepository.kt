@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.domain.repository
 
 import io.github.fletchmckee.liquid.samples.app.core.Result
@@ -13,63 +15,63 @@ import kotlinx.datetime.LocalDate
  */
 interface CalendarRepository {
 
-    /**
-     * Get all meetings as a reactive flow.
-     */
-    fun getMeetingsFlow(): Flow<Result<List<Meeting>>>
+  /**
+   * Get all meetings as a reactive flow.
+   */
+  fun getMeetingsFlow(): Flow<Result<List<Meeting>>>
 
-    /**
-     * Get meetings for a specific date.
-     */
-    suspend fun getMeetingsForDate(date: LocalDate): Result<List<Meeting>>
+  /**
+   * Get meetings for a specific date.
+   */
+  suspend fun getMeetingsForDate(date: LocalDate): Result<List<Meeting>>
 
-    /**
-     * Get meetings within a date range.
-     */
-    suspend fun getMeetingsInRange(startDate: LocalDate, endDate: LocalDate): Result<List<Meeting>>
+  /**
+   * Get meetings within a date range.
+   */
+  suspend fun getMeetingsInRange(startDate: LocalDate, endDate: LocalDate): Result<List<Meeting>>
 
-    /**
-     * Get a single meeting by ID.
-     */
-    suspend fun getMeetingById(id: String): Result<Meeting>
+  /**
+   * Get a single meeting by ID.
+   */
+  suspend fun getMeetingById(id: String): Result<Meeting>
 
-    /**
-     * Get today's daily briefing.
-     */
-    suspend fun getDailyBriefing(): Result<DailyBriefing>
+  /**
+   * Get today's daily briefing.
+   */
+  suspend fun getDailyBriefing(): Result<DailyBriefing>
 
-    /**
-     * Get pinned meetings.
-     */
-    suspend fun getPinnedMeetings(): Result<List<Meeting>>
+  /**
+   * Get pinned meetings.
+   */
+  suspend fun getPinnedMeetings(): Result<List<Meeting>>
 
-    /**
-     * Pin/unpin a meeting.
-     */
-    suspend fun toggleMeetingPin(meetingId: String): Result<Meeting>
+  /**
+   * Pin/unpin a meeting.
+   */
+  suspend fun toggleMeetingPin(meetingId: String): Result<Meeting>
 
-    /**
-     * Archive a meeting.
-     */
-    suspend fun archiveMeeting(meetingId: String): Result<Unit>
+  /**
+   * Archive a meeting.
+   */
+  suspend fun archiveMeeting(meetingId: String): Result<Unit>
 
-    /**
-     * Get meeting minutes for a specific meeting.
-     */
-    suspend fun getMeetingMinutes(meetingId: String): Result<List<MeetingMinute>>
+  /**
+   * Get meeting minutes for a specific meeting.
+   */
+  suspend fun getMeetingMinutes(meetingId: String): Result<List<MeetingMinute>>
 
-    /**
-     * Update a meeting minute (for corrections).
-     */
-    suspend fun updateMeetingMinute(meetingId: String, minute: MeetingMinute): Result<MeetingMinute>
+  /**
+   * Update a meeting minute (for corrections).
+   */
+  suspend fun updateMeetingMinute(meetingId: String, minute: MeetingMinute): Result<MeetingMinute>
 
-    /**
-     * Get upcoming meetings count.
-     */
-    suspend fun getUpcomingMeetingsCount(): Result<Int>
+  /**
+   * Get upcoming meetings count.
+   */
+  suspend fun getUpcomingMeetingsCount(): Result<Int>
 
-    /**
-     * Refresh meetings from remote source.
-     */
-    suspend fun refreshMeetings(): Result<Unit>
+  /**
+   * Refresh meetings from remote source.
+   */
+  suspend fun refreshMeetings(): Result<Unit>
 }

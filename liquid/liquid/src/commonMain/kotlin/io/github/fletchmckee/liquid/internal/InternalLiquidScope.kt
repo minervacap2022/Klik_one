@@ -211,7 +211,6 @@ internal class LiquidScopeImpl : InternalLiquidScope {
       }
     }
 
-
   internal var cornerRadii: FloatArray = Float4Zero
     private set(value) {
       if (!field.contentEquals(value)) {
@@ -242,7 +241,6 @@ internal class LiquidScopeImpl : InternalLiquidScope {
       }
     }
 
-
   internal var colorComponents: FloatArray = Float4Zero
     private set
 
@@ -252,7 +250,6 @@ internal class LiquidScopeImpl : InternalLiquidScope {
   override fun clean() {
     mutatedFields = 0
   }
-
 
   private fun Color.getComponents(): FloatArray = floatArrayOf(red, green, blue, alpha)
 

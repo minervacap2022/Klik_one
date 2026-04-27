@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.platform
 
 import kotlinx.coroutines.flow.StateFlow
@@ -10,23 +12,24 @@ import kotlinx.coroutines.flow.StateFlow
  * this uses real-time audio taps (AVAudioEngine on iOS) for continuous streaming.
  */
 expect object FixedSessionAudioStreamer {
-    /**
-     * Whether streaming is currently active.
-     */
-    val isStreaming: StateFlow<Boolean>
+  /** Whether streaming is currently active. */
+  val isStreaming: StateFlow<Boolean>
 
-    /**
-     * Start capturing and streaming audio for a fixed session.
-     * Audio is captured in real-time and uploaded in chunks to the backend.
-     *
-     * @param userId User identifier for the backend API header
-     * @return true if streaming started successfully
-     */
-    suspend fun startStreaming(userId: String): Boolean
+  /** Whether streaming is paused (audio capture halted, session still open). */
+  val isPaused: StateFlow<Boolean>
 
-    /**
-     * Stop capturing and streaming audio.
-     * Flushes any remaining buffered audio to the backend before stopping.
-     */
-    suspend fun stopStreaming()
+  /**
+   * Start capturing and streaming audio for a fixed session.
+   * @return true if streaming started successfully
+   */
+  suspend fun startStreaming(userId: String): Boolean
+
+  /** Stop capturing and streaming audio, flushing remaining buffer. */
+  suspend fun stopStreaming()
+
+  /** Pause audio capture without ending the session. */
+  fun pauseStreaming()
+
+  /** Resume audio capture after a pause. */
+  fun resumeStreaming()
 }

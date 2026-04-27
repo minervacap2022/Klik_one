@@ -1,12 +1,25 @@
-// Copyright 2025, Klik — drill-in detail sheets for Task / Person / Project / Org.
-// These are presented as full-screen K1 surfaces so the legacy chrome stays hidden.
+// Copyright 2025, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -24,793 +37,998 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
+import com.mikepenz.markdown.m3.markdownTypography
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Organization
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Person
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Project
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
-import io.github.fletchmckee.liquid.samples.app.theme.*
+import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
+import io.github.fletchmckee.liquid.samples.app.theme.KlikDotOrg
+import io.github.fletchmckee.liquid.samples.app.theme.KlikDotPerson
+import io.github.fletchmckee.liquid.samples.app.theme.KlikDotProject
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
+import io.github.fletchmckee.liquid.samples.app.theme.KlikRiskAccent
+import io.github.fletchmckee.liquid.samples.app.theme.KlikRiskSubtext
+import io.github.fletchmckee.liquid.samples.app.theme.KlikRunning
+import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
+import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
+import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 
 // ─── Shared detail scaffold ───────────────────────────────────────────────
 
 @Composable
 private fun DetailScaffold(
-    eyebrow: String,
-    title: String,
-    onBack: () -> Unit,
-    trailing: (@Composable () -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit,
+  eyebrow: String,
+  title: String,
+  onBack: () -> Unit,
+  trailing: (@Composable () -> Unit)? = null,
+  content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(KlikPaperApp)
-            .verticalScroll(rememberScrollState())
+  Column(
+    Modifier
+      .fillMaxSize()
+      .background(KlikPaperApp)
+      .verticalScroll(rememberScrollState()),
+  ) {
+    // Top bar
+    Row(
+      Modifier
+        .fillMaxWidth()
+        .statusBarsPadding()
+        .padding(horizontal = 20.dp, vertical = 12.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Top bar
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier.size(32.dp).clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) { BackChevron() }
-            Spacer(Modifier.weight(1f))
-            if (trailing != null) trailing()
-        }
-
-        // Hero
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            K1Eyebrow(eyebrow)
-            Spacer(Modifier.height(6.dp))
-            Text(title, style = K1Type.h2)
-        }
-        Spacer(Modifier.height(K1Sp.lg))
-
-        content()
-
-        Spacer(Modifier.height(120.dp))
+      Box(
+        Modifier.size(32.dp).k1Clickable(onClick = onBack),
+        contentAlignment = Alignment.Center,
+      ) { BackChevron() }
+      Spacer(Modifier.weight(1f))
+      if (trailing != null) trailing()
     }
+
+    // Hero
+    Column(Modifier.padding(horizontal = 20.dp)) {
+      K1Eyebrow(eyebrow)
+      Spacer(Modifier.height(6.dp))
+      Text(title, style = K1Type.h2)
+    }
+    Spacer(Modifier.height(K1Sp.lg))
+
+    content()
+
+    Spacer(Modifier.height(120.dp))
+  }
 }
 
 @Composable
 private fun BackChevron() {
-    Canvas(Modifier.size(16.dp)) {
-        val w = 1.3.dp.toPx()
-        drawLine(
-            color = KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round,
-            start = Offset(10.dp.toPx(), 3.5.dp.toPx()),
-            end = Offset(5.5.dp.toPx(), 8.dp.toPx()),
-        )
-        drawLine(
-            color = KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round,
-            start = Offset(5.5.dp.toPx(), 8.dp.toPx()),
-            end = Offset(10.dp.toPx(), 12.5.dp.toPx()),
-        )
-    }
+  Canvas(Modifier.size(16.dp)) {
+    val w = 1.3.dp.toPx()
+    drawLine(
+      color = KlikInkPrimary,
+      strokeWidth = w,
+      cap = StrokeCap.Round,
+      start = Offset(10.dp.toPx(), 3.5.dp.toPx()),
+      end = Offset(5.5.dp.toPx(), 8.dp.toPx()),
+    )
+    drawLine(
+      color = KlikInkPrimary,
+      strokeWidth = w,
+      cap = StrokeCap.Round,
+      start = Offset(5.5.dp.toPx(), 8.dp.toPx()),
+      end = Offset(10.dp.toPx(), 12.5.dp.toPx()),
+    )
+  }
 }
 
 // ─── TASK DETAIL ─────────────────────────────────────────────────────────
 @Composable
 fun TaskDetailScreen(
-    task: TaskMetadata,
-    meetings: List<Meeting> = emptyList(),
-    onBack: () -> Unit,
-    onApprove: (() -> Unit)? = null,
-    onReject: (() -> Unit)? = null,
-    onRetry: (() -> Unit)? = null,
-    onRejectWithReason: ((String) -> Unit)? = null,
+  task: TaskMetadata,
+  meetings: List<Meeting> = emptyList(),
+  onBack: () -> Unit,
+  onApprove: (() -> Unit)? = null,
+  onReject: (() -> Unit)? = null,
+  onRetry: (() -> Unit)? = null,
+  onRejectWithReason: ((String) -> Unit)? = null,
+  onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
-    var showRejectReasonDialog by remember { mutableStateOf(false) }
-    var rejectReason by remember { mutableStateOf("") }
-    DetailScaffold(
-        eyebrow = "Move",
-        title = task.title,
-        onBack = onBack,
-    ) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            // Subtitle / context
-            if (task.subtitle.isNotBlank()) {
-                Text(task.subtitle, style = K1Type.bodySm.copy(color = KlikInkSecondary))
-                Spacer(Modifier.height(K1Sp.m))
-            }
+  var showRejectReasonDialog by remember { mutableStateOf(false) }
+  var rejectReason by remember { mutableStateOf("") }
+  DetailScaffold(
+    eyebrow = "Move",
+    title = task.title,
+    onBack = onBack,
+  ) {
+    Column(Modifier.padding(horizontal = 20.dp)) {
+      // Subtitle / context
+      if (task.subtitle.isNotBlank()) {
+        Text(task.subtitle, style = K1Type.bodySm.copy(color = KlikInkSecondary))
+        Spacer(Modifier.height(K1Sp.m))
+      }
 
-            // Status + due chip row
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val statusLabel = when {
-                    task.kkExecStatus?.uppercase() in setOf("COMPLETED", "APPROVED") -> "Done"
-                    task.kkExecStatus?.uppercase() in setOf("RUNNING", "IN_PROGRESS") -> "Running"
-                    task.kkExecStatus?.uppercase() == "PENDING" -> "Pending"
-                    task.kkExecStatus?.uppercase() == "FAILED" -> "Failed"
-                    task.needsConfirmation -> "Needs OK"
-                    else -> task.status.name.lowercase().replaceFirstChar { it.uppercase() }
-                }
-                K1Chip(label = statusLabel, selected = true)
-                if (task.dueInfo.isNotBlank()) K1Chip(label = task.dueInfo)
-                if (task.priority.isNotBlank() && task.priority != "Normal") K1Chip(label = task.priority)
-            }
-
-            // Description / full body
-            if (!task.description.isNullOrBlank()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Description")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    Text(task.description!!, style = K1Type.bodySm)
-                }
-            }
-
-            // Execution steps
-            if (task.executionSteps.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("Execution", count = task.executionSteps.size, dotColor = KlikRunning)
-                Spacer(Modifier.height(K1Sp.s))
-                task.executionSteps.forEach { step ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        val dotColor = when {
-                            !step.success -> KlikRiskAccent
-                            else -> KlikCommitmentAccent
-                        }
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
-                        Spacer(Modifier.width(K1Sp.m))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Step ${step.stepNumber} · ${step.toolName}",
-                                style = K1Type.bodySm,
-                            )
-                            val detail = step.errorMessage ?: step.output
-                            if (!detail.isNullOrBlank()) {
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    detail.take(120),
-                                    style = K1Type.metaSm.copy(
-                                        color = if (step.success) KlikInkTertiary else KlikRiskSubtext,
-                                    ),
-                                )
-                            }
-                            step.durationMs?.let {
-                                Spacer(Modifier.height(2.dp))
-                                Text("${it} ms", style = K1Type.metaSm)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Task result / outcome
-            if (!task.taskResult.isNullOrBlank()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Result")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    Text(task.taskResult!!, style = K1Type.bodySm)
-                }
-            }
-
-            // Related entities
-            val hasRelated = task.relatedProject.isNotBlank() ||
-                task.relatedProjects.isNotEmpty() ||
-                task.relatedPeople.isNotEmpty() ||
-                task.relatedOrganizations.isNotEmpty()
-            if (hasRelated) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Related")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    task.relatedProject.takeIf { it.isNotBlank() }?.let {
-                        RelatedLine("Project", it, KlikDotProject)
-                    }
-                    task.relatedProjects.filter { it != task.relatedProject }.forEach {
-                        RelatedLine("Project", it, KlikDotProject)
-                    }
-                    task.relatedPeople.forEach { RelatedLine("Person", it, KlikDotPerson) }
-                    task.relatedOrganizations.forEach { RelatedLine("Org", it, KlikDotOrg) }
-                }
-            }
-
-            // Source session
-            val sessionId = task.relatedMeetingId
-            if (!sessionId.isNullOrBlank()) {
-                val meetingMatch = meetings.find { it.id == sessionId }
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Source session")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    Text(meetingMatch?.title?.ifBlank { null } ?: sessionId.take(24),
-                        style = K1Type.bodyMd)
-                    if (meetingMatch != null) {
-                        Spacer(Modifier.height(2.dp))
-                        Text("${meetingMatch.time} · ${meetingMatch.participants.size} people",
-                            style = K1Type.meta)
-                    }
-                }
-            }
-
-            // Failed tasks get a Retry primary action.
-            val isFailed = task.kkExecStatus?.uppercase() == "FAILED" ||
-                task.kkExecStatus?.uppercase() == "ERROR"
-            if (isFailed && onRetry != null) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1ButtonPrimary(
-                    label = "Retry",
-                    onClick = onRetry,
-                    pill = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            // Needs-confirmation tasks get Approve + Reject-with-reason.
-            if (task.needsConfirmation && (onApprove != null || onReject != null || onRejectWithReason != null)) {
-                Spacer(Modifier.height(K1Sp.xl))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (onApprove != null) {
-                        K1ButtonPrimary(
-                            label = "Approve & send",
-                            onClick = onApprove,
-                            pill = true,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    val rejectHandler: () -> Unit = {
-                        if (onRejectWithReason != null) showRejectReasonDialog = true
-                        else onReject?.invoke()
-                    }
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .clip(K1R.pill)
-                            .border(0.5.dp, KlikInkMuted, K1R.pill)
-                            .clickable(onClick = rejectHandler)
-                            .padding(vertical = 14.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            if (onRejectWithReason != null) "Reject…" else "Skip",
-                            style = K1Type.bodyMd.copy(color = KlikInkPrimary),
-                        )
-                    }
-                }
-            }
+      // Status + due chip row
+      Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val statusLabel = when {
+          task.kkExecStatus?.uppercase() in setOf("COMPLETED", "APPROVED") -> "Done"
+          task.kkExecStatus?.uppercase() in setOf("RUNNING", "IN_PROGRESS") -> "Running"
+          task.kkExecStatus?.uppercase() == "PENDING" -> "Pending"
+          task.kkExecStatus?.uppercase() == "FAILED" -> "Failed"
+          task.needsConfirmation -> "Needs attention"
+          else -> task.status.name.lowercase().replaceFirstChar { it.uppercase() }
         }
-    }
+        K1Chip(label = statusLabel, selected = true)
+        if (task.dueInfo.isNotBlank()) K1Chip(label = task.dueInfo)
+        if (task.priority.isNotBlank() && task.priority != "Normal") K1Chip(label = task.priority)
+      }
 
-    if (showRejectReasonDialog && onRejectWithReason != null) {
-        RejectReasonDialog(
-            reason = rejectReason,
-            onReasonChange = { rejectReason = it },
-            onCancel = { showRejectReasonDialog = false; rejectReason = "" },
-            onSubmit = {
-                onRejectWithReason(rejectReason.trim())
-                showRejectReasonDialog = false
-                rejectReason = ""
-            },
+      // Description / full body
+      if (!task.description.isNullOrBlank()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Description")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          Text(task.description!!, style = K1Type.bodySm)
+        }
+      }
+
+      // Integrations this task uses
+      if (task.toolCategoriesNeeded.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Integrations")
+        Spacer(Modifier.height(K1Sp.s))
+        Row(
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          task.toolCategoriesNeeded.take(6).forEach { cat ->
+            val (iconUrl, label) = integrationInfo(cat)
+            IntegrationChip(iconUrl = iconUrl, label = label)
+          }
+        }
+      }
+
+      // Execution steps
+      if (task.executionSteps.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Execution", count = task.executionSteps.size, dotColor = KlikRunning)
+        Spacer(Modifier.height(K1Sp.s))
+        task.executionSteps.forEach { step ->
+          Row(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.Top,
+          ) {
+            val dotColor = when {
+              !step.success -> KlikRiskAccent
+              else -> KlikCommitmentAccent
+            }
+            Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
+            Spacer(Modifier.width(K1Sp.m))
+            Column(Modifier.weight(1f)) {
+              Text(
+                "Step ${step.stepNumber} · ${step.toolName}",
+                style = K1Type.bodySm,
+              )
+              val rawDetail = step.errorMessage ?: step.output
+              val detail = rawDetail?.let { normalizeMarkdown(it) }
+              if (!detail.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Markdown(
+                  content = detail,
+                  colors = markdownColor(
+                    text = if (step.success) KlikInkTertiary else KlikRiskSubtext,
+                    codeBackground = KlikPaperChip,
+                  ),
+                  typography = markdownTypography(
+                    paragraph = K1Type.metaSm,
+                    code = K1Type.metaSm,
+                    list = K1Type.metaSm,
+                  ),
+                )
+              }
+              step.durationMs?.let {
+                Spacer(Modifier.height(2.dp))
+                Text("$it ms", style = K1Type.metaSm)
+              }
+            }
+          }
+        }
+      }
+
+      // Task result / outcome
+      if (!task.taskResult.isNullOrBlank()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Result")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          Markdown(
+            content = normalizeMarkdown(task.taskResult!!),
+            colors = markdownColor(text = KlikInkPrimary, codeBackground = KlikPaperChip),
+            typography = markdownTypography(paragraph = K1Type.bodySm, list = K1Type.bodySm),
+          )
+        }
+      }
+
+      // Related entities
+      val hasRelated = task.relatedProject.isNotBlank() ||
+        task.relatedProjects.isNotEmpty() ||
+        task.relatedPeople.isNotEmpty() ||
+        task.relatedOrganizations.isNotEmpty()
+      if (hasRelated) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Related")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          task.relatedProject.takeIf { it.isNotBlank() }?.let {
+            RelatedLine("Project", it, KlikDotProject)
+          }
+          task.relatedProjects.filter { it != task.relatedProject }.forEach {
+            RelatedLine("Project", it, KlikDotProject)
+          }
+          task.relatedPeople.forEach { RelatedLine("Person", it, KlikDotPerson) }
+          task.relatedOrganizations.forEach { RelatedLine("Org", it, KlikDotOrg) }
+        }
+      }
+
+      // Source session
+      val sessionId = task.relatedMeetingId
+      if (!sessionId.isNullOrBlank()) {
+        val meetingMatch = meetings.find { it.id == sessionId }
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Source session")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(
+          soft = true,
+          onClick = { onEntityClick(EntityNavigationData(EntityType.MEETING, sessionId)) },
+        ) {
+          Text(
+            meetingMatch?.title?.ifBlank { null } ?: sessionId.take(24),
+            style = K1Type.bodyMd,
+          )
+          if (meetingMatch != null) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+              "${meetingMatch.time} · ${meetingMatch.participants.size} people",
+              style = K1Type.meta,
+            )
+          }
+        }
+      }
+
+      // Failed tasks get a Retry primary action.
+      val isFailed = task.kkExecStatus?.uppercase() == "FAILED" ||
+        task.kkExecStatus?.uppercase() == "ERROR"
+      if (isFailed && onRetry != null) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1ButtonPrimary(
+          label = "Retry",
+          onClick = onRetry,
+          pill = true,
+          modifier = Modifier.fillMaxWidth(),
         )
+      }
+
+      // Needs-confirmation tasks get Approve + Reject-with-reason.
+      if (task.needsConfirmation && (onApprove != null || onReject != null || onRejectWithReason != null)) {
+        Spacer(Modifier.height(K1Sp.xl))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          if (onApprove != null) {
+            K1ButtonPrimary(
+              label = "Approve & send",
+              onClick = onApprove,
+              pill = true,
+              modifier = Modifier.weight(1f),
+            )
+          }
+          val rejectHandler: () -> Unit = {
+            if (onRejectWithReason != null) {
+              showRejectReasonDialog = true
+            } else {
+              onReject?.invoke()
+            }
+          }
+          Box(
+            Modifier
+              .weight(1f)
+              .clip(K1R.pill)
+              .border(0.5.dp, KlikInkMuted, K1R.pill)
+              .k1Clickable(onClick = rejectHandler)
+              .padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              if (onRejectWithReason != null) "Reject…" else "Skip",
+              style = K1Type.bodyMd.copy(color = KlikInkPrimary),
+            )
+          }
+        }
+      }
     }
+  }
+
+  if (showRejectReasonDialog && onRejectWithReason != null) {
+    RejectReasonDialog(
+      reason = rejectReason,
+      onReasonChange = { rejectReason = it },
+      onCancel = {
+        showRejectReasonDialog = false
+        rejectReason = ""
+      },
+      onSubmit = {
+        onRejectWithReason(rejectReason.trim())
+        showRejectReasonDialog = false
+        rejectReason = ""
+      },
+    )
+  }
 }
 
 @Composable
 private fun RejectReasonDialog(
-    reason: String,
-    onReasonChange: (String) -> Unit,
-    onCancel: () -> Unit,
-    onSubmit: () -> Unit,
+  reason: String,
+  onReasonChange: (String) -> Unit,
+  onCancel: () -> Unit,
+  onSubmit: () -> Unit,
 ) {
-    androidx.compose.foundation.layout.Box(
-        androidx.compose.ui.Modifier
-            .fillMaxSize()
-            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f))
-            .clickable(onClick = onCancel),
-        contentAlignment = androidx.compose.ui.Alignment.Center,
+  androidx.compose.foundation.layout.Box(
+    androidx.compose.ui.Modifier
+      .fillMaxSize()
+      .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.45f))
+      .k1Clickable(onClick = onCancel),
+    contentAlignment = androidx.compose.ui.Alignment.Center,
+  ) {
+    androidx.compose.foundation.layout.Column(
+      androidx.compose.ui.Modifier
+        .padding(horizontal = 24.dp)
+        .fillMaxWidth()
+        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+        .background(KlikPaperCard)
+        .k1Clickable(enabled = false) {}
+        .padding(24.dp),
     ) {
-        androidx.compose.foundation.layout.Column(
-            androidx.compose.ui.Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                .background(KlikPaperCard)
-                .clickable(enabled = false) {}
-                .padding(24.dp),
-        ) {
-            Text("Why skip this move?", style = K1Type.h3)
-            Spacer(androidx.compose.ui.Modifier.height(K1Sp.s))
-            Text(
-                "Your reason helps Klik refine future suggestions.",
-                style = K1Type.bodySm.copy(color = KlikInkSecondary),
-            )
-            Spacer(androidx.compose.ui.Modifier.height(K1Sp.m))
-            androidx.compose.foundation.layout.Box(
-                androidx.compose.ui.Modifier
-                    .fillMaxWidth()
-                    .clip(K1R.card)
-                    .background(KlikPaperChip)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-            ) {
-                if (reason.isBlank()) {
-                    Text(
-                        "Optional — e.g. wrong person, already handled, not relevant",
-                        style = K1Type.bodySm.copy(color = KlikInkMuted),
-                    )
-                }
-                androidx.compose.foundation.text.BasicTextField(
-                    value = reason,
-                    onValueChange = onReasonChange,
-                    textStyle = K1Type.bodySm,
-                    maxLines = 4,
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                )
-            }
-            Spacer(androidx.compose.ui.Modifier.height(K1Sp.xl))
-            androidx.compose.foundation.layout.Row(
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
-            ) {
-                androidx.compose.foundation.layout.Box(
-                    androidx.compose.ui.Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
-                        .clickable(onClick = onCancel).padding(vertical = 14.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center,
-                ) { Text("Cancel", style = K1Type.bodyMd) }
-                androidx.compose.foundation.layout.Box(
-                    androidx.compose.ui.Modifier.weight(1f).clip(K1R.pill).background(KlikInkPrimary)
-                        .clickable(onClick = onSubmit).padding(vertical = 14.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center,
-                ) {
-                    Text(
-                        "Send",
-                        style = K1Type.bodyMd.copy(
-                            color = KlikPaperCard,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                        ),
-                    )
-                }
-            }
+      Text("Why skip this move?", style = K1Type.h3)
+      Spacer(androidx.compose.ui.Modifier.height(K1Sp.s))
+      Text(
+        "Your reason helps Klik refine future suggestions.",
+        style = K1Type.bodySm.copy(color = KlikInkSecondary),
+      )
+      Spacer(androidx.compose.ui.Modifier.height(K1Sp.m))
+      androidx.compose.foundation.layout.Box(
+        androidx.compose.ui.Modifier
+          .fillMaxWidth()
+          .clip(K1R.card)
+          .background(KlikPaperChip)
+          .padding(horizontal = 12.dp, vertical = 12.dp),
+      ) {
+        if (reason.isBlank()) {
+          Text(
+            "Optional — e.g. wrong person, already handled, not relevant",
+            style = K1Type.bodySm.copy(color = KlikInkMuted),
+          )
         }
+        androidx.compose.foundation.text.BasicTextField(
+          value = reason,
+          onValueChange = onReasonChange,
+          textStyle = K1Type.bodySm,
+          maxLines = 4,
+          modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+        )
+      }
+      Spacer(androidx.compose.ui.Modifier.height(K1Sp.xl))
+      androidx.compose.foundation.layout.Row(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+      ) {
+        androidx.compose.foundation.layout.Box(
+          androidx.compose.ui.Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
+            .k1Clickable(onClick = onCancel).padding(vertical = 14.dp),
+          contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) { Text("Cancel", style = K1Type.bodyMd) }
+        androidx.compose.foundation.layout.Box(
+          androidx.compose.ui.Modifier.weight(1f).clip(K1R.pill).background(KlikInkPrimary)
+            .k1Clickable(onClick = onSubmit).padding(vertical = 14.dp),
+          contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+          Text(
+            "Send",
+            style = K1Type.bodyMd.copy(
+              color = KlikPaperCard,
+              fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            ),
+          )
+        }
+      }
     }
+  }
 }
 
 @Composable
 private fun RelatedLine(kind: String, label: String, dot: androidx.compose.ui.graphics.Color) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(5.dp).clip(CircleShape).background(dot))
-        Spacer(Modifier.width(K1Sp.s))
-        Text(kind, style = K1Type.metaSm)
-        Spacer(Modifier.width(K1Sp.s))
-        Text(label, style = K1Type.bodySm, modifier = Modifier.weight(1f))
-    }
+  Row(
+    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(Modifier.size(5.dp).clip(CircleShape).background(dot))
+    Spacer(Modifier.width(K1Sp.s))
+    Text(kind, style = K1Type.metaSm)
+    Spacer(Modifier.width(K1Sp.s))
+    Text(label, style = K1Type.bodySm, modifier = Modifier.weight(1f))
+  }
 }
 
 // ─── PERSON DETAIL ───────────────────────────────────────────────────────
 @Composable
 fun PersonDetailScreen(
-    person: Person,
-    meetings: List<Meeting> = emptyList(),
-    tasks: List<TaskMetadata> = emptyList(),
-    projects: List<Project> = emptyList(),
-    organizations: List<Organization> = emptyList(),
-    onBack: () -> Unit,
+  person: Person,
+  meetings: List<Meeting> = emptyList(),
+  tasks: List<TaskMetadata> = emptyList(),
+  projects: List<Project> = emptyList(),
+  organizations: List<Organization> = emptyList(),
+  onBack: () -> Unit,
+  onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
-    val personMeetings = meetings.filter { m -> m.participants.any { it.id == person.id } }
-        .sortedByDescending { it.date }
-        .take(5)
-    val personTasks = tasks.filter { t -> t.relatedPeople.any { it.equals(person.name, true) } }.take(5)
-    val personProjects = projects.filter { p -> p.id in person.relatedProjects || p.relatedPeople.contains(person.name) }
-    val personOrgs = organizations.filter { o -> o.id in person.relatedOrganizations || o.employees.contains(person.name) }
+  val personMeetings = meetings.filter { m -> m.participants.any { it.id == person.id } }
+    .sortedByDescending { it.date }
+    .take(5)
+  val personTasks = tasks.filter { t -> t.relatedPeople.any { it.equals(person.name, true) } }.take(5)
+  val personProjects = projects.filter { p -> p.id in person.relatedProjects || p.relatedPeople.contains(person.name) }
+  val personOrgs = organizations.filter { o -> o.id in person.relatedOrganizations || o.employees.contains(person.name) }
 
-    DetailScaffold(
-        eyebrow = "Person",
-        title = person.name,
-        onBack = onBack,
+  DetailScaffold(
+    eyebrow = "Person",
+    title = person.name,
+    onBack = onBack,
+  ) {
+    // Hero row: big avatar + role
+    Row(
+      Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Hero row: big avatar + role
-        Row(
-            Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            K1Avatar(initialsOf(person.name), size = 72.dp)
-            Spacer(Modifier.width(K1Sp.lg))
-            Column(Modifier.weight(1f)) {
-                val roleParts = listOfNotNull(
-                    person.role.ifBlank { null },
-                    person.title,
-                    person.department,
-                )
-                Text(
-                    roleParts.joinToString(" · ").ifBlank { "—" },
-                    style = K1Type.bodyMd,
-                )
-                if (person.email.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(person.email, style = K1Type.caption)
-                }
-                Spacer(Modifier.height(K1Sp.s))
-                Text(person.lastInteraction, style = K1Type.meta)
-            }
+      K1Avatar(initialsOf(person.name), size = 72.dp)
+      Spacer(Modifier.width(K1Sp.lg))
+      Column(Modifier.weight(1f)) {
+        val roleParts = listOfNotNull(
+          person.role.ifBlank { null },
+          person.title,
+          person.department,
+        )
+        Text(
+          roleParts.joinToString(" · ").ifBlank { "—" },
+          style = K1Type.bodyMd,
+        )
+        if (person.email.isNotBlank()) {
+          Spacer(Modifier.height(2.dp))
+          Text(person.email, style = K1Type.caption)
         }
-
-        // Skills / characteristics
-        if (person.skills.isNotEmpty() || person.characteristics.isNotEmpty()) {
-            Spacer(Modifier.height(K1Sp.xl))
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                K1Eyebrow("Skills")
-                Spacer(Modifier.height(K1Sp.s))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (person.skills + person.characteristics).distinct().take(6).forEach {
-                        K1Chip(label = it)
-                    }
-                }
-            }
-        }
-
-        // Recent sessions
-        if (personMeetings.isNotEmpty()) {
-            Spacer(Modifier.height(K1Sp.xl))
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                K1SectionHeader("Recent sessions", count = personMeetings.size)
-                Spacer(Modifier.height(K1Sp.s))
-                personMeetings.forEach { m ->
-                    K1Card(soft = true) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    "${m.date} · ${m.time}",
-                                    style = K1Type.meta,
-                                )
-                            }
-                            if (m.participants.isNotEmpty()) {
-                                K1AvatarStack(
-                                    initialsList = m.participants.take(3).map { initialsOf(it.name) },
-                                    size = 20.dp,
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-        }
-
-        // Open commitments / related tasks
-        if (personTasks.isNotEmpty()) {
-            Spacer(Modifier.height(K1Sp.xl))
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                K1SectionHeader("Open commitments", count = personTasks.size, dotColor = KlikWarn)
-                Spacer(Modifier.height(K1Sp.s))
-                personTasks.forEach { t ->
-                    K1Card(soft = true) {
-                        Text(t.title, style = K1Type.bodyMd)
-                        if (t.subtitle.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(t.subtitle, style = K1Type.meta)
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-        }
-
-        // Projects + Orgs
-        if (personProjects.isNotEmpty() || personOrgs.isNotEmpty()) {
-            Spacer(Modifier.height(K1Sp.xl))
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                K1Eyebrow("Also connected to")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    personProjects.take(5).forEach { p ->
-                        RelatedLine("Project", p.name, KlikDotProject)
-                    }
-                    personOrgs.take(5).forEach { o ->
-                        RelatedLine("Org", o.name, KlikDotOrg)
-                    }
-                }
-            }
-        }
+        Spacer(Modifier.height(K1Sp.s))
+        Text(person.lastInteraction, style = K1Type.meta)
+      }
     }
+
+    // Signals — voice / connection / reliability (3-up score row)
+    Spacer(Modifier.height(K1Sp.xl))
+    Column(Modifier.padding(horizontal = 20.dp)) {
+      K1Eyebrow("Signals")
+      Spacer(Modifier.height(K1Sp.s))
+      K1DimensionRow(
+        keys = listOf("voice", "connection", "reliability"),
+        dimensions = person.dimensions,
+      )
+    }
+
+    // Skills / characteristics
+    if (person.skills.isNotEmpty() || person.characteristics.isNotEmpty()) {
+      Spacer(Modifier.height(K1Sp.xl))
+      Column(Modifier.padding(horizontal = 20.dp)) {
+        K1Eyebrow("Skills")
+        Spacer(Modifier.height(K1Sp.s))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+          (person.skills + person.characteristics).distinct().take(6).forEach {
+            K1Chip(label = it)
+          }
+        }
+      }
+    }
+
+    // Recent sessions
+    if (personMeetings.isNotEmpty()) {
+      Spacer(Modifier.height(K1Sp.xl))
+      Column(Modifier.padding(horizontal = 20.dp)) {
+        K1SectionHeader("Recent sessions", count = personMeetings.size)
+        Spacer(Modifier.height(K1Sp.s))
+        personMeetings.forEach { m ->
+          K1Card(
+            soft = true,
+            onClick = { onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Column(Modifier.weight(1f)) {
+                Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                  "${m.date} · ${m.time}",
+                  style = K1Type.meta,
+                )
+              }
+              if (m.participants.isNotEmpty()) {
+                K1AvatarStack(
+                  initialsList = m.participants.take(3).map { initialsOf(it.name) },
+                  size = 20.dp,
+                )
+              }
+            }
+          }
+          Spacer(Modifier.height(6.dp))
+        }
+      }
+    }
+
+    // Open commitments / related tasks
+    if (personTasks.isNotEmpty()) {
+      Spacer(Modifier.height(K1Sp.xl))
+      Column(Modifier.padding(horizontal = 20.dp)) {
+        K1SectionHeader("Open commitments", count = personTasks.size, dotColor = KlikWarn)
+        Spacer(Modifier.height(K1Sp.s))
+        personTasks.forEach { t ->
+          K1Card(
+            soft = true,
+            onClick = { onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+          ) {
+            Text(t.title, style = K1Type.bodyMd)
+            if (t.subtitle.isNotBlank()) {
+              Spacer(Modifier.height(2.dp))
+              Text(t.subtitle, style = K1Type.meta)
+            }
+          }
+          Spacer(Modifier.height(6.dp))
+        }
+      }
+    }
+
+    // Projects + Orgs
+    if (personProjects.isNotEmpty() || personOrgs.isNotEmpty()) {
+      Spacer(Modifier.height(K1Sp.xl))
+      Column(Modifier.padding(horizontal = 20.dp)) {
+        K1Eyebrow("Also connected to")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          personProjects.take(5).forEach { p ->
+            Box(Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.PROJECT, p.id)) }) {
+              RelatedLine("Project", p.name, KlikDotProject)
+            }
+          }
+          personOrgs.take(5).forEach { o ->
+            Box(Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, o.id)) }) {
+              RelatedLine("Org", o.name, KlikDotOrg)
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 // ─── PROJECT DETAIL ──────────────────────────────────────────────────────
 @Composable
 fun ProjectDetailScreen(
-    project: Project,
-    meetings: List<Meeting> = emptyList(),
-    tasks: List<TaskMetadata> = emptyList(),
-    onBack: () -> Unit,
+  project: Project,
+  meetings: List<Meeting> = emptyList(),
+  tasks: List<TaskMetadata> = emptyList(),
+  onBack: () -> Unit,
+  onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
-    val projectTasks = tasks.filter { t ->
-        t.relatedProject.equals(project.name, true) || t.relatedProjects.contains(project.name)
-    }.take(8)
-    val projectMeetings = meetings.filter { m -> m.id in project.relatedMeetings }
-        .sortedByDescending { it.date }
-        .take(5)
+  val projectTasks = tasks.filter { t ->
+    t.relatedProject.equals(project.name, true) || t.relatedProjects.contains(project.name)
+  }.take(8)
+  val projectMeetings = meetings.filter { m -> m.id in project.relatedMeetings }
+    .sortedByDescending { it.date }
+    .take(5)
 
-    DetailScaffold(
-        eyebrow = "Project",
-        title = project.name,
-        onBack = onBack,
-    ) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            // Status row + stage
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                K1Chip(
-                    label = project.status.name.lowercase().replaceFirstChar { it.uppercase() },
-                    selected = true,
-                )
-                if (project.stage.isNotBlank()) K1Chip(label = project.stage)
-                project.type?.takeIf { it.isNotBlank() }?.let { K1Chip(label = it) }
-            }
+  DetailScaffold(
+    eyebrow = "Project",
+    title = project.name,
+    onBack = onBack,
+  ) {
+    Column(Modifier.padding(horizontal = 20.dp)) {
+      // Status row + stage
+      Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        K1Chip(
+          label = project.status.name.lowercase().replaceFirstChar { it.uppercase() },
+          selected = true,
+        )
+        if (project.stage.isNotBlank()) K1Chip(label = project.stage)
+        project.type?.takeIf { it.isNotBlank() }?.let { K1Chip(label = it) }
+      }
 
-            Spacer(Modifier.height(K1Sp.lg))
+      Spacer(Modifier.height(K1Sp.lg))
 
-            // Progress
-            K1Eyebrow("Progress")
-            Spacer(Modifier.height(K1Sp.s))
-            K1Card(soft = true) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(4.dp)
-                            .clip(K1R.pill)
-                            .background(KlikLineHairline),
-                    ) {
-                        Box(
-                            Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(project.progress.coerceIn(0f, 1f))
-                                .background(KlikInkPrimary),
-                        )
-                    }
-                    Spacer(Modifier.width(K1Sp.m))
-                    Text("${(project.progress * 100).toInt()}%", style = K1Type.bodyMd)
-                }
-                if (project.startDate != null || project.endDate != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "${project.startDate ?: "—"} → ${project.endDate ?: "—"}",
-                        style = K1Type.metaSm,
-                    )
-                }
-            }
+      // Signals — clarity / weather / health (3-up score row)
+      K1Eyebrow("Signals")
+      Spacer(Modifier.height(K1Sp.s))
+      K1DimensionRow(
+        keys = listOf("clarity", "weather", "health"),
+        dimensions = project.dimensions,
+      )
 
-            // Lead + team
-            if (project.lead.isNotBlank() || project.teamMembers.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Team")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    if (project.lead.isNotBlank()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            K1Avatar(initialsOf(project.lead), size = 32.dp)
-                            Spacer(Modifier.width(K1Sp.m))
-                            Column {
-                                Text(project.lead, style = K1Type.bodyMd)
-                                Text("Lead", style = K1Type.metaSm)
-                            }
-                        }
-                        Spacer(Modifier.height(K1Sp.s))
-                    }
-                    if (project.teamMembers.isNotEmpty()) {
-                        K1AvatarStack(
-                            initialsList = project.teamMembers.take(6).map { initialsOf(it) },
-                            size = 24.dp,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text("${project.teamMembers.size} members", style = K1Type.metaSm)
-                    }
-                }
-            }
+      Spacer(Modifier.height(K1Sp.xl))
 
-            // Goals
-            if (project.goals.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("Goals", count = project.goals.size)
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    project.goals.forEach { g ->
-                        BulletLine(g)
-                    }
-                }
-            }
-
-            // KPIs
-            if (project.kpis.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("KPIs", count = project.kpis.size)
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    project.kpis.forEach { k -> BulletLine(k) }
-                }
-            }
-
-            // Risks
-            if (project.risks.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("Risks", count = project.risks.size, dotColor = KlikRiskAccent)
-                Spacer(Modifier.height(K1Sp.s))
-                project.risks.forEach { r ->
-                    K1SignalCard(signal = K1Signal.Risk, eyebrow = "Risk", body = r)
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-
-            // Open tasks
-            if (projectTasks.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("Moves", count = projectTasks.size, dotColor = KlikRunning)
-                Spacer(Modifier.height(K1Sp.s))
-                projectTasks.forEach { t ->
-                    K1Card(soft = true) {
-                        Text(t.title, style = K1Type.bodyMd)
-                        if (t.subtitle.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(t.subtitle, style = K1Type.meta)
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-
-            // Related meetings
-            if (projectMeetings.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("Related sessions", count = projectMeetings.size)
-                Spacer(Modifier.height(K1Sp.s))
-                projectMeetings.forEach { m ->
-                    K1Card(soft = true) {
-                        Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
-                        Spacer(Modifier.height(2.dp))
-                        Text("${m.date} · ${m.time}", style = K1Type.meta)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
+      // Progress
+      K1Eyebrow("Progress")
+      Spacer(Modifier.height(K1Sp.s))
+      K1Card(soft = true) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Box(
+            Modifier
+              .weight(1f)
+              .height(4.dp)
+              .clip(K1R.pill)
+              .background(KlikLineHairline),
+          ) {
+            Box(
+              Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(project.progress.coerceIn(0f, 1f))
+                .background(KlikInkPrimary),
+            )
+          }
+          Spacer(Modifier.width(K1Sp.m))
+          Text("${(project.progress * 100).toInt()}%", style = K1Type.bodyMd)
         }
+        if (project.startDate != null || project.endDate != null) {
+          Spacer(Modifier.height(6.dp))
+          Text(
+            "${project.startDate ?: "—"} → ${project.endDate ?: "—"}",
+            style = K1Type.metaSm,
+          )
+        }
+      }
+
+      // Lead + team
+      if (project.lead.isNotBlank() || project.teamMembers.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Team")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          if (project.lead.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              K1Avatar(initialsOf(project.lead), size = 32.dp)
+              Spacer(Modifier.width(K1Sp.m))
+              Column {
+                Text(project.lead, style = K1Type.bodyMd)
+                Text("Lead", style = K1Type.metaSm)
+              }
+            }
+            Spacer(Modifier.height(K1Sp.s))
+          }
+          if (project.teamMembers.isNotEmpty()) {
+            K1AvatarStack(
+              initialsList = project.teamMembers.take(6).map { initialsOf(it) },
+              size = 24.dp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text("${project.teamMembers.size} members", style = K1Type.metaSm)
+          }
+        }
+      }
+
+      // Goals
+      if (project.goals.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Goals", count = project.goals.size)
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          project.goals.forEach { g ->
+            BulletLine(g)
+          }
+        }
+      }
+
+      // KPIs
+      if (project.kpis.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("KPIs", count = project.kpis.size)
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          project.kpis.forEach { k -> BulletLine(k) }
+        }
+      }
+
+      // Risks
+      if (project.risks.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Risks", count = project.risks.size, dotColor = KlikRiskAccent)
+        Spacer(Modifier.height(K1Sp.s))
+        project.risks.forEach { r ->
+          K1SignalCard(signal = K1Signal.Risk, eyebrow = "Risk", body = r)
+          Spacer(Modifier.height(6.dp))
+        }
+      }
+
+      // Open tasks
+      if (projectTasks.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Moves", count = projectTasks.size, dotColor = KlikRunning)
+        Spacer(Modifier.height(K1Sp.s))
+        projectTasks.forEach { t ->
+          K1Card(soft = true) {
+            Text(t.title, style = K1Type.bodyMd)
+            if (t.subtitle.isNotBlank()) {
+              Spacer(Modifier.height(2.dp))
+              Text(t.subtitle, style = K1Type.meta)
+            }
+          }
+          Spacer(Modifier.height(6.dp))
+        }
+      }
+
+      // Related meetings
+      if (projectMeetings.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Related sessions", count = projectMeetings.size)
+        Spacer(Modifier.height(K1Sp.s))
+        projectMeetings.forEach { m ->
+          K1Card(
+            soft = true,
+            modifier = Modifier.k1Clickable { onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
+          ) {
+            Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
+            Spacer(Modifier.height(2.dp))
+            Text("${m.date} · ${m.time}", style = K1Type.meta)
+          }
+          Spacer(Modifier.height(6.dp))
+        }
+      }
     }
+  }
 }
 
 @Composable
 private fun BulletLine(text: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text("·  ", style = K1Type.bodySm)
-        Text(text, style = K1Type.bodySm, modifier = Modifier.weight(1f))
-    }
+  Row(
+    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    verticalAlignment = Alignment.Top,
+  ) {
+    Text("·  ", style = K1Type.bodySm)
+    Text(text, style = K1Type.bodySm, modifier = Modifier.weight(1f))
+  }
 }
 
 // ─── ORG DETAIL ──────────────────────────────────────────────────────────
 @Composable
 fun OrgDetailScreen(
-    org: Organization,
-    people: List<Person> = emptyList(),
-    projects: List<Project> = emptyList(),
-    onBack: () -> Unit,
+  org: Organization,
+  people: List<Person> = emptyList(),
+  projects: List<Project> = emptyList(),
+  onBack: () -> Unit,
+  onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
-    val orgEmployees = people.filter {
-        it.id in org.employees || it.organizationId == org.id || org.employees.contains(it.name)
-    }.take(8)
-    val orgProjects = projects.filter { p ->
-        p.id in org.relatedProjects || p.relatedOrganizations.contains(org.name)
-    }.take(6)
+  val orgEmployees = people.filter {
+    it.id in org.employees || it.organizationId == org.id || org.employees.contains(it.name)
+  }.take(8)
+  val orgProjects = projects.filter { p ->
+    p.id in org.relatedProjects || p.relatedOrganizations.contains(org.name)
+  }.take(6)
 
-    DetailScaffold(
-        eyebrow = "Organization",
-        title = org.name,
-        onBack = onBack,
-    ) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            // Hero: square monogram + industry/type
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(48.dp).clip(K1R.soft).background(KlikPaperSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        org.name.take(2).uppercase(),
-                        style = K1Type.bodyMd.copy(
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
-                        ),
-                    )
-                }
-                Spacer(Modifier.width(K1Sp.m))
-                Column(Modifier.weight(1f)) {
-                    if (org.industry.isNotBlank()) {
-                        Text(org.industry, style = K1Type.bodyMd)
-                    }
-                    val subline = listOfNotNull(
-                        org.type,
-                        org.country,
-                        org.sizeHeadcount?.let { "$it people" },
-                    ).joinToString(" · ")
-                    if (subline.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(subline, style = K1Type.meta)
-                    }
-                }
-            }
-
-            if (org.strategicFocus.isNotBlank()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Strategic focus")
-                Spacer(Modifier.height(K1Sp.s))
-                K1Card(soft = true) {
-                    Text(org.strategicFocus, style = K1Type.bodySm)
-                }
-            }
-
-            if (org.nextAction.isNotBlank()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SignalCard(
-                    signal = K1Signal.Commitment,
-                    eyebrow = "Next action",
-                    body = org.nextAction,
-                )
-            }
-
-            if (org.strengths.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1Eyebrow("Strengths")
-                Spacer(Modifier.height(K1Sp.s))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    org.strengths.take(5).forEach { K1Chip(label = it) }
-                }
-            }
-
-            if (orgProjects.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("Projects", count = orgProjects.size, dotColor = KlikDotProject)
-                Spacer(Modifier.height(K1Sp.s))
-                orgProjects.forEach { p ->
-                    K1Card(soft = true) {
-                        Text(p.name, style = K1Type.bodyMd)
-                        Spacer(Modifier.height(2.dp))
-                        Text("${p.stage} · ${(p.progress * 100).toInt()}%", style = K1Type.meta)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-
-            if (orgEmployees.isNotEmpty()) {
-                Spacer(Modifier.height(K1Sp.xl))
-                K1SectionHeader("People", count = orgEmployees.size)
-                Spacer(Modifier.height(K1Sp.s))
-                orgEmployees.forEach { p ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        K1Avatar(initialsOf(p.name), size = 32.dp)
-                        Spacer(Modifier.width(K1Sp.m))
-                        Column(Modifier.weight(1f)) {
-                            Text(p.name, style = K1Type.bodyMd)
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                listOfNotNull(p.role.ifBlank { null }, p.title)
-                                    .joinToString(" · ")
-                                    .ifBlank { "—" },
-                                style = K1Type.meta,
-                            )
-                        }
-                    }
-                    Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikPaperChip))
-                }
-            }
+  DetailScaffold(
+    eyebrow = "Organization",
+    title = org.name,
+    onBack = onBack,
+  ) {
+    Column(Modifier.padding(horizontal = 20.dp)) {
+      // Hero: square monogram + industry/type
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+          Modifier.size(48.dp).clip(K1R.soft).background(KlikPaperSoft),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            org.name.take(2).uppercase(),
+            style = K1Type.bodyMd.copy(
+              fontWeight = FontWeight.Medium,
+              fontSize = 15.sp,
+            ),
+          )
         }
+        Spacer(Modifier.width(K1Sp.m))
+        Column(Modifier.weight(1f)) {
+          if (org.industry.isNotBlank()) {
+            Text(org.industry, style = K1Type.bodyMd)
+          }
+          val subline = listOfNotNull(
+            org.type,
+            org.country,
+            org.sizeHeadcount?.let { "$it people" },
+          ).joinToString(" · ")
+          if (subline.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Text(subline, style = K1Type.meta)
+          }
+        }
+      }
+
+      // Signals — formation / tribe_vibe / pulse (3-up score row)
+      Spacer(Modifier.height(K1Sp.xl))
+      K1Eyebrow("Signals")
+      Spacer(Modifier.height(K1Sp.s))
+      K1DimensionRow(
+        keys = listOf("formation", "tribe_vibe", "pulse"),
+        dimensions = org.dimensions,
+      )
+
+      if (org.strategicFocus.isNotBlank()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Strategic focus")
+        Spacer(Modifier.height(K1Sp.s))
+        K1Card(soft = true) {
+          Text(org.strategicFocus, style = K1Type.bodySm)
+        }
+      }
+
+      if (org.nextAction.isNotBlank()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SignalCard(
+          signal = K1Signal.Commitment,
+          eyebrow = "Next action",
+          body = org.nextAction,
+        )
+      }
+
+      if (org.strengths.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1Eyebrow("Strengths")
+        Spacer(Modifier.height(K1Sp.s))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+          org.strengths.take(5).forEach { K1Chip(label = it) }
+        }
+      }
+
+      if (orgProjects.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Projects", count = orgProjects.size, dotColor = KlikDotProject)
+        Spacer(Modifier.height(K1Sp.s))
+        orgProjects.forEach { p ->
+          K1Card(
+            soft = true,
+            onClick = { onEntityClick(EntityNavigationData(EntityType.PROJECT, p.id)) },
+          ) {
+            Text(p.name, style = K1Type.bodyMd)
+            Spacer(Modifier.height(2.dp))
+            Text("${p.stage} · ${(p.progress * 100).toInt()}%", style = K1Type.meta)
+          }
+          Spacer(Modifier.height(6.dp))
+        }
+      }
+
+      if (orgEmployees.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("People", count = orgEmployees.size)
+        Spacer(Modifier.height(K1Sp.s))
+        orgEmployees.forEach { p ->
+          Row(
+            Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.PERSON, p.id)) }.padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            K1Avatar(initialsOf(p.name), size = 32.dp)
+            Spacer(Modifier.width(K1Sp.m))
+            Column(Modifier.weight(1f)) {
+              Text(p.name, style = K1Type.bodyMd)
+              Spacer(Modifier.height(2.dp))
+              Text(
+                listOfNotNull(p.role.ifBlank { null }, p.title)
+                  .joinToString(" · ")
+                  .ifBlank { "—" },
+                style = K1Type.meta,
+              )
+            }
+          }
+          Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikPaperChip))
+        }
+      }
     }
+  }
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────
-private fun initialsOf(name: String): String =
-    name.trim().split(" ").filter { it.isNotEmpty() }.take(2)
-        .joinToString("") { it.take(1).uppercase() }
+
+/** Normalises a raw backend string for Markdown rendering.
+ *  The backend stores outputs as JSON string literals so they arrive
+ *  with escape sequences still encoded (\n, \", \\).  Strip the outer
+ *  quotes and unescape before passing to the Markdown renderer.
+ */
+private fun normalizeMarkdown(raw: String): String {
+  var s = raw.trim()
+  if (s.startsWith("\"") && s.endsWith("\"") && s.length > 1) {
+    s = s.substring(1, s.length - 1)
+  }
+  s = s.replace("\\n", "\n")
+    .replace("\\\"", "\"")
+    .replace("\\\\", "\\")
+    .replace("\\t", "\t")
+  return s.trim()
+}
+
+private fun initialsOf(name: String): String = name.trim().split(" ").filter { it.isNotEmpty() }.take(2)
+  .joinToString("") { it.take(1).uppercase() }
+
+/** Returns (Simple Icons CDN URL, display label) for a backend tool category slug.
+ *  Icons served from cdn.simpleicons.org — real brand logos in SVG. */
+private fun integrationInfo(slug: String): Pair<String?, String> {
+  val key = slug.lowercase()
+  fun icon(name: String) = "https://cdn.simpleicons.org/$name/1C1D21"
+  return when {
+    "gmail" in key || ("email" in key && "google" in key) -> icon("gmail") to "Gmail"
+    "email" in key -> icon("maildotru") to "Email"
+    "calendar" in key && "google" in key -> icon("googlecalendar") to "Google Calendar"
+    "calendar" in key && "apple" in key -> icon("apple") to "Apple Calendar"
+    "calendar" in key -> icon("googlecalendar") to "Calendar"
+    "slack" in key -> icon("slack") to "Slack"
+    "notion" in key -> icon("notion") to "Notion"
+    "linear" in key -> icon("linear") to "Linear"
+    "github" in key -> icon("github") to "GitHub"
+    "gitlab" in key -> icon("gitlab") to "GitLab"
+    "jira" in key -> icon("jira") to "Jira"
+    "confluence" in key -> icon("confluence") to "Confluence"
+    "drive" in key -> icon("googledrive") to "Google Drive"
+    "docs" in key && "google" in key -> icon("googledocs") to "Google Docs"
+    "sheets" in key -> icon("googlesheets") to "Google Sheets"
+    "meet" in key && "google" in key -> icon("googlemeet") to "Google Meet"
+    "zoom" in key -> icon("zoom") to "Zoom"
+    "teams" in key -> icon("microsoftteams") to "Teams"
+    "outlook" in key -> icon("microsoftoutlook") to "Outlook"
+    "onedrive" in key -> icon("microsoftonedrive") to "OneDrive"
+    "sharepoint" in key -> icon("microsoftsharepoint") to "SharePoint"
+    "web_search" in key || "search" in key -> icon("google") to "Search"
+    "browser" in key -> icon("googlechrome") to "Browser"
+    "github" in key -> icon("github") to "GitHub"
+    "trello" in key -> icon("trello") to "Trello"
+    "asana" in key -> icon("asana") to "Asana"
+    "clickup" in key -> icon("clickup") to "ClickUp"
+    "figma" in key -> icon("figma") to "Figma"
+    "twitter" in key || "x.com" in key -> icon("x") to "X"
+    "linkedin" in key -> icon("linkedin") to "LinkedIn"
+    "whatsapp" in key -> icon("whatsapp") to "WhatsApp"
+    "telegram" in key -> icon("telegram") to "Telegram"
+    "discord" in key -> icon("discord") to "Discord"
+    "hubspot" in key -> icon("hubspot") to "HubSpot"
+    "salesforce" in key -> icon("salesforce") to "Salesforce"
+    "airtable" in key -> icon("airtable") to "Airtable"
+    "dropbox" in key -> icon("dropbox") to "Dropbox"
+    "box" in key -> icon("box") to "Box"
+    "stripe" in key -> icon("stripe") to "Stripe"
+    "openai" in key || "gpt" in key -> icon("openai") to "OpenAI"
+    "anthropic" in key || "claude" in key -> icon("anthropic") to "Anthropic"
+    else -> null to slug.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+  }
+}
+
+@Composable
+private fun IntegrationChip(iconUrl: String?, label: String) {
+  Row(
+    Modifier
+      .clip(K1R.chip)
+      .background(KlikPaperChip)
+      .padding(horizontal = 9.dp, vertical = 5.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(5.dp),
+  ) {
+    if (iconUrl != null) {
+      AsyncImage(
+        model = iconUrl,
+        contentDescription = label,
+        modifier = Modifier.size(14.dp),
+      )
+    }
+    Text(label, style = K1Type.meta.copy(color = KlikInkSecondary, fontSize = 11.sp))
+  }
+}

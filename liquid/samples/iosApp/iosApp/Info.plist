@@ -12,6 +12,8 @@
 	<string>Klik uses the microphone for voice-to-text input in the AskKlik chat.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Klik uses speech recognition to convert your voice into text for the AskKlik chat.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

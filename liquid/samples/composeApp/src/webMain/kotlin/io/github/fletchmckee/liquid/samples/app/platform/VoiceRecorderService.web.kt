@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.platform
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,14 +11,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * Voice recording not supported on web.
  */
 actual object VoiceRecorderService {
-    private val _isRecording = MutableStateFlow(false)
-    actual val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
+  private val _isRecording = MutableStateFlow(false)
+  actual val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
-    actual suspend fun startRecording(): Boolean = false
+  actual suspend fun startRecording(): Boolean = false
 
-    actual suspend fun stopRecording(): String? = null
+  actual suspend fun stopRecording(): String? = null
 
-    actual fun hasMicrophonePermission(): Boolean = false
+  actual fun hasMicrophonePermission(): Boolean = false
 
-    actual suspend fun requestMicrophonePermission(): Boolean = false
+  actual suspend fun requestMicrophonePermission(): Boolean = false
 }

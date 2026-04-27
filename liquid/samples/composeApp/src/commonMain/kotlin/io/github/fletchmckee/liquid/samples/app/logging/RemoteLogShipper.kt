@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.logging
 
 import io.github.fletchmckee.liquid.samples.app.data.network.ApiConfig
@@ -39,146 +41,146 @@ import kotlinx.serialization.json.JsonElement
  */
 object RemoteLogShipper {
 
-    // ==================== Tunables ====================
+  // ==================== Tunables ====================
 
-    /** How often the background coroutine wakes to flush. */
-    private const val FLUSH_INTERVAL_MS = 10_000L
+  /** How often the background coroutine wakes to flush. */
+  private const val FLUSH_INTERVAL_MS = 10_000L
 
-    /** Hard cap on the in-memory queue (oldest dropped on overflow). */
-    private const val MAX_QUEUE_SIZE = 2000
+  /** Hard cap on the in-memory queue (oldest dropped on overflow). */
+  private const val MAX_QUEUE_SIZE = 2000
 
-    /** Max entries per POST (must match backend MAX_ENTRIES_PER_BATCH). */
-    private const val MAX_BATCH_SIZE = 500
+  /** Max entries per POST (must match backend MAX_ENTRIES_PER_BATCH). */
+  private const val MAX_BATCH_SIZE = 500
 
-    /** Endpoint path appended to ApiConfig.LOGS_BASE_URL. */
-    private const val INGEST_PATH = "/v1/ingest"
+  /** Endpoint path appended to ApiConfig.LOGS_BASE_URL. */
+  private const val INGEST_PATH = "/v1/ingest"
 
-    /**
-     * Any log message containing this substring is dropped from the shipper queue
-     * to prevent self-referential amplification during outages of the logs backend.
-     */
-    private const val LOGS_URL_MARKER = "/api/logs/"
+  /**
+   * Any log message containing this substring is dropped from the shipper queue
+   * to prevent self-referential amplification during outages of the logs backend.
+   */
+  private const val LOGS_URL_MARKER = "/api/logs/"
 
-    // ==================== State ====================
+  // ==================== State ====================
 
-    private val channel = Channel<LogEntry>(
-        capacity = MAX_QUEUE_SIZE,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
+  private val channel = Channel<LogEntry>(
+    capacity = MAX_QUEUE_SIZE,
+    onBufferOverflow = BufferOverflow.DROP_OLDEST,
+  )
+  private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+  private val nativeClient = NativeHttpClient()
+  private var job: Job? = null
+  private var started: Boolean = false
+
+  private val json = Json {
+    encodeDefaults = false
+    prettyPrint = false
+    ignoreUnknownKeys = true
+  }
+
+  private var clientContext: ClientContext = ClientContext()
+
+  // ==================== Public API ====================
+
+  /**
+   * Start the background shipper. Idempotent — calling multiple times has no effect.
+   * Must be called AFTER [io.github.fletchmckee.liquid.samples.app.data.network.Environment]
+   * is configured and [HttpClient] is ready.
+   */
+  fun start(platform: String, appVersion: String? = null, deviceId: String? = null) {
+    if (started) return
+    started = true
+    clientContext = ClientContext(
+      platform = platform,
+      app_version = appVersion,
+      device_id = deviceId,
     )
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val nativeClient = NativeHttpClient()
-    private var job: Job? = null
-    private var started: Boolean = false
-
-    private val json = Json {
-        encodeDefaults = false
-        prettyPrint = false
-        ignoreUnknownKeys = true
+    // Install the tap so KlikLogger pushes each new entry into our channel.
+    KlikLogger.onEntry = { entry -> enqueue(entry) }
+    job = scope.launch {
+      runLoop()
     }
+  }
 
-    private var clientContext: ClientContext = ClientContext()
+  /** Stop the shipper and flush any pending entries. Safe to call multiple times. */
+  suspend fun stop() {
+    if (!started) return
+    started = false
+    KlikLogger.onEntry = null
+    job?.cancelAndJoin()
+    job = null
+    flush()
+  }
 
-    // ==================== Public API ====================
+  // ==================== Internal ====================
 
-    /**
-     * Start the background shipper. Idempotent — calling multiple times has no effect.
-     * Must be called AFTER [io.github.fletchmckee.liquid.samples.app.data.network.Environment]
-     * is configured and [HttpClient] is ready.
-     */
-    fun start(platform: String, appVersion: String? = null, deviceId: String? = null) {
-        if (started) return
-        started = true
-        clientContext = ClientContext(
-            platform = platform,
-            app_version = appVersion,
-            device_id = deviceId
-        )
-        // Install the tap so KlikLogger pushes each new entry into our channel.
-        KlikLogger.onEntry = { entry -> enqueue(entry) }
-        job = scope.launch {
-            runLoop()
-        }
-    }
+  private fun enqueue(entry: LogEntry) {
+    // Drop logs that would create a self-referential loop.
+    if (entry.message.contains(LOGS_URL_MARKER)) return
+    // trySend never blocks. If the channel is full, DROP_OLDEST kicks in.
+    channel.trySend(entry)
+  }
 
-    /** Stop the shipper and flush any pending entries. Safe to call multiple times. */
-    suspend fun stop() {
-        if (!started) return
-        started = false
-        KlikLogger.onEntry = null
-        job?.cancelAndJoin()
-        job = null
+  private suspend fun runLoop() {
+    while (scope.isActive) {
+      try {
+        delay(FLUSH_INTERVAL_MS)
         flush()
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+      } catch (_: Throwable) {
+        // Never let the loop die. Swallow everything except cancellation.
+      }
+    }
+  }
+
+  /** Drain up to MAX_BATCH_SIZE entries and ship. Best-effort; never throws. */
+  private suspend fun flush() {
+    // No user yet — keep entries in channel for the next cycle.
+    val token = CurrentUser.accessToken
+    if (token.isNullOrEmpty()) return
+
+    val batch = ArrayList<LogEntry>(MAX_BATCH_SIZE)
+    while (batch.size < MAX_BATCH_SIZE) {
+      val entry = channel.tryReceive().getOrNull() ?: break
+      batch.add(entry)
+    }
+    if (batch.isEmpty()) return
+
+    val entriesJson: List<JsonElement> = batch.map { e ->
+      json.encodeToJsonElement(LogEntry.serializer(), e)
+    }
+    val payload = IngestRequest(entries = entriesJson, client = clientContext)
+    val body = try {
+      json.encodeToString(IngestRequest.serializer(), payload)
+    } catch (_: Throwable) {
+      return
     }
 
-    // ==================== Internal ====================
-
-    private fun enqueue(entry: LogEntry) {
-        // Drop logs that would create a self-referential loop.
-        if (entry.message.contains(LOGS_URL_MARKER)) return
-        // trySend never blocks. If the channel is full, DROP_OLDEST kicks in.
-        channel.trySend(entry)
+    val url = ApiConfig.LOGS_BASE_URL + INGEST_PATH
+    try {
+      val headers = CurrentUser.getAuthHeaders() + mapOf(
+        ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
+        ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
+      )
+      nativeClient.post(url, body, headers)
+    } catch (_: Throwable) {
+      // Drop on failure. Next flush cycle will try again with fresh entries.
     }
+  }
 
-    private suspend fun runLoop() {
-        while (scope.isActive) {
-            try {
-                delay(FLUSH_INTERVAL_MS)
-                flush()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (_: Throwable) {
-                // Never let the loop die. Swallow everything except cancellation.
-            }
-        }
-    }
+  // ==================== DTOs ====================
 
-    /** Drain up to MAX_BATCH_SIZE entries and ship. Best-effort; never throws. */
-    private suspend fun flush() {
-        // No user yet — keep entries in channel for the next cycle.
-        val token = CurrentUser.accessToken
-        if (token.isNullOrEmpty()) return
+  @Serializable
+  private data class ClientContext(
+    val platform: String = "unknown",
+    val app_version: String? = null,
+    val device_id: String? = null,
+  )
 
-        val batch = ArrayList<LogEntry>(MAX_BATCH_SIZE)
-        while (batch.size < MAX_BATCH_SIZE) {
-            val entry = channel.tryReceive().getOrNull() ?: break
-            batch.add(entry)
-        }
-        if (batch.isEmpty()) return
-
-        val entriesJson: List<JsonElement> = batch.map { e ->
-            json.encodeToJsonElement(LogEntry.serializer(), e)
-        }
-        val payload = IngestRequest(entries = entriesJson, client = clientContext)
-        val body = try {
-            json.encodeToString(IngestRequest.serializer(), payload)
-        } catch (_: Throwable) {
-            return
-        }
-
-        val url = ApiConfig.LOGS_BASE_URL + INGEST_PATH
-        try {
-            val headers = CurrentUser.getAuthHeaders() + mapOf(
-                ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
-                ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-            )
-            nativeClient.post(url, body, headers)
-        } catch (_: Throwable) {
-            // Drop on failure. Next flush cycle will try again with fresh entries.
-        }
-    }
-
-    // ==================== DTOs ====================
-
-    @Serializable
-    private data class ClientContext(
-        val platform: String = "unknown",
-        val app_version: String? = null,
-        val device_id: String? = null
-    )
-
-    @Serializable
-    private data class IngestRequest(
-        val entries: List<JsonElement>,
-        val client: ClientContext
-    )
+  @Serializable
+  private data class IngestRequest(
+    val entries: List<JsonElement>,
+    val client: ClientContext,
+  )
 }

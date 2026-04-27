@@ -1,9 +1,9 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,25 +12,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,290 +30,251 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.data.network.ApiConfig
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthBrowser
-import io.github.fletchmckee.liquid.samples.app.theme.KlikBlack
-import io.github.fletchmckee.liquid.samples.app.theme.KlikPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1ButtonPrimary
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Eyebrow
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Signal
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1SignalCard
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Sp
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Type
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.k1Clickable
 
 @Composable
 fun RecordingConsentScreen(
-    onAccept: () -> Unit,
-    onBack: () -> Unit,
-    isOnboarding: Boolean = false,
-    onSignOut: () -> Unit = {}
+  onAccept: () -> Unit,
+  onBack: () -> Unit,
+  isOnboarding: Boolean = false,
+  onSignOut: () -> Unit = {},
 ) {
-    var informParticipants by remember { mutableStateOf(false) }
-    var acceptResponsibility by remember { mutableStateOf(false) }
-    var agreeToTerms by remember { mutableStateOf(false) }
+  var informParticipants by remember { mutableStateOf(false) }
+  var acceptResponsibility by remember { mutableStateOf(false) }
+  var agreeToTerms by remember { mutableStateOf(false) }
 
-    val allChecked = informParticipants && acceptResponsibility && agreeToTerms
+  val allChecked = informParticipants && acceptResponsibility && agreeToTerms
+
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(KlikPaperApp)
+      .statusBarsPadding()
+      .navigationBarsPadding(),
+  ) {
+    // Top rail — editorial. No chrome buttons; text-only affordances.
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 20.dp, vertical = 16.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      if (!isOnboarding) {
+        Text(
+          "Back",
+          style = K1Type.metaSm.copy(color = KlikInkSecondary),
+          modifier = Modifier
+            .k1Clickable(onClick = onBack)
+            .padding(end = K1Sp.m),
+        )
+      }
+      Box(Modifier.weight(1f))
+      if (isOnboarding) {
+        Text(
+          "Sign out",
+          style = K1Type.metaSm.copy(color = KlikInkSecondary),
+          modifier = Modifier.k1Clickable(onClick = onSignOut),
+        )
+      }
+    }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+      modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 24.dp, vertical = 8.dp),
     ) {
-        // Top bar — in onboarding the back button is hidden (consent is mandatory to proceed);
-        // the only escape is signing out.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isOnboarding) {
-                Spacer(Modifier.width(16.dp))
-            } else {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = KlikBlack
-                    )
-                }
-            }
-            Text(
-                "Recording Consent",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = KlikBlack,
-                modifier = Modifier.weight(1f)
-            )
-            if (isOnboarding) {
-                TextButton(onClick = onSignOut) {
-                    Text("Sign out", color = KlikBlack.copy(alpha = 0.7f))
-                }
-            }
-        }
+      // Editorial header
+      K1Eyebrow("Klik", large = false)
+      Spacer(Modifier.height(K1Sp.m))
+      Text(
+        "Recording consent.",
+        style = K1Type.display,
+      )
+      Spacer(Modifier.height(K1Sp.m))
+      Text(
+        "A quick acknowledgement before Klik can listen, transcribe, and quietly handle your meetings.",
+        style = K1Type.bodySm.copy(color = KlikInkSecondary),
+      )
 
-        // Scrollable content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(Modifier.height(8.dp))
+      Spacer(Modifier.height(K1Sp.xxl))
 
-            // Explanation card
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(24.dp))
-                    .border(
-                        BorderStroke(0.5.dp, Color.Black.copy(alpha = 0.12f)),
-                        RoundedCornerShape(24.dp)
-                    )
-                    .clip(RoundedCornerShape(24.dp))
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    "What KLIK Records",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = KlikBlack
-                )
+      // Section 1 — What Klik records
+      K1Eyebrow("What Klik records")
+      Spacer(Modifier.height(K1Sp.m))
+      ConsentBullet(
+        "Klik records audio during your sessions to generate transcripts, summaries, and action items.",
+      )
+      ConsentBullet(
+        "Recordings are processed with AI and stored securely on our servers.",
+      )
+      ConsentBullet(
+        "You can delete your recordings any time from your account settings.",
+      )
 
-                BulletPoint(
-                    "KLIK records audio during your sessions to generate meeting transcripts, summaries, and action items."
-                )
-                BulletPoint(
-                    "Recordings are processed using AI and stored securely on our servers."
-                )
-                BulletPoint(
-                    "You can delete your recordings at any time from your account settings."
-                )
-            }
+      Spacer(Modifier.height(K1Sp.xxl))
 
-            // All-Party Consent State Warning
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFFFF8E1), RoundedCornerShape(24.dp))
-                    .border(
-                        BorderStroke(0.5.dp, Color(0xFFFFB300).copy(alpha = 0.3f)),
-                        RoundedCornerShape(24.dp)
-                    )
-                    .clip(RoundedCornerShape(24.dp))
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Icon(
-                    Icons.Filled.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFFF8F00),
-                    modifier = Modifier.size(24.dp)
-                )
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        "All-Party Consent Warning",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE65100)
-                    )
-                    Text(
-                        "Your state may require consent from ALL participants before recording. " +
-                            "This applies to residents of CA, FL, IL, MA, WA, DE, MD, MT, NV, NH, and PA.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF795548)
-                    )
-                }
-            }
+      // All-party consent warning — signal card in the K1 system
+      K1SignalCard(
+        signal = K1Signal.Risk,
+        eyebrow = "All-party consent",
+        body = "Your state may require consent from every participant before recording. Applies to residents of CA, FL, IL, MA, WA, DE, MD, MT, NV, NH, and PA.",
+      )
 
-            // Checkboxes card
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.95f), RoundedCornerShape(24.dp))
-                    .border(
-                        BorderStroke(0.5.dp, Color.Black.copy(alpha = 0.12f)),
-                        RoundedCornerShape(24.dp)
-                    )
-                    .clip(RoundedCornerShape(24.dp))
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "Your Acknowledgement",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = KlikBlack
-                )
+      Spacer(Modifier.height(K1Sp.xxl))
 
-                Spacer(Modifier.height(8.dp))
+      // Section 2 — Acknowledgements
+      K1Eyebrow("Your acknowledgement")
+      Spacer(Modifier.height(K1Sp.m))
+      K1ConsentRow(
+        checked = informParticipants,
+        onCheckedChange = { informParticipants = it },
+        label = "I will inform all participants before recording.",
+      )
+      HairlineDivider()
+      K1ConsentRow(
+        checked = acceptResponsibility,
+        onCheckedChange = { acceptResponsibility = it },
+        label = "I accept responsibility for obtaining consent from all parties.",
+      )
+      HairlineDivider()
+      K1ConsentRow(
+        checked = agreeToTerms,
+        onCheckedChange = { agreeToTerms = it },
+        label = "I have read and agree to the Privacy Policy and Terms of Service.",
+      )
 
-                ConsentCheckboxRow(
-                    checked = informParticipants,
-                    onCheckedChange = { informParticipants = it },
-                    label = "I will inform all participants before recording"
-                )
+      Spacer(Modifier.height(K1Sp.xxl))
 
-                ConsentCheckboxRow(
-                    checked = acceptResponsibility,
-                    onCheckedChange = { acceptResponsibility = it },
-                    label = "I accept responsibility for obtaining consent from all parties"
-                )
-
-                ConsentCheckboxRow(
-                    checked = agreeToTerms,
-                    onCheckedChange = { agreeToTerms = it },
-                    label = "I have read and agree to the Privacy Policy and Terms of Service"
-                )
-            }
-
-            // Links
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Privacy Policy",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = KlikPrimary,
-                    fontWeight = FontWeight.Medium,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable {
-                        OAuthBrowser.openUrl(ApiConfig.PRIVACY_URL)
-                    }
-                )
-                Spacer(Modifier.width(24.dp))
-                Text(
-                    "Terms of Service",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = KlikPrimary,
-                    fontWeight = FontWeight.Medium,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable {
-                        OAuthBrowser.openUrl(ApiConfig.TERMS_URL)
-                    }
-                )
-            }
-
-            // Accept button
-            Button(
-                onClick = onAccept,
-                enabled = allChecked,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = KlikPrimary,
-                    contentColor = Color.White,
-                    disabledContainerColor = KlikPrimary.copy(alpha = 0.4f),
-                    disabledContentColor = Color.White.copy(alpha = 0.6f)
-                ),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text(
-                    "I Accept",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun BulletPoint(text: String) {
-    Row(
+      // Policy links, text-only
+      Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top
-    ) {
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
         Text(
-            "\u2022",
-            style = MaterialTheme.typography.bodyLarge,
-            color = KlikPrimary,
-            fontWeight = FontWeight.Bold
+          "Privacy Policy",
+          style = K1Type.metaSm.copy(
+            color = KlikInkSecondary,
+            textDecoration = TextDecoration.Underline,
+          ),
+          modifier = Modifier.k1Clickable {
+            OAuthBrowser.openUrl(ApiConfig.PRIVACY_URL)
+          },
         )
+        Spacer(Modifier.width(K1Sp.xl))
         Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = KlikBlack.copy(alpha = 0.8f)
+          "Terms of Service",
+          style = K1Type.metaSm.copy(
+            color = KlikInkSecondary,
+            textDecoration = TextDecoration.Underline,
+          ),
+          modifier = Modifier.k1Clickable {
+            OAuthBrowser.openUrl(ApiConfig.TERMS_URL)
+          },
         )
+      }
+
+      Spacer(Modifier.height(K1Sp.xxl))
+
+      K1ButtonPrimary(
+        label = "I accept",
+        onClick = onAccept,
+        enabled = allChecked,
+        modifier = Modifier.fillMaxWidth(),
+      )
+
+      Spacer(Modifier.height(K1Sp.xxl))
     }
+  }
 }
 
 @Composable
-private fun ConsentCheckboxRow(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    label: String
+private fun ConsentBullet(text: String) {
+  Row(
+    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+    verticalAlignment = Alignment.Top,
+  ) {
+    // Tiny paper-disc bullet in the K1 style.
+    Box(
+      Modifier
+        .padding(top = 8.dp)
+        .size(3.dp)
+        .clip(CircleShape)
+        .background(KlikInkTertiary),
+    )
+    Text(
+      text,
+      style = K1Type.bodySm.copy(color = KlikInkSecondary),
+    )
+  }
+}
+
+@Composable
+private fun K1ConsentRow(
+  checked: Boolean,
+  onCheckedChange: (Boolean) -> Unit,
+  label: String,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(
-                checkedColor = KlikPrimary,
-                uncheckedColor = KlikBlack.copy(alpha = 0.4f)
-            )
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = KlikBlack
-        )
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .k1Clickable { onCheckedChange(!checked) }
+      .padding(vertical = 14.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(14.dp),
+  ) {
+    K1CheckMark(checked = checked)
+    Text(
+      label,
+      style = K1Type.bodySm.copy(color = KlikInkPrimary),
+      modifier = Modifier.weight(1f),
+    )
+  }
+}
+
+@Composable
+private fun K1CheckMark(checked: Boolean) {
+  val shape = RoundedCornerShape(4.dp)
+  Box(
+    Modifier
+      .size(18.dp)
+      .clip(shape)
+      .background(if (checked) KlikInkPrimary else KlikPaperCard)
+      .border(0.75.dp, if (checked) KlikInkPrimary else KlikLineHairline, shape),
+    contentAlignment = Alignment.Center,
+  ) {
+    if (checked) {
+      Text(
+        "✓",
+        style = K1Type.metaSm.copy(color = KlikPaperCard),
+      )
     }
+  }
+}
+
+@Composable
+private fun HairlineDivider() {
+  Box(
+    Modifier
+      .fillMaxWidth()
+      .height(0.5.dp)
+      .background(KlikLineHairline),
+  )
 }

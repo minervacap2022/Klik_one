@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.platform
 
 /**
@@ -6,28 +8,28 @@ package io.github.fletchmckee.liquid.samples.app.platform
  * Android: HapticFeedbackConstants via View
  */
 expect object HapticService {
-    /**
-     * Light impact - for subtle interactions like toggles
-     */
-    fun lightImpact()
+  /**
+   * Light impact - for subtle interactions like toggles
+   */
+  fun lightImpact()
 
-    /**
-     * Medium impact - for swipe gestures and confirmations
-     */
-    fun mediumImpact()
+  /**
+   * Medium impact - for swipe gestures and confirmations
+   */
+  fun mediumImpact()
 
-    /**
-     * Heavy impact - for destructive actions like delete
-     */
-    fun heavyImpact()
+  /**
+   * Heavy impact - for destructive actions like delete
+   */
+  fun heavyImpact()
 
-    /**
-     * Success notification - for completed actions
-     */
-    fun success()
+  /**
+   * Success notification - for completed actions
+   */
+  fun success()
 
-    /**
-     * Error notification - for failed actions
-     */
-    fun error()
+  /**
+   * Error notification - for failed actions
+   */
+  fun error()
 }

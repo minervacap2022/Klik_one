@@ -1,3 +1,5 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.platform
 
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -8,14 +10,14 @@ import kotlinx.coroutines.flow.asSharedFlow
  * JS implementation of AppLifecycleObserver.
  */
 actual object AppLifecycleObserver {
-    private val _foregroundEvents = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
-    actual val foregroundEvents: SharedFlow<Boolean> = _foregroundEvents.asSharedFlow()
+  private val _foregroundEvents = MutableSharedFlow<Boolean>(replay = 0, extraBufferCapacity = 1)
+  actual val foregroundEvents: SharedFlow<Boolean> = _foregroundEvents.asSharedFlow()
 
-    actual fun startObserving() {
-        // No-op for JS
-    }
+  actual fun startObserving() {
+    // No-op for JS
+  }
 
-    actual fun stopObserving() {
-        // No-op
-    }
+  actual fun stopObserving() {
+    // No-op
+  }
 }

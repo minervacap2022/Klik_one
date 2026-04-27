@@ -1,15 +1,17 @@
+// Copyright 2026, Colin McKee
+// SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,30 +21,21 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
-import io.github.fletchmckee.liquid.samples.app.ui.icons.CustomIcons
-import io.github.fletchmckee.liquid.samples.app.ui.icons.Copy
-import io.github.fletchmckee.liquid.liquid
-import io.github.fletchmckee.liquid.rememberLiquidState
-import io.github.fletchmckee.liquid.samples.app.theme.LocalLiquidGlassSettings
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,592 +49,499 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.fletchmckee.liquid.samples.app.theme.KlikBlack
-import io.github.fletchmckee.liquid.samples.app.theme.KlikPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
+import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
+import io.github.fletchmckee.liquid.samples.app.ui.icons.Copy
+import io.github.fletchmckee.liquid.samples.app.ui.icons.CustomIcons
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1R
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Sp
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Type
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.k1Clickable
 
-/**
- * Full screen loading indicator
- */
+// ─── Full-screen loading ──────────────────────────────────────────────────
+
 @Composable
 fun LoadingScreen(
-    modifier: Modifier = Modifier,
-    message: String = "Loading..."
+  modifier: Modifier = Modifier,
+  message: String = "Loading…",
 ) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+  Box(
+    modifier = modifier.fillMaxSize().background(KlikPaperApp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(48.dp),
-                color = KlikPrimary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = KlikBlack.copy(alpha = 0.6f)
-            )
-        }
+      CircularProgressIndicator(
+        modifier = Modifier.size(28.dp),
+        color = KlikInkPrimary,
+        strokeWidth = 2.dp,
+      )
+      Spacer(Modifier.height(K1Sp.md))
+      Text(text = message, style = K1Type.bodySm.copy(color = KlikInkTertiary))
     }
+  }
 }
 
-/**
- * Inline loading indicator for use within lists or cards
- */
 @Composable
 fun LoadingIndicator(
-    modifier: Modifier = Modifier,
-    size: Int = 24
+  modifier: Modifier = Modifier,
+  size: Int = 20,
 ) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(size.dp),
-            color = KlikPrimary,
-            strokeWidth = 2.dp
-        )
-    }
+  Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    CircularProgressIndicator(
+      modifier = Modifier.size(size.dp),
+      color = KlikInkPrimary,
+      strokeWidth = 2.dp,
+    )
+  }
 }
 
-/**
- * Full screen error state with retry option
- */
+// ─── Full-screen error ────────────────────────────────────────────────────
+
 @Composable
 fun ErrorScreen(
-    error: String,
-    onRetry: (() -> Unit)? = null,
-    onReport: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+  error: String,
+  onRetry: (() -> Unit)? = null,
+  onReport: (() -> Unit)? = null,
+  modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+  Box(
+    modifier = modifier.fillMaxSize().background(KlikPaperApp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
+      modifier = Modifier.padding(K1Sp.xxxl),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = "Error",
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Something went wrong",
-                style = MaterialTheme.typography.titleMedium,
-                color = KlikBlack
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = error,
-                style = MaterialTheme.typography.bodyMedium,
-                color = KlikBlack.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
-            if (onRetry != null) {
-                Spacer(modifier = Modifier.height(24.dp))
-                val liquidState = rememberLiquidState()
-                val glassSettings = LocalLiquidGlassSettings.current
-
-                Box(
-                    modifier = Modifier
-                        .height(48.dp)
-                        .liquid(liquidState) {
-                             edge = if (glassSettings.applyToCards) glassSettings.edge else 0.05f
-                             shape = RoundedCornerShape(24.dp)
-                             if (glassSettings.applyToCards) {
-                                 frost = glassSettings.frost
-                                 curve = glassSettings.curve
-                                 refraction = glassSettings.refraction
-                             }
-                             tint = KlikPrimary.copy(alpha = 0.1f)
-                        }
-                        .clip(RoundedCornerShape(24.dp))
-                        .clickable { onRetry() }
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = KlikPrimary
-                        )
-                        Spacer(modifier = Modifier.size(8.dp))
-                        Text(
-                            "Try Again",
-                            color = KlikPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-            if (onReport != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                TextButton(onClick = onReport) {
-                    Text(
-                        "Report Issue",
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
+      K1AlertGlyph()
+      Spacer(Modifier.height(K1Sp.md))
+      Text("Something went wrong", style = K1Type.h3)
+      Spacer(Modifier.height(K1Sp.xs))
+      Text(
+        text = error,
+        style = K1Type.bodySm.copy(color = KlikInkSecondary),
+        textAlign = TextAlign.Center,
+      )
+      if (onRetry != null) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1PillButton(label = "Try again", onClick = onRetry, primary = true)
+      }
+      if (onReport != null) {
+        Spacer(Modifier.height(K1Sp.s))
+        K1TextLink(label = "Report issue", onClick = onReport, tint = KlikAlert)
+      }
     }
+  }
 }
 
-/**
- * Inline error message with optional retry
- */
+// ─── Inline error ─────────────────────────────────────────────────────────
+
 @Composable
 fun ErrorMessage(
-    error: String,
-    onRetry: (() -> Unit)? = null,
-    onDismiss: (() -> Unit)? = null,
-    onReport: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+  error: String,
+  onRetry: (() -> Unit)? = null,
+  onDismiss: (() -> Unit)? = null,
+  onReport: (() -> Unit)? = null,
+  modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.errorContainer,
-                RoundedCornerShape(12.dp)
-            )
-            .padding(16.dp)
-    ) {
-        Column {
-            Text(
-                text = error,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
-            if (onRetry != null || onDismiss != null || onReport != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (onRetry != null) {
-                        TextButton(onClick = onRetry) {
-                            Text("Retry", color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                    }
-                    if (onReport != null) {
-                        TextButton(onClick = onReport) {
-                            Text("Report", color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                    }
-                    if (onDismiss != null) {
-                        TextButton(onClick = onDismiss) {
-                            Text("Dismiss", color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                    }
-                }
-            }
-        }
+  Column(
+    modifier = modifier
+      .fillMaxWidth()
+      .clip(K1R.inline)
+      .background(KlikPaperSoft)
+      .border(1.dp, KlikLineHairline, K1R.inline)
+      .padding(K1Sp.md),
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Box(
+        Modifier
+          .size(6.dp)
+          .background(KlikAlert, CircleShape),
+      )
+      Spacer(Modifier.width(K1Sp.s))
+      Text(text = error, style = K1Type.bodySm, modifier = Modifier.weight(1f))
     }
+    if (onRetry != null || onDismiss != null || onReport != null) {
+      Spacer(Modifier.height(K1Sp.s))
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+      ) {
+        if (onReport != null) {
+          K1TextLink(label = "Report", onClick = onReport, tint = KlikAlert)
+          Spacer(Modifier.width(K1Sp.md))
+        }
+        if (onRetry != null) {
+          K1TextLink(label = "Retry", onClick = onRetry, tint = KlikInkPrimary)
+          Spacer(Modifier.width(K1Sp.md))
+        }
+        if (onDismiss != null) {
+          K1TextLink(label = "Dismiss", onClick = onDismiss, tint = KlikInkTertiary)
+        }
+      }
+    }
+  }
 }
 
-/**
- * Error popup overlay that:
- * - Never truncates (uses vertical scroll for long messages)
- * - Has a copy button to copy error message to clipboard
- * - Shows a warning icon and title
- * - Can be dismissed by tapping outside
- *
- * @param isVisible Whether the popup is visible
- * @param title Title text (default: "Error")
- * @param message Error message to display (will scroll if too long)
- * @param onDismiss Called when user taps outside to dismiss
- * @param modifier Optional modifier
- */
+// ─── Modal error popup ────────────────────────────────────────────────────
+
 @Composable
 fun ErrorPopup(
-    isVisible: Boolean,
-    title: String = "Error",
-    message: String,
-    onDismiss: () -> Unit,
-    onRetry: (() -> Unit)? = null,
-    onReport: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+  isVisible: Boolean,
+  title: String = "Error",
+  message: String,
+  onDismiss: () -> Unit,
+  onRetry: (() -> Unit)? = null,
+  onReport: (() -> Unit)? = null,
+  modifier: Modifier = Modifier,
 ) {
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn(),
-        exit = fadeOut()
+  AnimatedVisibility(visible = isVisible, enter = fadeIn(), exit = fadeOut()) {
+    Box(
+      modifier = modifier
+        .fillMaxSize()
+        .background(Color.Black.copy(alpha = 0.42f))
+        .pointerInput(Unit) { detectTapGestures(onTap = { onDismiss() }) },
+      contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { onDismiss() })
-                },
-            contentAlignment = Alignment.Center
+      Column(
+        modifier = Modifier
+          .fillMaxWidth(0.9f)
+          .clip(K1R.card)
+          .background(KlikPaperCard)
+          .border(1.dp, KlikLineHairline, K1R.card)
+          .pointerInput(Unit) { detectTapGestures { } }
+          .padding(K1Sp.lg),
+      ) {
+        // Header: alert glyph + title + copy
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Error card - scrollable content, copy button, fixed height
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFFFEBEE))
-                    .pointerInput(Unit) {
-                        // Consume touches inside the card to prevent dismissing
-                        detectTapGestures { }
-                    }
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Header row with warning icon, title, and copy button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = Color(0xFFB71C1C),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFFB71C1C),
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    CopyToClipboardButton(message = message)
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Scrollable error message - NEVER truncates
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp) // Fixed height to ensure scrollability
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(alpha = 0.5f))
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF5D4037),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Action buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (onReport != null) {
-                        TextButton(onClick = onReport) {
-                            Text(
-                                text = "Report Issue",
-                                color = Color(0xFFB71C1C),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(1.dp))
-                    }
-                    Row {
-                        if (onRetry != null) {
-                            TextButton(onClick = onRetry) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = KlikPrimary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "Retry",
-                                        color = KlikPrimary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
-                        }
-                        TextButton(onClick = onDismiss) {
-                            Text(
-                                text = "Dismiss",
-                                color = Color(0xFFB71C1C)
-                            )
-                        }
-                    }
-                }
-            }
+          K1AlertGlyph(size = 18)
+          Spacer(Modifier.width(K1Sp.s))
+          Text(
+            text = title,
+            style = K1Type.cardTitle,
+            modifier = Modifier.weight(1f),
+          )
+          CopyToClipboardButton(message = message)
         }
+
+        Spacer(Modifier.height(K1Sp.m))
+
+        // Message block — scrollable so long errors are never truncated.
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 96.dp, max = 220.dp)
+            .clip(K1R.inline)
+            .background(KlikPaperSoft)
+            .border(1.dp, KlikLineHairline, K1R.inline)
+            .padding(K1Sp.m),
+        ) {
+          Text(
+            text = message,
+            style = K1Type.bodySm.copy(color = KlikInkSecondary),
+            modifier = Modifier
+              .fillMaxSize()
+              .verticalScroll(rememberScrollState()),
+          )
+        }
+
+        Spacer(Modifier.height(K1Sp.m))
+
+        // Actions row — text links on the left (report), primary pill on the right.
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          if (onReport != null) {
+            K1TextLink(label = "Report", onClick = onReport, tint = KlikAlert)
+          }
+          Spacer(Modifier.weight(1f))
+          K1TextLink(label = "Dismiss", onClick = onDismiss, tint = KlikInkTertiary)
+          if (onRetry != null) {
+            Spacer(Modifier.width(K1Sp.md))
+            K1PillButton(label = "Retry", onClick = onRetry, primary = true)
+          }
+        }
+      }
     }
+  }
 }
 
-/**
- * Copy button that copies the message to clipboard and shows feedback
- */
 @Composable
 private fun CopyToClipboardButton(message: String) {
-    val clipboardManager = LocalClipboardManager.current
-    var showCopiedFeedback by remember { mutableStateOf(false) }
+  val clipboard = LocalClipboardManager.current
+  var copied by remember { mutableStateOf(false) }
 
-    IconButton(
-        onClick = {
-            clipboardManager.setText(AnnotatedString(message))
-            showCopiedFeedback = true
-        }
-    ) {
-        if (showCopiedFeedback) {
-            // Show "Copied!" feedback briefly
-            Text(
-                text = "Copied!",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF4CAF50),
-                maxLines = 1
-            )
-        } else {
-                Icon(
-                    imageVector = CustomIcons.Copy,
-                    contentDescription = "Copy error message",
-                    tint = Color(0xFFB71C1C),
-                    modifier = Modifier.size(18.dp)
-                )
-        }
+  Box(
+    modifier = Modifier
+      .clip(K1R.chip)
+      .background(KlikPaperSoft)
+      .border(1.dp, KlikLineHairline, K1R.chip)
+      .k1Clickable {
+        clipboard.setText(AnnotatedString(message))
+        copied = true
+      }
+      .padding(horizontal = K1Sp.s, vertical = K1Sp.xxs),
+    contentAlignment = Alignment.Center,
+  ) {
+    if (copied) {
+      Text("Copied", style = K1Type.meta.copy(color = KlikInkPrimary))
+    } else {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+          imageVector = CustomIcons.Copy,
+          contentDescription = "Copy error",
+          tint = KlikInkSecondary,
+          modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(K1Sp.xxs))
+        Text("Copy", style = K1Type.meta.copy(color = KlikInkSecondary))
+      }
     }
+  }
 
-    // Auto-hide feedback after 1.5 seconds
-    if (showCopiedFeedback) {
-        androidx.compose.runtime.LaunchedEffect(Unit) {
-            kotlinx.coroutines.delay(1500)
-            showCopiedFeedback = false
-        }
+  if (copied) {
+    LaunchedEffect(Unit) {
+      kotlinx.coroutines.delay(1500)
+      copied = false
     }
+  }
 }
 
-/**
- * Empty state for lists with no data
- */
+// ─── Empty state ──────────────────────────────────────────────────────────
+
 @Composable
 fun EmptyState(
-    title: String,
-    message: String,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+  title: String,
+  message: String,
+  actionLabel: String? = null,
+  onAction: (() -> Unit)? = null,
+  modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+  Box(
+    modifier = modifier.fillMaxSize().background(KlikPaperApp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center,
+      modifier = Modifier.padding(K1Sp.xxxl),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = KlikBlack
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = KlikBlack.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
-            if (actionLabel != null && onAction != null) {
-                Spacer(modifier = Modifier.height(24.dp))
-                val liquidState = rememberLiquidState()
-                val glassSettings = LocalLiquidGlassSettings.current
-                
-                Box(
-                    modifier = Modifier
-                        .height(48.dp)
-                        .liquid(liquidState) {
-                             edge = if (glassSettings.applyToCards) glassSettings.edge else 0.05f
-                             shape = RoundedCornerShape(24.dp)
-                             if (glassSettings.applyToCards) {
-                                 frost = glassSettings.frost
-                                 curve = glassSettings.curve
-                                 refraction = glassSettings.refraction
-                             }
-                             tint = KlikPrimary.copy(alpha = 0.1f)
-                        }
-                        .clip(RoundedCornerShape(24.dp))
-                        .clickable { onAction() }
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        actionLabel, 
-                        color = KlikPrimary, 
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
+      Text(text = title, style = K1Type.h3)
+      Spacer(Modifier.height(K1Sp.xs))
+      Text(
+        text = message,
+        style = K1Type.bodySm.copy(color = KlikInkSecondary),
+        textAlign = TextAlign.Center,
+      )
+      if (actionLabel != null && onAction != null) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1PillButton(label = actionLabel, onClick = onAction, primary = true)
+      }
     }
+  }
 }
 
-/**
- * Overlay loading indicator that shows on top of existing content
- */
+// ─── Overlay spinner ──────────────────────────────────────────────────────
+
 @Composable
 fun LoadingOverlay(
-    isLoading: Boolean,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+  isLoading: Boolean,
+  modifier: Modifier = Modifier,
+  content: @Composable () -> Unit,
 ) {
-    Box(modifier = modifier) {
-        content()
-
-        AnimatedVisibility(
-            visible = isLoading,
-            enter = fadeIn(),
-            exit = fadeOut()
+  Box(modifier = modifier) {
+    content()
+    AnimatedVisibility(visible = isLoading, enter = fadeIn(), exit = fadeOut()) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(Color.Black.copy(alpha = 0.28f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        Box(
+          modifier = Modifier
+            .clip(K1R.card)
+            .background(KlikPaperCard)
+            .border(1.dp, KlikLineHairline, K1R.card)
+            .padding(K1Sp.xl),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    color = Color.White
-                )
-            }
+          CircularProgressIndicator(
+            modifier = Modifier.size(24.dp),
+            color = KlikInkPrimary,
+            strokeWidth = 2.dp,
+          )
         }
+      }
     }
+  }
 }
 
-/**
- * Content state wrapper that handles loading, error, and success states
- */
+// ─── Content state wrapper ────────────────────────────────────────────────
+
 @Composable
 fun <T> ContentState(
-    isLoading: Boolean,
-    error: String?,
-    data: T?,
-    onRetry: (() -> Unit)? = null,
-    onDismissError: (() -> Unit)? = null,
-    onReport: (() -> Unit)? = null,
-    emptyContent: @Composable () -> Unit = { EmptyState("No Data", "There's nothing to show here.") },
-    content: @Composable (T) -> Unit
+  isLoading: Boolean,
+  error: String?,
+  data: T?,
+  onRetry: (() -> Unit)? = null,
+  onDismissError: (() -> Unit)? = null,
+  onReport: (() -> Unit)? = null,
+  emptyContent: @Composable () -> Unit = { EmptyState("No data", "There's nothing to show here.") },
+  content: @Composable (T) -> Unit,
 ) {
-    when {
-        isLoading && data == null -> LoadingScreen()
-        error != null && data == null -> ErrorScreen(error = error, onRetry = onRetry, onReport = onReport)
-        data != null -> {
-            Column {
-                // Show error banner if there's an error but we have data
-                if (error != null) {
-                    ErrorMessage(
-                        error = error,
-                        onRetry = onRetry,
-                        onDismiss = onDismissError,
-                        onReport = onReport,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                content(data)
-            }
+  when {
+    isLoading && data == null -> LoadingScreen()
+
+    error != null && data == null -> ErrorScreen(error = error, onRetry = onRetry, onReport = onReport)
+
+    data != null -> {
+      Column {
+        if (error != null) {
+          ErrorMessage(
+            error = error,
+            onRetry = onRetry,
+            onDismiss = onDismissError,
+            onReport = onReport,
+            modifier = Modifier.padding(horizontal = K1Sp.lg, vertical = K1Sp.s),
+          )
         }
-        else -> emptyContent()
+        content(data)
+      }
     }
+
+    else -> emptyContent()
+  }
 }
 
-// ==================== Shimmer Loading Components ====================
+// ─── Shimmer helpers (unchanged visually, K1-safe palette) ────────────────
 
-/**
- * Unified pulse-animated shimmer bar for loading states.
- * Use this everywhere content is loading — cards, sections, text placeholders.
- */
 @Composable
 fun ShimmerBar(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Gray,
-    delayMillis: Int = 0
+  modifier: Modifier = Modifier,
+  color: Color = KlikInkMuted,
+  delayMillis: Int = 0,
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.15f,
-        targetValue = 0.4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, delayMillis = delayMillis),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shimmerAlpha"
-    )
-    Box(
-        modifier = modifier
-            .background(color.copy(alpha = alpha), RoundedCornerShape(6.dp))
-    )
+  val transition = rememberInfiniteTransition(label = "shimmer")
+  val alpha by transition.animateFloat(
+    initialValue = 0.15f,
+    targetValue = 0.35f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = 1000, delayMillis = delayMillis),
+      repeatMode = RepeatMode.Reverse,
+    ),
+    label = "shimmerAlpha",
+  )
+  Box(modifier = modifier.background(color.copy(alpha = alpha), RoundedCornerShape(6.dp)))
 }
 
-/**
- * Shimmer placeholder for a text block (multiple lines).
- * Shows 2-4 breathing bars simulating text loading.
- */
 @Composable
 fun ShimmerTextBlock(
-    lines: Int = 3,
-    modifier: Modifier = Modifier,
-    color: Color = Color.Gray
+  lines: Int = 3,
+  modifier: Modifier = Modifier,
+  color: Color = KlikInkMuted,
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        repeat(lines) { index ->
-            ShimmerBar(
-                modifier = Modifier
-                    .fillMaxWidth(if (index == lines - 1) 0.6f else 1f)
-                    .height(12.dp),
-                color = color,
-                delayMillis = index * 150
-            )
-        }
+  Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    repeat(lines) { index ->
+      ShimmerBar(
+        modifier = Modifier
+          .fillMaxWidth(if (index == lines - 1) 0.6f else 1f)
+          .height(12.dp),
+        color = color,
+        delayMillis = index * 150,
+      )
     }
+  }
 }
 
-/**
- * Shimmer placeholder for a card section (title + text block).
- */
 @Composable
 fun ShimmerCardContent(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Gray
+  modifier: Modifier = Modifier,
+  color: Color = KlikInkMuted,
 ) {
-    Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        ShimmerBar(
-            modifier = Modifier.width(120.dp).height(14.dp),
-            color = color,
-            delayMillis = 0
+  Column(
+    modifier = modifier.padding(K1Sp.lg),
+    verticalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    ShimmerBar(
+      modifier = Modifier.width(120.dp).height(14.dp),
+      color = color,
+      delayMillis = 0,
+    )
+    ShimmerTextBlock(lines = 3, color = color)
+  }
+}
+
+// ─── K1 primitives local to this file ─────────────────────────────────────
+
+/** Hairline-bordered alert glyph — warm orange ring, single line. Editorial, not Material. */
+@Composable
+private fun K1AlertGlyph(size: Int = 40) {
+  Box(
+    modifier = Modifier
+      .size(size.dp)
+      .clip(CircleShape)
+      .border(1.dp, KlikAlert, CircleShape)
+      .background(KlikPaperSoft),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text("!", style = K1Type.h3.copy(color = KlikAlert))
+  }
+}
+
+/** Primary = dark ink pill on paper; secondary = paper pill with hairline. */
+@Composable
+private fun K1PillButton(
+  label: String,
+  onClick: () -> Unit,
+  primary: Boolean,
+) {
+  val bg = if (primary) KlikInkPrimary else KlikPaperCard
+  val fg = if (primary) KlikPaperCard else KlikInkPrimary
+  Box(
+    modifier = Modifier
+      .clip(K1R.pill)
+      .background(bg)
+      .border(1.dp, if (primary) KlikInkPrimary else KlikLineHairline, K1R.pill)
+      .k1Clickable(onClick = onClick)
+      .padding(horizontal = K1Sp.xl, vertical = K1Sp.s),
+    contentAlignment = Alignment.Center,
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      if (label.equals("Retry", ignoreCase = true) || label.equals("Try again", ignoreCase = true)) {
+        Icon(
+          imageVector = Icons.Default.Refresh,
+          contentDescription = null,
+          tint = fg,
+          modifier = Modifier.size(14.dp),
         )
-        ShimmerTextBlock(lines = 3, color = color)
+        Spacer(Modifier.width(K1Sp.xs))
+      }
+      Text(text = label, style = K1Type.bodyMd.copy(color = fg))
     }
+  }
+}
+
+@Composable
+private fun K1TextLink(label: String, onClick: () -> Unit, tint: Color) {
+  Box(
+    modifier = Modifier
+      .k1Clickable(onClick = onClick)
+      .padding(horizontal = K1Sp.s, vertical = K1Sp.xs),
+  ) {
+    Text(text = label, style = K1Type.bodyMd.copy(color = tint))
+  }
 }
