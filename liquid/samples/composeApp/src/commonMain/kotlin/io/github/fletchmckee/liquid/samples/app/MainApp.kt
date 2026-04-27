@@ -143,6 +143,7 @@ import io.github.fletchmckee.liquid.samples.app.platform.AppleSyncManager
 import io.github.fletchmckee.liquid.samples.app.platform.DeepLinkHandler
 import io.github.fletchmckee.liquid.samples.app.platform.NetworkMonitor
 import io.github.fletchmckee.liquid.samples.app.platform.parseDeepLink
+import io.github.fletchmckee.liquid.samples.app.platform.OAUTH_CALLBACK_SCHEME
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthBrowser
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthSessionResult
 import io.github.fletchmckee.liquid.samples.app.ui.components.IntegrationPromptDialog
@@ -1010,17 +1011,17 @@ fun MainApp() {
       // to Connected immediately, no foreground-refresh delay.
       integrationScope.launch {
         KlikLogger.d("MainApp", "Starting OAuth: provider=$providerId, user=$userId")
-        val result = integrationRepository.getAuthorizationUrl(providerId, callbackScheme = "klik")
+        val result = integrationRepository.getAuthorizationUrl(providerId, callbackScheme = OAUTH_CALLBACK_SCHEME)
         result.fold(
           onSuccess = { response ->
             showIntegrationPrompt = false
-            when (val outcome = OAuthBrowser.openOAuthSession(response.authorizationUrl, "klik")) {
+            when (val outcome = OAuthBrowser.openOAuthSession(response.authorizationUrl, OAUTH_CALLBACK_SCHEME)) {
               is OAuthSessionResult.Completed -> {
-                if (outcome.callbackUrl.contains("success=true")) {
+                if (outcome.isSuccess) {
                   KlikLogger.i("MainApp", "OAuth completed: provider=$providerId, user=$userId")
                   unconnectedIntegrations = unconnectedIntegrations.filter { it.providerId != providerId }
                 } else {
-                  KlikLogger.w("MainApp", "OAuth callback returned error: ${outcome.callbackUrl}")
+                  KlikLogger.w("MainApp", "OAuth callback returned error: code=${outcome.errorCode}, provider=${outcome.provider}")
                 }
               }
               is OAuthSessionResult.Cancelled -> {

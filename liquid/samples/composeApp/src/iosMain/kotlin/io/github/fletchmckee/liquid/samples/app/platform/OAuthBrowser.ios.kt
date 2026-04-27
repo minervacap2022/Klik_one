@@ -12,7 +12,10 @@ import platform.AuthenticationServices.ASWebAuthenticationSessionErrorDomain
 import platform.Foundation.NSError
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
+import platform.UIKit.UIScene
+import platform.UIKit.UISceneActivationStateForegroundActive
 import platform.UIKit.UIWindow
+import platform.UIKit.UIWindowScene
 import platform.darwin.NSObject
 
 /**
@@ -133,21 +136,26 @@ private class OAuthPresenter :
     override fun presentationAnchorForWebAuthenticationSession(
         session: ASWebAuthenticationSession,
     ): UIWindow {
-        // Walk windows to find the key one. UIApplication.keyWindow is
-        // deprecated since iOS 13 in favour of per-scene windows.
-        val windows = UIApplication.sharedApplication.windows
-        for (i in 0 until windows.size) {
-            val window = windows[i] as? UIWindow ?: continue
-            if (window.isKeyWindow()) return window
+        // iOS 13+ multi-scene world: UIApplication.windows / .keyWindow are
+        // deprecated. Walk connectedScenes (an NSSet bridged to a Set in
+        // Kotlin/Native), find the foreground-active UIWindowScene, and
+        // return its key window.
+        for (sceneObj in UIApplication.sharedApplication.connectedScenes) {
+            val scene = sceneObj as? UIScene ?: continue
+            if (scene.activationState != UISceneActivationStateForegroundActive) continue
+            val windowScene = scene as? UIWindowScene ?: continue
+            val sceneWindows = windowScene.windows
+            for (j in 0 until sceneWindows.size) {
+                val window = sceneWindows[j] as? UIWindow ?: continue
+                if (window.isKeyWindow()) return window
+            }
+            // Active scene with no key window — return any window from it.
+            (sceneWindows.firstOrNull() as? UIWindow)?.let { return it }
         }
-        // No key window — pick the first available UIWindow. This is the
-        // expected path on multi-scene iPad and immediately after launch
-        // before the system has marked a key window. ASWebAuthenticationSession
-        // requires a non-null anchor; throwing here would surface as a hard
-        // crash mid-OAuth. Failing-loud at the call site is impossible —
-        // ASWebAuthenticationSessionPresentationContextProviding has no error
-        // channel, only a UIWindow return.
-        return (windows.firstOrNull() as? UIWindow)
-            ?: error("No UIWindow available to present OAuth session")
+        // No foreground-active scene with a window. ASWebAuthenticationSession
+        // requires a non-null anchor; throwing here surfaces as a crash mid-
+        // OAuth, but the protocol has no error channel, only a UIWindow
+        // return. Crashing loudly is the only way to fail-fast.
+        error("No UIWindow available to present OAuth session")
     }
 }

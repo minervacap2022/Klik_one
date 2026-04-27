@@ -14,6 +14,7 @@ import io.github.fletchmckee.liquid.samples.app.data.repository.AuthRepositoryIm
 import io.github.fletchmckee.liquid.samples.app.data.repository.IntegrationRepository
 import io.github.fletchmckee.liquid.samples.app.data.repository.IntegrationRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
+import io.github.fletchmckee.liquid.samples.app.platform.OAUTH_CALLBACK_SCHEME
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthBrowser
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthSessionResult
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
@@ -595,14 +596,13 @@ class ProfileViewModel(
                     sendEvent(ProfileEvent.IntegrationAuthStarted(providerId))
                     when (val outcome = OAuthBrowser.openOAuthSession(response.authorizationUrl, OAUTH_CALLBACK_SCHEME)) {
                         is OAuthSessionResult.Completed -> {
-                            KlikLogger.i("ProfileViewModel", "OAuth completed for $providerId: ${outcome.callbackUrl}")
-                            if (outcome.callbackUrl.contains("success=true")) {
+                            KlikLogger.i("ProfileViewModel", "OAuth completed for $providerId (success=${outcome.isSuccess})")
+                            if (outcome.isSuccess) {
                                 loadIntegrations()
                                 sendEvent(ProfileEvent.IntegrationConnected(providerId))
                                 sendEvent(ProfileEvent.ShowSuccess("Connected"))
                             } else {
-                                val msg = outcome.callbackUrl.substringAfter("error=", "unknown_error").substringBefore("&")
-                                sendEvent(ProfileEvent.ShowError("OAuth failed: $msg"))
+                                sendEvent(ProfileEvent.ShowError("OAuth failed: ${outcome.errorCode ?: "unknown_error"}"))
                             }
                         }
                         is OAuthSessionResult.Cancelled -> {
@@ -619,13 +619,6 @@ class ProfileViewModel(
                 }
             )
         }
-    }
-
-    private companion object {
-        /** URL scheme registered in iOS Info.plist + Android intent-filter; the
-         *  system uses it to intercept the post-OAuth redirect and route the
-         *  URL back to the in-app session. */
-        const val OAUTH_CALLBACK_SCHEME = "klik"
     }
 
     /**
