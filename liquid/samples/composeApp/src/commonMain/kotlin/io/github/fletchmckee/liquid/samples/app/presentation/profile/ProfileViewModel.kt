@@ -15,6 +15,7 @@ import io.github.fletchmckee.liquid.samples.app.data.repository.IntegrationRepos
 import io.github.fletchmckee.liquid.samples.app.data.repository.IntegrationRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthBrowser
+import io.github.fletchmckee.liquid.samples.app.platform.OAuthSessionResult
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 
 /**
@@ -578,20 +579,39 @@ class ProfileViewModel(
 
     /**
      * Start OAuth authorization flow for a provider.
-     * Opens the authorization URL in the system browser.
+     *
+     * Opens the auth URL in an in-app session (ASWebAuthenticationSession on
+     * iOS, browser + deep-link return on Android). On both platforms the
+     * upstream provider redirects to klik://oauth-callback?provider=X&...,
+     * the system intercepts the scheme and hands the URL back — the user
+     * never leaves Klik. We refresh the integrations list immediately so
+     * the row flips to Connected without waiting for the next foreground.
      */
     fun authorizeIntegration(providerId: String) {
         launch {
-            val result = integrationRepository.getAuthorizationUrl(providerId)
+            val result = integrationRepository.getAuthorizationUrl(providerId, callbackScheme = OAUTH_CALLBACK_SCHEME)
             result.fold(
                 onSuccess = { response ->
-                    // Open the authorization URL in browser
-                    val opened = OAuthBrowser.openUrl(response.authorizationUrl)
-                    if (opened) {
-                        sendEvent(ProfileEvent.IntegrationAuthStarted(providerId))
-                        sendEvent(ProfileEvent.ShowSuccess("Opening authorization page..."))
-                    } else {
-                        sendEvent(ProfileEvent.ShowError("Failed to open browser"))
+                    sendEvent(ProfileEvent.IntegrationAuthStarted(providerId))
+                    when (val outcome = OAuthBrowser.openOAuthSession(response.authorizationUrl, OAUTH_CALLBACK_SCHEME)) {
+                        is OAuthSessionResult.Completed -> {
+                            KlikLogger.i("ProfileViewModel", "OAuth completed for $providerId: ${outcome.callbackUrl}")
+                            if (outcome.callbackUrl.contains("success=true")) {
+                                loadIntegrations()
+                                sendEvent(ProfileEvent.IntegrationConnected(providerId))
+                                sendEvent(ProfileEvent.ShowSuccess("Connected"))
+                            } else {
+                                val msg = outcome.callbackUrl.substringAfter("error=", "unknown_error").substringBefore("&")
+                                sendEvent(ProfileEvent.ShowError("OAuth failed: $msg"))
+                            }
+                        }
+                        is OAuthSessionResult.Cancelled -> {
+                            KlikLogger.i("ProfileViewModel", "OAuth cancelled for $providerId")
+                        }
+                        is OAuthSessionResult.Error -> {
+                            KlikLogger.e("ProfileViewModel", "OAuth session error for $providerId: ${outcome.message}")
+                            sendEvent(ProfileEvent.ShowError("OAuth failed: ${outcome.message}"))
+                        }
                     }
                 },
                 onFailure = { error ->
@@ -599,6 +619,13 @@ class ProfileViewModel(
                 }
             )
         }
+    }
+
+    private companion object {
+        /** URL scheme registered in iOS Info.plist + Android intent-filter; the
+         *  system uses it to intercept the post-OAuth redirect and route the
+         *  URL back to the in-app session. */
+        const val OAUTH_CALLBACK_SCHEME = "klik"
     }
 
     /**

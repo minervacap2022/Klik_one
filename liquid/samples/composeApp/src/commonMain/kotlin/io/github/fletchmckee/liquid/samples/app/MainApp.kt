@@ -144,6 +144,7 @@ import io.github.fletchmckee.liquid.samples.app.platform.DeepLinkHandler
 import io.github.fletchmckee.liquid.samples.app.platform.NetworkMonitor
 import io.github.fletchmckee.liquid.samples.app.platform.parseDeepLink
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthBrowser
+import io.github.fletchmckee.liquid.samples.app.platform.OAuthSessionResult
 import io.github.fletchmckee.liquid.samples.app.ui.components.IntegrationPromptDialog
 import io.github.fletchmckee.liquid.samples.app.ui.components.ErrorPopup
 import io.github.fletchmckee.liquid.samples.app.reporting.CrashReporter
@@ -1003,18 +1004,31 @@ fun MainApp() {
         }
       }
     } else {
-      // OAuth integration - open browser for authorization
+      // OAuth integration — in-app session (ASWebAuthenticationSession on iOS,
+      // browser + klik:// deep-link return on Android). User stays in Klik;
+      // the post-OAuth redirect is captured by the system and the row flips
+      // to Connected immediately, no foreground-refresh delay.
       integrationScope.launch {
         KlikLogger.d("MainApp", "Starting OAuth: provider=$providerId, user=$userId")
-        val result = integrationRepository.getAuthorizationUrl(providerId)
+        val result = integrationRepository.getAuthorizationUrl(providerId, callbackScheme = "klik")
         result.fold(
           onSuccess = { response ->
-            val opened = OAuthBrowser.openUrl(response.authorizationUrl)
-            if (opened) {
-              KlikLogger.i("MainApp", "Opened OAuth URL: provider=$providerId, user=$userId")
-              showIntegrationPrompt = false
-            } else {
-              KlikLogger.e("MainApp", "Failed to open browser for OAuth: provider=$providerId, user=$userId")
+            showIntegrationPrompt = false
+            when (val outcome = OAuthBrowser.openOAuthSession(response.authorizationUrl, "klik")) {
+              is OAuthSessionResult.Completed -> {
+                if (outcome.callbackUrl.contains("success=true")) {
+                  KlikLogger.i("MainApp", "OAuth completed: provider=$providerId, user=$userId")
+                  unconnectedIntegrations = unconnectedIntegrations.filter { it.providerId != providerId }
+                } else {
+                  KlikLogger.w("MainApp", "OAuth callback returned error: ${outcome.callbackUrl}")
+                }
+              }
+              is OAuthSessionResult.Cancelled -> {
+                KlikLogger.i("MainApp", "OAuth cancelled by user: provider=$providerId")
+              }
+              is OAuthSessionResult.Error -> {
+                KlikLogger.e("MainApp", "OAuth session error: provider=$providerId, msg=${outcome.message}")
+              }
             }
           },
           onFailure = { error ->

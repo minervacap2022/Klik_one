@@ -35,7 +35,17 @@ interface IntegrationRepository {
      * Get authorization URL to start OAuth flow.
      * Calls GET /api/auth/oauth/{provider}/authorize
      */
-    suspend fun getAuthorizationUrl(provider: String): Result<AuthorizationUrlResponse>
+    /**
+     * @param callbackScheme If non-null (e.g. `"klik"`) the backend redirects
+     *   the post-OAuth flow to `{scheme}://oauth-callback?...` so the mobile
+     *   app can capture it via ASWebAuthenticationSession (iOS) or the
+     *   deep-link handler (Android). Web clients pass null and use the
+     *   existing `https://hiklik.ai/integrations` redirect.
+     */
+    suspend fun getAuthorizationUrl(
+        provider: String,
+        callbackScheme: String? = null,
+    ): Result<AuthorizationUrlResponse>
 
     /**
      * Disconnect an OAuth provider.

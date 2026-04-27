@@ -188,13 +188,25 @@ class IntegrationRepositoryImpl(
      * Get authorization URL to start OAuth flow.
      * Calls GET /api/auth/oauth/{provider}/authorize
      */
-    override suspend fun getAuthorizationUrl(provider: String): Result<AuthorizationUrlResponse> {
+    override suspend fun getAuthorizationUrl(
+        provider: String,
+        callbackScheme: String?,
+    ): Result<AuthorizationUrlResponse> {
         return try {
             if (!CurrentUser.isLoggedIn) {
                 return Result.failure(Exception("Not authenticated"))
             }
 
-            val url = ApiConfig.OAuth.authorizeUrl(provider)
+            // Append `?callback_scheme=klik` only when the caller wants in-app
+            // handoff (mobile). Web callers omit it; backend then defaults to
+            // the existing https://hiklik.ai/integrations redirect.
+            val base = ApiConfig.OAuth.authorizeUrl(provider)
+            val url = if (callbackScheme.isNullOrBlank()) {
+                base
+            } else {
+                val sep = if ("?" in base) "&" else "?"
+                "$base${sep}callback_scheme=$callbackScheme"
+            }
             KlikLogger.d("IntegrationRepository", "GET $url")
 
             val responseText = HttpClient.getUrl(url)
