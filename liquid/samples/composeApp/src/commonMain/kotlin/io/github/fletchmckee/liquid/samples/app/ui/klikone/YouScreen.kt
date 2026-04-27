@@ -237,14 +237,37 @@ fun YouScreen(
             Spacer(Modifier.height(K1Sp.xxl))
         }
 
-        // Integrations
+        // Integrations — three-state OAuth status (alive/expired/invalid/null).
+        // `needsReconnect` (validation_status="invalid") is its own bucket: the
+        // user previously connected but the token has been silently revoked,
+        // so we need a distinct red affordance — rendering as "Connect" would
+        // hide that the integration broke.
         val integrations = ui.integrations
         if (integrations.isNotEmpty()) {
+            val needsReconnect = integrations.filter { it.needsReconnect }
             val connected = integrations.filter { it.connected }
-            val available = integrations.filter { !it.connected }
+            val available = integrations.filter { !it.connected && !it.needsReconnect }
             Column(Modifier.padding(horizontal = 20.dp)) {
                 K1SectionHeader("Integrations", count = integrations.size)
                 Spacer(Modifier.height(K1Sp.s))
+                if (needsReconnect.isNotEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard)
+                            .padding(vertical = 4.dp),
+                    ) {
+                        needsReconnect.forEachIndexed { i, info ->
+                            IntegrationRow(
+                                displayName = info.displayName,
+                                state = "Reconnect",
+                                stateColor = KlikAlert,
+                                detail = info.invalidReason ?: "Connection expired",
+                                onClick = { viewModel.authorizeIntegration(info.providerId) },
+                            )
+                            if (i < needsReconnect.size - 1) Divider()
+                        }
+                    }
+                    Spacer(Modifier.height(K1Sp.m))
+                }
                 if (connected.isNotEmpty()) {
                     Column(
                         Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard)
@@ -367,6 +390,7 @@ private fun IntegrationRow(
     state: String,
     stateColor: Color,
     onClick: () -> Unit,
+    detail: String? = null,
 ) {
     Row(
         Modifier.fillMaxWidth()
@@ -384,7 +408,13 @@ private fun IntegrationRow(
             )
         }
         Spacer(Modifier.width(K1Sp.m))
-        Text(displayName, style = K1Type.bodySm, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(displayName, style = K1Type.bodySm)
+            if (!detail.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(detail, style = K1Type.metaSm.copy(color = stateColor))
+            }
+        }
         Text(state, style = K1Type.metaSm.copy(color = stateColor, fontWeight = FontWeight.Medium))
     }
 }

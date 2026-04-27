@@ -37,6 +37,17 @@ data class IntegrationCredential(
 /**
  * Represents the connection status for a specific provider.
  * Maps to GET /api/auth/oauth/{provider}/status response.
+ *
+ * `validationStatus` semantics (added in backend OAuth refactor 58a2c76f):
+ *   "alive"   — token fresh, ready to use
+ *   "expired" — past expires_at but refreshable; the reactive 401-refresh-retry
+ *                path will recover transparently on the next tool call
+ *   "invalid" — reactive refresh failed (or token type is not refreshable);
+ *                user must manually reconnect this provider
+ *   null      — no credential row exists (never connected)
+ *
+ * `connected` collapses to true for alive/expired and false for invalid/null,
+ * so old clients that ignore the new fields stay correct on the binary.
  */
 @Serializable
 data class IntegrationStatus(
@@ -48,7 +59,13 @@ data class IntegrationStatus(
     @SerialName("credential_id")
     val credentialId: String? = null,
     @SerialName("created_at")
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    @SerialName("validation_status")
+    val validationStatus: String? = null,
+    @SerialName("invalid_since")
+    val invalidSince: String? = null,
+    @SerialName("invalid_reason")
+    val invalidReason: String? = null
 )
 
 /**
@@ -64,6 +81,10 @@ data class AuthorizationUrlResponse(
 /**
  * Combined integration info for UI display.
  * Merges provider info with user's connection status.
+ *
+ * `validationStatus` mirrors the backend three-state model (see [IntegrationStatus]).
+ * UI should branch on [needsReconnect] to surface a Reconnect affordance instead of
+ * the binary connected/Connect when a credential has been silently revoked.
  */
 data class IntegrationInfo(
     val providerId: String,
@@ -71,12 +92,25 @@ data class IntegrationInfo(
     val configured: Boolean,
     val connected: Boolean,
     val credentialId: String? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    val validationStatus: String? = null,
+    val invalidSince: String? = null,
+    val invalidReason: String? = null
 ) {
+    /**
+     * True when the user has previously connected this provider but the credential
+     * has since been judged dead by the reactive 401-refresh path. Distinct from
+     * "never connected" — we know the user wanted this integration, the token just
+     * needs replacing. Surfaces a "Reconnect" CTA + reason in the UI.
+     */
+    val needsReconnect: Boolean
+        get() = validationStatus == "invalid"
+
     companion object {
         fun fromProviderAndCredentials(
             provider: IntegrationProvider,
-            credentials: List<IntegrationCredential>
+            credentials: List<IntegrationCredential>,
+            status: IntegrationStatus? = null
         ): IntegrationInfo {
             val credential = credentials.find { it.mcpServerId == provider.providerId }
             return IntegrationInfo(
@@ -85,7 +119,10 @@ data class IntegrationInfo(
                 configured = provider.configured,
                 connected = credential != null,
                 credentialId = credential?.id,
-                createdAt = credential?.createdAt
+                createdAt = credential?.createdAt,
+                validationStatus = status?.validationStatus,
+                invalidSince = status?.invalidSince,
+                invalidReason = status?.invalidReason
             )
         }
     }

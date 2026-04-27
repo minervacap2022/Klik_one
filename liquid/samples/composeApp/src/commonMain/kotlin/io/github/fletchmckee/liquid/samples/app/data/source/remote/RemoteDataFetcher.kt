@@ -17,6 +17,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -1176,6 +1177,7 @@ data class TaskDto(
             "ARCHIVED" -> TaskStatus.ARCHIVED
             "APPROVED" -> TaskStatus.APPROVED
             "REJECTED" -> TaskStatus.REJECTED
+            "REQUIRES_REAUTH" -> TaskStatus.REQUIRES_REAUTH
             else -> TaskStatus.PENDING
         },
         needsConfirmation = needsConfirmation,
@@ -1529,15 +1531,46 @@ data class KKExecSpecDto(
 /**
  * DTO for task execution result from KK_exec.
  * Maps to the JSONB `result` column in todo_execution_results table.
- * Structure: {"result": "...", "status": "completed|no_results", "agent_outputs": [...]}
+ *
+ * `result` is JsonElement because the backend uses two shapes:
+ *   - normal completion → JSON string (the agent's output text)
+ *   - status="requires_reauth" → JSON object {"message", "provider", "reason"}
+ *     (set by KK_exec/src/api/routes/todos.py when the reactive 401 path
+ *     decides a credential is dead — see backend commit 58a2c76f)
+ *
+ * Old DTO had `result: String?` which would crash on the dict shape with
+ * SerializationException. Use [extractResultText] / [extractReauthInfo] to
+ * read the field safely.
  */
 @Serializable
 data class KKExecTaskResultDto(
-    val result: String? = null,
+    val result: JsonElement? = null,
     val status: String? = null,
     val message: String? = null,
     val agent_outputs: List<JsonElement> = emptyList()
 ) {
+    /**
+     * Plain string view of `result` for normal-completion todos. Returns null
+     * when `result` is the requires_reauth object shape (use [extractReauthInfo]
+     * for that case).
+     */
+    fun extractResultText(): String? {
+        val r = result ?: return null
+        return (r as? JsonPrimitive)?.takeIf { it.isString }?.content
+    }
+
+    /**
+     * Parse the `{"provider", "reason"}` payload the backend stamps onto
+     * `task_result.result` when a todo's execution status is `requires_reauth`.
+     * Returns null for any other shape.
+     */
+    fun extractReauthInfo(): ReauthInfo? {
+        val r = result ?: return null
+        val obj = (r as? JsonObject) ?: return null
+        val provider = obj["provider"]?.let { it as? JsonPrimitive }?.content ?: return null
+        val reason = obj["reason"]?.let { it as? JsonPrimitive }?.content
+        return ReauthInfo(provider = provider, reason = reason)
+    }
     /**
      * Extract the execution outcome summary from agent_outputs.
      * Prioritizes the execute agent's output (direct action result),
@@ -1673,11 +1706,12 @@ data class KKExecTodoItemDto(
         toolCategoriesNeeded = selected_sub_categories,
         toolCategoryGroupId = tool_category_group_id,
         executionSteps = execution_steps.map { ExecutionStep.fromDto(it) },
-        taskResult = task_result?.result,
+        taskResult = task_result?.extractResultText(),
         executionOutcome = task_result?.extractOutcomeSummary(),
         executionLinks = task_result?.extractOutcomeLinks() ?: emptyList(),
         toolsUsed = tools_used,
         executionStatus = execution_status,
+        reauthInfo = task_result?.extractReauthInfo(),
         createdAt = created_at,
         updatedAt = updated_at
     )
@@ -1904,7 +1938,12 @@ enum class KKExecStatus {
     CANNOT_EXECUTE,
     APPROVED,
     REJECTED,
-    ARCHIVED;
+    ARCHIVED,
+
+    /** Backend signal that an OAuth credential needs user reconnection
+     *  before this todo can complete. Carries provider/reason in
+     *  task_result.result; surfaced via ReauthInfo on the domain model. */
+    REQUIRES_REAUTH;
 
     companion object {
         fun fromString(value: String): KKExecStatus = when (value.lowercase()) {
@@ -1918,6 +1957,7 @@ enum class KKExecStatus {
             "approved" -> APPROVED
             "rejected" -> REJECTED
             "archived" -> ARCHIVED
+            "requires_reauth" -> REQUIRES_REAUTH
             else -> PENDING
         }
     }
@@ -1959,6 +1999,7 @@ data class KKExecTodoItem(
     val executionLinks: List<String>,  // Links extracted from agent_outputs (sources)
     val toolsUsed: List<String>,  // Tools used in execution
     val executionStatus: String?,  // Execution status
+    val reauthInfo: ReauthInfo? = null,  // Non-null when execution status is requires_reauth
     val createdAt: String,
     val updatedAt: String
 ) {
@@ -2019,7 +2060,8 @@ data class KKExecTodoItem(
         plannedTools = toolsUsed.ifEmpty { execSpecProviders },
         // Use executionStatus if available, otherwise fall back to general status
         currentExecutingStep = if (executionStatus?.equals("executing", ignoreCase = true) == true ||
-                                   status == KKExecStatus.RUNNING) executionSteps.size + 1 else null
+                                   status == KKExecStatus.RUNNING) executionSteps.size + 1 else null,
+        reauthInfo = reauthInfo
     )
 }
 // Goal/Level DTOs

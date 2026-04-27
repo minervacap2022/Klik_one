@@ -70,7 +70,9 @@ data class TaskMetadata(
     // Related entities - extracted from backend
     val relatedSegments: List<Int> = emptyList(),
     val relatedOrganizations: List<String> = emptyList(),
-    val relatedProjects: List<String> = emptyList()
+    val relatedProjects: List<String> = emptyList(),
+    // OAuth reconnect payload — non-null when status is REQUIRES_REAUTH
+    val reauthInfo: ReauthInfo? = null
 ) {
     /**
      * Check if this task is from KK_exec (has KK_exec integration fields).
@@ -120,7 +122,16 @@ enum class TaskStatus {
     COMPLETED,
     ARCHIVED,
     APPROVED,
-    REJECTED;
+    REJECTED,
+
+    /**
+     * KK_exec executed the todo, the upstream provider returned 401, the
+     * reactive refresh attempt also failed, so the user must reconnect the
+     * OAuth integration before the todo can complete. Comes with a
+     * [io.github.fletchmckee.liquid.samples.app.domain.entity.ReauthInfo]
+     * payload (provider + reason) on the TaskMetadata.
+     */
+    REQUIRES_REAUTH;
 
     val displayName: String
         get() = when (this) {
@@ -131,8 +142,23 @@ enum class TaskStatus {
             ARCHIVED -> "Archived"
             APPROVED -> "Approved"
             REJECTED -> "Rejected"
+            REQUIRES_REAUTH -> "Reconnect needed"
         }
 }
+
+/**
+ * Payload extracted from a todo's task_result.result when its execution status
+ * is `requires_reauth`. The reactive 401 path stamps this so the UI can route
+ * the user straight to the right OAuth reconnect flow.
+ *
+ * @Serializable so it can ride inside the @Serializable UI TaskMetadata that
+ * gets persisted/restored as state. Pure data, no behavior.
+ */
+@kotlinx.serialization.Serializable
+data class ReauthInfo(
+    val provider: String,
+    val reason: String? = null
+)
 
 /**
  * Artifact attached to completed tasks

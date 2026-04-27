@@ -327,17 +327,38 @@ private fun RunningRow(t: TaskMetadata, onClick: () -> Unit = {}) {
             )
         }
         Spacer(Modifier.width(K1Sp.m))
+        // OAuth reconnect: a todo whose KK_exec execution returned 401 and
+        // whose reactive refresh failed surfaces here as a status of
+        // REQUIRES_REAUTH carrying provider/reason. We render the meta line
+        // in red and append the reason so the user can act on it without
+        // diving into the integrations screen first.
+        val needsReauth = t.status == TaskStatus.REQUIRES_REAUTH ||
+            t.kkExecStatus?.uppercase() == "REQUIRES_REAUTH" ||
+            t.reauthInfo != null
         Column(Modifier.weight(1f)) {
             Text(t.title, style = K1Type.bodySm)
             val meta = buildList {
-                t.kkExecStatus?.takeIf { it.isNotBlank() }?.let {
-                    add("ETA ${it.lowercase().replaceFirstChar { c -> c.uppercase() }}")
+                if (needsReauth) {
+                    add("Reconnect needed")
+                } else {
+                    t.kkExecStatus?.takeIf { it.isNotBlank() }?.let {
+                        add("ETA ${it.lowercase().replaceFirstChar { c -> c.uppercase() }}")
+                    }
                 }
                 t.relatedProject.takeIf { it.isNotBlank() }?.let { add(it) }
                 if (isEmpty()) add("Running")
             }.joinToString(" · ")
             Spacer(Modifier.height(2.dp))
-            Text(meta, style = K1Type.metaSm)
+            Text(
+                meta,
+                style = K1Type.metaSm.copy(color = if (needsReauth) KlikAlert else KlikInkSecondary),
+            )
+            if (needsReauth) {
+                val reason = t.reauthInfo?.reason?.takeIf { it.isNotBlank() }
+                    ?: "OAuth token revoked — reconnect to finish this todo"
+                Spacer(Modifier.height(2.dp))
+                Text(reason, style = K1Type.metaSm.copy(color = KlikAlert))
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Organization
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Project
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Scenario
+import io.github.fletchmckee.liquid.samples.app.domain.entity.ReauthInfo
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TodoItem
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TodoType
@@ -114,7 +115,9 @@ data class TaskMetadata(
     val executionOutcome: String? = null, // Structured execution outcome from agent_outputs
     val executionLinks: List<String> = emptyList(), // Links extracted from agent_outputs (sources)
     val plannedTools: List<String> = emptyList(), // Tools/providers needed for execution (from exec_spec.providers)
-    val currentExecutingStep: Int? = null // Current step being executed (for animation)
+    val currentExecutingStep: Int? = null, // Current step being executed (for animation)
+    // OAuth reconnect payload — non-null when status is REQUIRES_REAUTH
+    val reauthInfo: ReauthInfo? = null
 ) {
     /**
      * Check if this task is from KK_exec (has KK_exec integration fields).

@@ -15,6 +15,9 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.IntegrationStatus
 import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
 import io.github.fletchmckee.liquid.samples.app.platform.AppleIntegrationService
 import io.github.fletchmckee.liquid.samples.app.platform.ApplePermissionStatus
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.datetime.Clock
 import kotlinx.coroutines.flow.StateFlow
@@ -266,12 +269,37 @@ class IntegrationRepositoryImpl(
             val providers = providersResult.getOrThrow()
             val credentials = credentialsResult.getOrThrow()
 
-            // Merge providers with credentials
-            val integrationInfoList = providers.map { provider ->
-                IntegrationInfo.fromProviderAndCredentials(provider, credentials)
+            // Backend's /credentials endpoint only reports row metadata. The
+            // three-state validation_status (alive / expired / invalid) lives
+            // on /{provider}/status. Fan out parallel calls for every provider
+            // that has a credential — there are ~10 providers max, so this is
+            // a single batched round trip in practice. Without this, invalid
+            // (silently revoked) credentials would render as "Connected" with
+            // no Reconnect affordance, which is the bug we're fixing.
+            val connectedProviderIds = credentials.map { it.mcpServerId }.toSet()
+            val statusByProvider: Map<String, IntegrationStatus> = coroutineScope {
+                providers
+                    .filter { it.providerId in connectedProviderIds }
+                    .map { provider ->
+                        async {
+                            getStatus(provider.providerId).getOrNull()?.let { provider.providerId to it }
+                        }
+                    }
+                    .awaitAll()
+                    .filterNotNull()
+                    .toMap()
             }
 
-            KlikLogger.i("IntegrationRepository", "Built ${integrationInfoList.size} integration info items")
+            // Merge providers + credentials + per-provider status
+            val integrationInfoList = providers.map { provider ->
+                IntegrationInfo.fromProviderAndCredentials(
+                    provider,
+                    credentials,
+                    statusByProvider[provider.providerId]
+                )
+            }
+
+            KlikLogger.i("IntegrationRepository", "Built ${integrationInfoList.size} integration info items (${statusByProvider.count { it.value.validationStatus == "invalid" }} need reconnect)")
             Result.success(integrationInfoList)
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
