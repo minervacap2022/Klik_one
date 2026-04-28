@@ -111,9 +111,9 @@ import io.github.fletchmckee.liquid.samples.app.ui.icons.Mic
 import io.github.fletchmckee.liquid.samples.app.ui.components.MiniCalendar
 import io.github.fletchmckee.liquid.samples.app.ui.screens.ArchivedScreen
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.AskKlikSheet
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.NetworkScreen
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.TodayScreen
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.MovesScreen
-import io.github.fletchmckee.liquid.samples.app.ui.klikone.NetworkScreen
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.YouScreen
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.SessionDetailScreen
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.OnboardingScreen
@@ -2366,9 +2366,7 @@ fun MainApp() {
                                 onArchiveProject = onArchiveProject,
                                 onArchivePerson = onArchivePerson,
                                 onArchiveOrganization = onArchiveOrganization,
-                                // Entity data for highlighting
                                 tasks = reviewMetadata + pendingMetadata + completedMetadata,
-
                                 meetings = meetings,
                                 onEntityClick = { entityNav ->
                                     lastMainRoute = currentRoute
@@ -2396,59 +2394,38 @@ fun MainApp() {
                                     }
                                 },
                                 onSegmentClick = { segmentNav ->
-                                    KlikLogger.d("MainApp", "Segment clicked from WorkLifeScreen: sessionId=${segmentNav.sessionId}, segmentId=${segmentNav.segmentId}")
-
-                                    // Look up the traced segment to get its text
                                     val tracedSegment = findTracedSegment(
                                         sessionId = segmentNav.sessionId,
                                         segmentId = segmentNav.segmentId,
                                         insights = insights,
                                         encourageData = encourageData,
-                                        worklifeData = worklifeData
+                                        worklifeData = worklifeData,
                                     )
-
-                                    // Extract date from session ID to check if meeting is already loaded
                                     val sessionDate = io.github.fletchmckee.liquid.samples.app.utils.SessionIdUtils.extractDateFromSessionId(segmentNav.sessionId)
-
                                     if (sessionDate != null) {
-                                        // Check if meeting is already in loaded meetings
                                         val meetingExists = meetings.any { it.id == segmentNav.sessionId }
-
                                         if (!meetingExists) {
-                                            // Meeting not loaded - trigger reload for that month
-                                            KlikLogger.d("MainApp", "Meeting not in current list, loading month: ${sessionDate.month} ${sessionDate.year}")
-
-                                            // Set all navigation parameters
                                             expandMeetingSessionId = segmentNav.sessionId
                                             expandSegmentId = segmentNav.segmentId
                                             expandSegmentText = tracedSegment?.text
-                                            selectedDate = sessionDate  // Change selected date to meeting's date
-                                            meetingsRefreshKey++  // Trigger targeted reload
+                                            selectedDate = sessionDate
+                                            meetingsRefreshKey++
                                         } else {
-                                            // Meeting already loaded - just navigate
-                                            KlikLogger.d("MainApp", "Meeting already loaded, navigating directly")
                                             expandMeetingSessionId = segmentNav.sessionId
                                             expandSegmentId = segmentNav.segmentId
                                             expandSegmentText = tracedSegment?.text
                                         }
                                     } else {
-                                        // Session ID doesn't match expected format - try anyway
-                                        KlikLogger.w("MainApp", "Could not parse date from sessionId: ${segmentNav.sessionId}")
                                         expandMeetingSessionId = segmentNav.sessionId
                                         expandSegmentId = segmentNav.segmentId
                                         expandSegmentText = tracedSegment?.text
                                     }
-
                                     currentRoute = "today"
-
-                                    KlikLogger.d("MainApp", "Navigating to segment: sessionId=${segmentNav.sessionId}, segmentId=${segmentNav.segmentId}, text=${tracedSegment?.text?.take(30)}")
                                 },
-                                // Entity highlight/scroll parameters
                                 highlightProjectId = highlightProjectId,
                                 highlightPersonId = highlightPersonId,
                                 highlightOrganizationId = highlightOrganizationId,
                                 onEntityHighlighted = {
-                                    // Clear highlight IDs after animation starts
                                     highlightProjectId = null
                                     highlightPersonId = null
                                     highlightOrganizationId = null
@@ -2462,7 +2439,7 @@ fun MainApp() {
                                 onUpgradeRequired = { featureName ->
                                     upgradeModalFeatureName = featureName
                                     showUpgradeModal = true
-                                }
+                                },
                             )
                             "growth_tree" -> GrowthTreeScreen(
                                 onBack = {
