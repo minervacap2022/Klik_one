@@ -345,6 +345,7 @@ fun YouScreen(
     Column(Modifier.padding(horizontal = 20.dp)) {
       K1SectionHeader("Settings")
       Spacer(Modifier.height(K1Sp.s))
+      var showImportSheet by remember { mutableStateOf(false) }
       Column(
         Modifier
           .fillMaxWidth()
@@ -360,7 +361,12 @@ fun YouScreen(
         Divider()
         SettingsRow("Account & security", onClick = onNavigateToAccountSecurity)
         Divider()
+        SettingsRow("Import from Agent", onClick = { showImportSheet = true })
+        Divider()
         SettingsRow("Plans", onClick = onNavigateToPricing)
+      }
+      if (showImportSheet) {
+        ImportFromAgentSheet(onDismiss = { showImportSheet = false })
       }
     }
 
