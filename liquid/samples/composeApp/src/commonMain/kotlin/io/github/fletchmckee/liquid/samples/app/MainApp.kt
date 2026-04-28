@@ -2835,6 +2835,7 @@ fun MainApp() {
                                         org = o,
                                         people = peopleState.value,
                                         projects = projectsState.value,
+                                        meetings = meetings,
                                         onBack = {
                                             orgDetailId = null
                                             currentRoute = lastMainRoute

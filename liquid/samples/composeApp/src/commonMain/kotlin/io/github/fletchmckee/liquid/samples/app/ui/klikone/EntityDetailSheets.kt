@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -541,38 +544,12 @@ fun PersonDetailScreen(
       }
     }
 
-    // Recent sessions
-    if (personMeetings.isNotEmpty()) {
-      Spacer(Modifier.height(K1Sp.xl))
-      Column(Modifier.padding(horizontal = 20.dp)) {
-        K1SectionHeader("Recent sessions", count = personMeetings.size)
-        Spacer(Modifier.height(K1Sp.s))
-        personMeetings.forEach { m ->
-          K1Card(
-            soft = true,
-            onClick = { onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
-          ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Column(Modifier.weight(1f)) {
-                Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                  "${m.date} · ${m.time}",
-                  style = K1Type.meta,
-                )
-              }
-              if (m.participants.isNotEmpty()) {
-                K1AvatarStack(
-                  initialsList = m.participants.take(3).map { initialsOf(it.name) },
-                  size = 20.dp,
-                )
-              }
-            }
-          }
-          Spacer(Modifier.height(6.dp))
-        }
-      }
-    }
+    // Related sessions — meeting cards with avatar stack
+    K1RelatedSessionsCards(
+      title = "Related sessions",
+      sessions = personMeetings,
+      onClick = { m -> onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
+    )
 
     // Open commitments / related tasks
     if (personTasks.isNotEmpty()) {
@@ -596,26 +573,48 @@ fun PersonDetailScreen(
       }
     }
 
-    // Projects + Orgs
-    if (personProjects.isNotEmpty() || personOrgs.isNotEmpty()) {
-      Spacer(Modifier.height(K1Sp.xl))
-      Column(Modifier.padding(horizontal = 20.dp)) {
-        K1Eyebrow("Also connected to")
-        Spacer(Modifier.height(K1Sp.s))
-        K1Card(soft = true) {
-          personProjects.take(5).forEach { p ->
-            Box(Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.PROJECT, p.id)) }) {
-              RelatedLine("Project", p.name, KlikDotProject)
-            }
-          }
-          personOrgs.take(5).forEach { o ->
-            Box(Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, o.id)) }) {
-              RelatedLine("Org", o.name, KlikDotOrg)
-            }
+    // Related projects — chips, click navigates into project_detail
+    K1RelatedChipsSection(
+      title = "Related projects",
+      count = personProjects.size,
+      dotColor = KlikDotProject,
+      names = personProjects.map { it.name },
+      onChipClick = { name ->
+        val p = personProjects.find { it.name == name }
+        if (p != null) onEntityClick(EntityNavigationData(EntityType.PROJECT, p.id))
+      },
+    )
+
+    // Related organizations — chips, click navigates into org_detail
+    K1RelatedChipsSection(
+      title = "Related organizations",
+      count = personOrgs.size,
+      dotColor = KlikDotOrg,
+      names = personOrgs.map { it.name },
+      onChipClick = { name ->
+        val o = personOrgs.find { it.name == name }
+        if (o != null) onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, o.id))
+      },
+    )
+
+    // Related people — co-attendees from this person's meetings
+    val coAttendees: List<String> = run {
+      val seen = LinkedHashSet<String>()
+      for (m in personMeetings) {
+        for (p in m.participants) {
+          if (!p.name.equals(person.name, ignoreCase = true) && p.name.isNotBlank()) {
+            seen.add(p.name)
           }
         }
       }
+      seen.toList()
     }
+    K1RelatedChipsSection(
+      title = "Related people",
+      count = coAttendees.size,
+      dotColor = KlikDotPerson,
+      names = coAttendees,
+    )
   }
 }
 
@@ -772,24 +771,38 @@ fun ProjectDetailScreen(
         }
       }
 
-      // Related meetings
-      if (projectMeetings.isNotEmpty()) {
-        Spacer(Modifier.height(K1Sp.xl))
-        K1SectionHeader("Related sessions", count = projectMeetings.size)
-        Spacer(Modifier.height(K1Sp.s))
-        projectMeetings.forEach { m ->
-          K1Card(
-            soft = true,
-            modifier = Modifier.k1Clickable { onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
-          ) {
-            Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
-            Spacer(Modifier.height(2.dp))
-            Text("${m.date} · ${m.time}", style = K1Type.meta)
-          }
-          Spacer(Modifier.height(6.dp))
-        }
-      }
     }
+
+    // Related sessions — always shown (with placeholder when empty)
+    K1RelatedSessionsCards(
+      title = "Related sessions",
+      sessions = projectMeetings,
+      onClick = { m -> onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
+    )
+
+    // Related people — names, non-clickable (no peopleList in scope here)
+    K1RelatedChipsSection(
+      title = "Related people",
+      count = project.relatedPeople.size,
+      dotColor = KlikDotPerson,
+      names = project.relatedPeople,
+    )
+
+    // Related projects — names, non-clickable
+    K1RelatedChipsSection(
+      title = "Related projects",
+      count = project.relatedProjects.size,
+      dotColor = KlikDotProject,
+      names = project.relatedProjects,
+    )
+
+    // Related organizations — names, non-clickable
+    K1RelatedChipsSection(
+      title = "Related organizations",
+      count = project.relatedOrganizations.size,
+      dotColor = KlikDotOrg,
+      names = project.relatedOrganizations,
+    )
   }
 }
 
@@ -810,6 +823,7 @@ fun OrgDetailScreen(
   org: Organization,
   people: List<Person> = emptyList(),
   projects: List<Project> = emptyList(),
+  meetings: List<Meeting> = emptyList(),
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
@@ -819,6 +833,10 @@ fun OrgDetailScreen(
   val orgProjects = projects.filter { p ->
     p.id in org.relatedProjects || p.relatedOrganizations.contains(org.name)
   }.take(6)
+  val orgSessions = meetings
+    .filter { m -> m.id in org.relatedSessions }
+    .sortedByDescending { it.date }
+    .take(5)
 
   DetailScaffold(
     eyebrow = "Organization",
@@ -936,6 +954,13 @@ fun OrgDetailScreen(
         }
       }
     }
+
+    // Related sessions for the org — always shown
+    K1RelatedSessionsCards(
+      title = "Related sessions",
+      sessions = orgSessions,
+      onClick = { m -> onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
+    )
   }
 }
 
@@ -1009,6 +1034,101 @@ private fun integrationInfo(slug: String): Pair<String?, String> {
     "openai" in key || "gpt" in key -> icon("openai") to "OpenAI"
     "anthropic" in key || "claude" in key -> icon("anthropic") to "Anthropic"
     else -> null to slug.split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+  }
+}
+
+// ─── Related-X sections ──────────────────────────────────────────────────
+//
+// Small editorial sections used by the entity detail screens to surface
+// the related-people / related-projects / related-orgs / related-sessions
+// chips that the old liquid-glass WorkLifeScreen showed inline.  Always
+// rendered (even when empty) with a "(none)" placeholder so the
+// information layout stays consistent across entities.
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun K1RelatedChipsSection(
+  title: String,
+  count: Int,
+  dotColor: Color,
+  names: List<String>,
+  onChipClick: ((String) -> Unit)? = null,
+  maxVisible: Int = 8,
+) {
+  Spacer(Modifier.height(K1Sp.xl))
+  Column(Modifier.padding(horizontal = 20.dp)) {
+    K1SectionHeader(title, count = count, dotColor = dotColor)
+    Spacer(Modifier.height(K1Sp.s))
+    if (names.isEmpty()) {
+      Box(
+        Modifier
+          .clip(K1R.chip)
+          .background(KlikPaperChip)
+          .padding(horizontal = 9.dp, vertical = 4.dp),
+      ) {
+        Text("(none)", style = K1Type.metaSm.copy(color = KlikInkTertiary))
+      }
+    } else {
+      FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        names.take(maxVisible).forEach { name ->
+          K1Chip(
+            label = name,
+            onClick = onChipClick?.let { cb -> { cb(name) } },
+          )
+        }
+        if (names.size > maxVisible) {
+          K1Chip(label = "+${names.size - maxVisible}")
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun K1RelatedSessionsCards(
+  title: String,
+  sessions: List<Meeting>,
+  onClick: (Meeting) -> Unit,
+) {
+  Spacer(Modifier.height(K1Sp.xl))
+  Column(Modifier.padding(horizontal = 20.dp)) {
+    K1SectionHeader(title, count = sessions.size)
+    Spacer(Modifier.height(K1Sp.s))
+    if (sessions.isEmpty()) {
+      Box(
+        Modifier
+          .clip(K1R.chip)
+          .background(KlikPaperChip)
+          .padding(horizontal = 9.dp, vertical = 4.dp),
+      ) {
+        Text("(none)", style = K1Type.metaSm.copy(color = KlikInkTertiary))
+      }
+    } else {
+      sessions.forEach { m ->
+        K1Card(
+          soft = true,
+          onClick = { onClick(m) },
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+              Text(m.title.ifBlank { "Untitled" }, style = K1Type.bodyMd)
+              Spacer(Modifier.height(2.dp))
+              Text("${m.date} · ${m.time}", style = K1Type.meta)
+            }
+            if (m.participants.isNotEmpty()) {
+              K1AvatarStack(
+                initialsList = m.participants.take(3).map { initialsOf(it.name) },
+                size = 20.dp,
+              )
+            }
+          }
+        }
+        Spacer(Modifier.height(6.dp))
+      }
+    }
   }
 }
 
