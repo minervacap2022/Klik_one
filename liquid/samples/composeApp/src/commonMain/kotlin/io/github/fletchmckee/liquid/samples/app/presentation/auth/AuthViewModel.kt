@@ -10,8 +10,10 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.AppleSignInCredent
 import io.github.fletchmckee.liquid.samples.app.domain.entity.LoginCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.SignupCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
+import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.platform.AppleSignInResult
 import io.github.fletchmckee.liquid.samples.app.platform.AppleSignInService
+import io.github.fletchmckee.liquid.samples.app.platform.PickedImage
 
 /**
  * UI State for the Auth screen
@@ -424,4 +426,42 @@ class AuthViewModel(
    * Get current user ID for API calls
    */
   fun getCurrentUserId(): String? = currentState.userId
+
+  /**
+   * Persist the onboarding profile (name, occupation, optional avatar) to the backend.
+   * Calls PATCH /api/auth/profile and POST /api/auth/profile/avatar in sequence.
+   * Errors are logged and surfaced via AuthEvent.ShowError but never block local
+   * onboarding completion — the next launch will retry from cached state.
+   */
+  fun submitOnboardingProfile(
+    name: String,
+    occupation: String?,
+    avatar: PickedImage?,
+  ) {
+    launch {
+      val trimmed = name.trim()
+      if (trimmed.isNotEmpty() || !occupation.isNullOrBlank()) {
+        when (val r = authRepository.updateProfile(trimmed.ifEmpty { null }, occupation)) {
+          is Result.Success -> KlikLogger.i("AuthViewModel", "onboarding profile saved")
+          is Result.Error -> {
+            val msg = r.exception.message ?: "Failed to save profile"
+            KlikLogger.e("AuthViewModel", "updateProfile failed: $msg", r.exception)
+            sendEvent(AuthEvent.ShowError(msg))
+          }
+          is Result.Loading -> {}
+        }
+      }
+      if (avatar != null) {
+        when (val r = authRepository.uploadAvatar(avatar)) {
+          is Result.Success -> KlikLogger.i("AuthViewModel", "avatar uploaded: ${r.data}")
+          is Result.Error -> {
+            val msg = r.exception.message ?: "Failed to upload avatar"
+            KlikLogger.e("AuthViewModel", "uploadAvatar failed: $msg", r.exception)
+            sendEvent(AuthEvent.ShowError(msg))
+          }
+          is Result.Loading -> {}
+        }
+      }
+    }
+  }
 }

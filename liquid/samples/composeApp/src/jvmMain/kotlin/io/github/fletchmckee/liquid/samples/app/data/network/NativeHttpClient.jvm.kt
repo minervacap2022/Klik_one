@@ -141,6 +141,34 @@ internal actual class NativeHttpClient actual constructor() {
     }
   }
 
+  actual suspend fun patch(url: String, body: String, headers: Map<String, String>): String? {
+    return withContext(Dispatchers.IO) {
+      try {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("X-HTTP-Method-Override", "PATCH")
+        connection.doOutput = true
+
+        headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
+
+        val writer = OutputStreamWriter(connection.outputStream)
+        writer.write(body); writer.flush(); writer.close()
+
+        val responseCode = connection.responseCode
+        KlikLogger.d("HTTP", "PATCH $url -> $responseCode")
+        if (responseCode in 500..599) { connection.disconnect(); return@withContext null }
+        val inputStream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+        val reader = BufferedReader(InputStreamReader(inputStream))
+        val response = reader.readText()
+        reader.close(); connection.disconnect()
+        response
+      } catch (e: Exception) {
+        KlikLogger.e("HTTP", "Error: ${e.message}", e)
+        null
+      }
+    }
+  }
+
   actual suspend fun delete(url: String, headers: Map<String, String>, body: String?): String? {
     return withContext(Dispatchers.IO) {
       try {

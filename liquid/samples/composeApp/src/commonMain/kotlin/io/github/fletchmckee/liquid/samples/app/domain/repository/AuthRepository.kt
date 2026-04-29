@@ -79,4 +79,22 @@ interface AuthRepository {
    * Delete the current user's account
    */
   suspend fun deleteAccount(password: String): Result<Unit>
+
+  /**
+   * Update the current user's onboarding profile fields. At least one of [fullName]
+   * or [occupation] must be non-null. Returns the persisted full_name on success.
+   *
+   * PATCH /api/auth/profile
+   */
+  suspend fun updateProfile(fullName: String?, occupation: String?): Result<Unit>
+
+  /**
+   * Upload an avatar image for the current user. The server stores the file on
+   * the cloud-server filesystem and returns a public URL string, which is
+   * persisted on the user record.
+   *
+   * POST /api/auth/profile/avatar (multipart, field name "file")
+   * @return the avatar_url string from the server.
+   */
+  suspend fun uploadAvatar(image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage): Result<String>
 }

@@ -28,23 +28,34 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import io.github.fletchmckee.liquid.samples.app.platform.ImagePicker
+import io.github.fletchmckee.liquid.samples.app.platform.PickedImage
+import kotlinx.coroutines.launch
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkFaint
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
@@ -70,14 +81,17 @@ private val KLIK_ROLES = listOf(
   KlikOneRole("other", "Something else", "Tell us a bit more"),
 )
 
-/** Klik One 3-step first-run: Welcome · Pair device · Pick role. */
+/** Klik One 4-step first-run: Welcome · Pair · Name + photo · Pick role. */
 @Composable
 fun OnboardingScreen(
-  onComplete: (pickedRole: KlikOneRole?) -> Unit,
+  onComplete: (name: String, pickedRole: KlikOneRole?, avatar: PickedImage?) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   var step by remember { mutableIntStateOf(0) }
   var pickedRoleId by remember { mutableStateOf<String?>("founder") }
+  var fullName by remember { mutableStateOf("") }
+  var pickedAvatar by remember { mutableStateOf<PickedImage?>(null) }
+  val totalSteps = 4
 
   Box(modifier.fillMaxSize().background(KlikPaperCard)) {
     AnimatedContent(
@@ -91,15 +105,36 @@ fun OnboardingScreen(
       label = "ob-step",
     ) { current ->
       when (current) {
-        0 -> WelcomeStep(onNext = { step = 1 })
+        0 -> WelcomeStep(onNext = { step = 1 }, totalSteps = totalSteps)
 
-        1 -> PairStep(onSkip = { step = 2 }, onBackDot = { step = 0 })
+        1 -> PairStep(
+          onSkip = { step = 2 },
+          onBackDot = { step = 0 },
+          totalSteps = totalSteps,
+        )
 
-        2 -> PickRoleStep(
+        2 -> NameAndPhotoStep(
+          name = fullName,
+          onNameChange = { fullName = it },
+          avatar = pickedAvatar,
+          onPickAvatar = { pickedAvatar = it },
+          onContinue = { step = 3 },
+          onBackDot = { step = it },
+          totalSteps = totalSteps,
+        )
+
+        3 -> PickRoleStep(
           pickedRoleId = pickedRoleId,
           onPick = { pickedRoleId = it },
-          onContinue = { onComplete(KLIK_ROLES.firstOrNull { it.id == pickedRoleId }) },
+          onContinue = {
+            onComplete(
+              fullName.trim(),
+              KLIK_ROLES.firstOrNull { it.id == pickedRoleId },
+              pickedAvatar,
+            )
+          },
           onBackDot = { step = it },
+          totalSteps = totalSteps,
         )
 
         else -> Unit
@@ -110,7 +145,7 @@ fun OnboardingScreen(
 
 // ───────────────────────────────────────────────────────────── Welcome ────
 @Composable
-private fun WelcomeStep(onNext: () -> Unit) {
+private fun WelcomeStep(onNext: () -> Unit, totalSteps: Int) {
   Column(Modifier.fillMaxSize().statusBarsPadding()) {
     Column(
       Modifier.weight(1f).padding(horizontal = 32.dp).padding(top = 40.dp),
@@ -145,14 +180,14 @@ private fun WelcomeStep(onNext: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
       )
       Spacer(Modifier.height(20.dp))
-      PageDots(total = 3, current = 0, onTap = {})
+      PageDots(total = totalSteps, current = 0, onTap = {})
     }
   }
 }
 
 // ──────────────────────────────────────────────────────── Pair device ────
 @Composable
-private fun PairStep(onSkip: () -> Unit, onBackDot: () -> Unit) {
+private fun PairStep(onSkip: () -> Unit, onBackDot: () -> Unit, totalSteps: Int) {
   Column(Modifier.fillMaxSize().statusBarsPadding()) {
     Column(
       Modifier.weight(1f).padding(horizontal = 32.dp).padding(top = 40.dp),
@@ -198,7 +233,7 @@ private fun PairStep(onSkip: () -> Unit, onBackDot: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
       )
       Spacer(Modifier.height(20.dp))
-      PageDots(total = 3, current = 1, onTap = { if (it == 0) onBackDot() })
+      PageDots(total = totalSteps, current = 1, onTap = { if (it == 0) onBackDot() })
     }
   }
 }
@@ -241,6 +276,7 @@ private fun PickRoleStep(
   onPick: (String) -> Unit,
   onContinue: () -> Unit,
   onBackDot: (Int) -> Unit,
+  totalSteps: Int,
 ) {
   Column(Modifier.fillMaxSize().statusBarsPadding()) {
     Column(
@@ -275,7 +311,140 @@ private fun PickRoleStep(
           modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(14.dp))
-        PageDots(total = 3, current = 2, onTap = { if (it < 2) onBackDot(it) })
+        PageDots(
+          total = totalSteps,
+          current = totalSteps - 1,
+          onTap = { if (it < totalSteps - 1) onBackDot(it) },
+        )
+      }
+    }
+  }
+}
+
+// ──────────────────────────────────────────────── Name + photo step ────
+@Composable
+private fun NameAndPhotoStep(
+  name: String,
+  onNameChange: (String) -> Unit,
+  avatar: PickedImage?,
+  onPickAvatar: (PickedImage?) -> Unit,
+  onContinue: () -> Unit,
+  onBackDot: (Int) -> Unit,
+  totalSteps: Int,
+) {
+  val scope = rememberCoroutineScope()
+  var picking by remember { mutableStateOf(false) }
+  val canContinue = name.trim().isNotEmpty()
+
+  Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(
+      Modifier.weight(1f).verticalScroll(rememberScrollState())
+        .padding(horizontal = 24.dp).padding(top = 28.dp),
+    ) {
+      Text("Tell us who you are", style = K1Type.h2)
+      Spacer(Modifier.height(8.dp))
+      Text(
+        "Your name and photo show up on shared sessions and follow-ups. You can change them later.",
+        style = K1Type.bodySm.copy(color = KlikInkTertiary),
+      )
+      Spacer(Modifier.height(28.dp))
+
+      // Avatar picker
+      Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(
+          Modifier
+            .size(120.dp)
+            .clip(CircleShape)
+            .background(KlikPaperSoft)
+            .border(0.5.dp, KlikLineHairline, CircleShape)
+            .k1Clickable(enabled = !picking) {
+              picking = true
+              scope.launch {
+                try {
+                  val picked = ImagePicker.pickAvatar()
+                  if (picked != null) onPickAvatar(picked)
+                } finally {
+                  picking = false
+                }
+              }
+            },
+          contentAlignment = Alignment.Center,
+        ) {
+          if (avatar != null) {
+            AsyncImage(
+              model = avatar.bytes,
+              contentDescription = "Selected avatar",
+              contentScale = ContentScale.Crop,
+              modifier = Modifier.fillMaxSize().clip(CircleShape),
+            )
+          } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+              Text("+", style = K1Type.display.copy(color = KlikInkSecondary))
+              Spacer(Modifier.height(2.dp))
+              Text(
+                "Add photo",
+                style = K1Type.metaSm.copy(color = KlikInkTertiary),
+              )
+            }
+          }
+        }
+      }
+
+      if (avatar != null) {
+        Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          Text(
+            "Tap photo to change",
+            style = K1Type.metaSm.copy(color = KlikInkTertiary),
+          )
+        }
+      }
+
+      Spacer(Modifier.height(28.dp))
+
+      // Name field
+      Column(
+        Modifier
+          .fillMaxWidth()
+          .clip(K1R.card)
+          .background(KlikPaperCard)
+          .border(0.5.dp, KlikLineHairline, K1R.card)
+          .padding(horizontal = 14.dp, vertical = 12.dp),
+      ) {
+        Text("Your name", style = K1Type.metaSm.copy(color = KlikInkTertiary))
+        Spacer(Modifier.height(2.dp))
+        BasicTextField(
+          value = name,
+          onValueChange = onNameChange,
+          singleLine = true,
+          textStyle = K1Type.bodyMd,
+          keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Text,
+            capitalization = KeyboardCapitalization.Words,
+          ),
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+
+      Spacer(Modifier.height(28.dp))
+    }
+
+    Column(
+      Modifier.fillMaxWidth().background(KlikPaperCard),
+    ) {
+      Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikPaperChip))
+      Column(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)
+          .padding(bottom = 36.dp).navigationBarsPadding(),
+      ) {
+        K1ButtonPrimary(
+          label = "Continue",
+          onClick = onContinue,
+          enabled = canContinue,
+          modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(14.dp))
+        PageDots(total = totalSteps, current = 2, onTap = { if (it < 2) onBackDot(it) })
       }
     }
   }

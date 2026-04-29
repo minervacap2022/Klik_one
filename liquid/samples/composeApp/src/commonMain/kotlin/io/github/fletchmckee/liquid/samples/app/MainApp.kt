@@ -2653,7 +2653,7 @@ fun MainApp() {
                                 }
                             )
                             "klikone_onboarding" -> OnboardingScreen(
-                                onComplete = { pickedRole ->
+                                onComplete = { fullName, pickedRole, avatar ->
                                     val uid = authState.userId
                                     if (!uid.isNullOrBlank()) {
                                         onboardingStorage.saveString(
@@ -2667,7 +2667,12 @@ fun MainApp() {
                                     } else {
                                         KlikLogger.e("MainApp", "Klik One onboarding complete but authState.userId is null — completion not persisted")
                                     }
-                                    KlikLogger.i("MainApp", "Klik One onboarding complete (role=${pickedRole?.id})")
+                                    authViewModel.submitOnboardingProfile(
+                                        name = fullName,
+                                        occupation = pickedRole?.title,
+                                        avatar = avatar,
+                                    )
+                                    KlikLogger.i("MainApp", "Klik One onboarding complete (role=${pickedRole?.id}, hasAvatar=${avatar != null})")
                                     hasCompletedKlikOnboarding = true
                                 }
                             )

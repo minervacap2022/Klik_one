@@ -56,6 +56,15 @@ internal expect class NativeHttpClient() {
   suspend fun delete(url: String, headers: Map<String, String> = emptyMap(), body: String? = null): String?
 
   /**
+   * Make a PATCH request to the specified URL with body and headers.
+   * @param url The full URL to patch
+   * @param body The request body as JSON string
+   * @param headers Map of header key-value pairs
+   * @return The response body as a string, or null on error
+   */
+  suspend fun patch(url: String, body: String, headers: Map<String, String> = emptyMap()): String?
+
+  /**
    * Make a multipart POST request to upload binary data as a file.
    * @param url The full URL to post to
    * @param fileData The binary data to upload
@@ -343,6 +352,7 @@ object HttpClient {
         "GET" -> nativeClient.get(url, allHeaders)
         "POST" -> nativeClient.post(url, body ?: "", allHeaders)
         "PUT" -> nativeClient.put(url, body ?: "", allHeaders)
+        "PATCH" -> nativeClient.patch(url, body ?: "", allHeaders)
         "DELETE" -> nativeClient.delete(url, allHeaders, body)
         else -> null
       }
@@ -376,6 +386,7 @@ object HttpClient {
             "GET" -> nativeClient.get(url, newHeaders)
             "POST" -> nativeClient.post(url, body ?: "", newHeaders)
             "PUT" -> nativeClient.put(url, body ?: "", newHeaders)
+            "PATCH" -> nativeClient.patch(url, body ?: "", newHeaders)
             "DELETE" -> nativeClient.delete(url, newHeaders)
             else -> null
           }
@@ -411,6 +422,11 @@ object HttpClient {
    * Make a DELETE request with unified retry
    */
   suspend fun deleteUrl(url: String, headers: Map<String, String> = emptyMap(), body: String? = null): String? = executeWithRetry("DELETE", url, headers, body)
+
+  /**
+   * Make a PATCH request with unified retry.
+   */
+  suspend fun patchUrl(url: String, body: String, headers: Map<String, String> = emptyMap()): String? = executeWithRetry("PATCH", url, headers, body)
 
   /**
    * Make an authenticated multipart POST request to a full URL.

@@ -29,6 +29,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 /**
@@ -395,6 +396,62 @@ class AuthRepositoryImpl : AuthRepository {
       Result.Success(Unit)
     } catch (e: Exception) {
       KlikLogger.e("AuthRepository", "Account deletion failed: ${e.message}", e)
+      Result.Error(e)
+    }
+  }
+
+  override suspend fun updateProfile(fullName: String?, occupation: String?): Result<Unit> {
+    if (fullName == null && occupation == null) {
+      return Result.Error(IllegalArgumentException("At least one of fullName or occupation is required"))
+    }
+    return try {
+      val url = "${ApiConfig.AUTH_BASE_URL}/profile"
+      val body = buildJsonObject {
+        if (fullName != null) put("full_name", fullName)
+        if (occupation != null) put("occupation", occupation)
+      }.toString()
+
+      KlikLogger.d("AuthRepository", "PATCH $url")
+      val responseText = io.github.fletchmckee.liquid.samples.app.data.network.HttpClient.patchUrl(url, body)
+      if (responseText == null) return Result.Error(Exception("No response from server"))
+
+      val detail = extractFastApiDetail(responseText)
+      if (detail != null && responseText.contains("\"detail\"")) {
+        return Result.Error(Exception(detail))
+      }
+      KlikLogger.i("AuthRepository", "Profile updated (name=${fullName != null}, occupation=$occupation)")
+      Result.Success(Unit)
+    } catch (e: Exception) {
+      KlikLogger.e("AuthRepository", "updateProfile failed: ${e.message}", e)
+      Result.Error(e)
+    }
+  }
+
+  override suspend fun uploadAvatar(
+    image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage,
+  ): Result<String> {
+    return try {
+      val url = "${ApiConfig.AUTH_BASE_URL}/profile/avatar"
+      KlikLogger.d("AuthRepository", "POST (multipart) $url, ${image.bytes.size} bytes (${image.mimeType})")
+      val responseText = io.github.fletchmckee.liquid.samples.app.data.network.HttpClient.postMultipartUrl(
+        url = url,
+        fileData = image.bytes,
+        fileName = image.fileName,
+        fieldName = "file",
+        headers = mapOf("Content-Type" to image.mimeType),
+      )
+      if (responseText == null) return Result.Error(Exception("No response from server"))
+
+      val parsed = json.parseToJsonElement(responseText).jsonObject
+      val detail = parsed["detail"]?.jsonPrimitive?.contentOrNull
+      if (detail != null) return Result.Error(Exception(detail))
+      val avatarUrl = parsed["avatar_url"]?.jsonPrimitive?.contentOrNull
+        ?: return Result.Error(Exception("Server did not return avatar_url"))
+
+      KlikLogger.i("AuthRepository", "Avatar uploaded: $avatarUrl")
+      Result.Success(avatarUrl)
+    } catch (e: Exception) {
+      KlikLogger.e("AuthRepository", "uploadAvatar failed: ${e.message}", e)
       Result.Error(e)
     }
   }

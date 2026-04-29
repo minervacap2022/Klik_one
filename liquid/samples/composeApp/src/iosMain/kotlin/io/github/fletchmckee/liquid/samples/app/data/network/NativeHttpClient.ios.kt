@@ -52,6 +52,8 @@ internal actual class NativeHttpClient actual constructor() {
 
   actual suspend fun delete(url: String, headers: Map<String, String>, body: String?): String? = makeRequest(url, "DELETE", body, headers)
 
+  actual suspend fun patch(url: String, body: String, headers: Map<String, String>): String? = makeRequest(url, "PATCH", body, headers)
+
   actual suspend fun postMultipart(
     url: String,
     fileData: ByteArray,
