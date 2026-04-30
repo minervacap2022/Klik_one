@@ -59,6 +59,7 @@ fun XpLogsScreen(
     Modifier
       .fillMaxSize()
       .background(KlikPaperApp)
+      .k1SwipeBack(onBack)
       .verticalScroll(rememberScrollState()),
   ) {
     Row(

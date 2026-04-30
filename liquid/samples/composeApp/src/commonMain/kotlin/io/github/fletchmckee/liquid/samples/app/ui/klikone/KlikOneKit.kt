@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,6 +119,43 @@ fun Modifier.k1LongClickable(
     onClick = onClick,
     onLongClick = onLongClick,
   )
+}
+
+/**
+ * Edge-swipe-to-back gesture. Mimics iOS's interactive-pop: starting a drag
+ * within the leading 32 dp of the surface and dragging right past 80 dp /
+ * faster than a small flick fires [onBack]. Vertical drift is allowed so
+ * the user doesn't fight a perfectly-horizontal contract while scrolling
+ * a list. We use [androidx.compose.ui.input.pointer.pointerInput] with
+ * `awaitPointerEventScope` so the gesture cooperates with vertical scroll
+ * children — only consumed once we cross the activation threshold.
+ */
+fun Modifier.k1SwipeBack(onBack: () -> Unit): Modifier = this.pointerInput(onBack) {
+  val edgeStartPx = 32.dp.toPx()
+  val activatePx = 80.dp.toPx()
+  awaitPointerEventScope {
+    while (true) {
+      val down = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        .changes.firstOrNull { it.pressed && !it.previousPressed } ?: continue
+      if (down.position.x > edgeStartPx) continue
+      var totalDx = 0f
+      var totalDy = 0f
+      var consumed = false
+      while (true) {
+        val ev = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        val change = ev.changes.firstOrNull { it.id == down.id } ?: break
+        totalDx += change.positionChange().x
+        totalDy += change.positionChange().y
+        if (!consumed && totalDx > activatePx && totalDx > abs(totalDy) * 1.2f) {
+          onBack()
+          change.consume()
+          consumed = true
+          break
+        }
+        if (!change.pressed) break
+      }
+    }
+  }
 }
 
 // ─── Type scale ───────────────────────────────────────────────────────────

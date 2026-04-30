@@ -310,6 +310,7 @@ fun MovesScreen(
                 markTaskSeen(t.id)
                 onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
               },
+              onRetryTask = onRetryTask,
             )
             Spacer(Modifier.height(K1Sp.s))
           }
@@ -347,7 +348,9 @@ fun MovesScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader("Done today", count = done.size)
           Spacer(Modifier.height(K1Sp.s))
-          done.forEach { t -> DoneRow(t) }
+          done.forEach { t ->
+            DoneRow(t = t, onRetry = { onRetryTask(t.id) })
+          }
         }
         Spacer(Modifier.height(K1Sp.xxl))
       }
@@ -497,6 +500,7 @@ private fun TaskCategoryGroup(
   tasks: List<TaskMetadata>,
   isUnread: (TaskMetadata) -> Boolean = { false },
   onTaskClick: (TaskMetadata) -> Unit = {},
+  onRetryTask: (String) -> Unit = {},
 ) {
   var expanded by remember { mutableStateOf(tasks.size <= 3) }
   val unreadCount = tasks.count(isUnread)
@@ -524,34 +528,93 @@ private fun TaskCategoryGroup(
       Spacer(Modifier.height(K1Sp.s))
       Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
       tasks.forEach { t ->
-        val unread = isUnread(t)
-        Row(
-          Modifier.fillMaxWidth().k1Clickable { onTaskClick(t) }.padding(vertical = 10.dp),
-          verticalAlignment = Alignment.Top,
-        ) {
-          Box(Modifier.size(6.dp).clip(CircleShape).background(KlikRunning).offset(y = 6.dp))
-          Spacer(Modifier.width(10.dp))
-          Column(Modifier.weight(1f)) {
-            Text(
-              t.title,
-              style = K1Type.bodyMd.copy(
-                fontWeight = if (unread) FontWeight.Medium else FontWeight.Normal,
-              ),
-            )
-            if (t.subtitle.isNotBlank()) {
-              Spacer(Modifier.height(2.dp))
-              Text(t.subtitle, style = K1Type.caption.copy(color = KlikInkTertiary))
-            }
-          }
-          if (unread) {
-            Spacer(Modifier.width(8.dp))
-            Box(
-              Modifier.size(6.dp).clip(CircleShape).background(KlikAlert).offset(y = 6.dp),
-            )
-          }
-        }
+        RunningTaskRow(
+          t = t,
+          isUnread = isUnread(t),
+          onClick = { onTaskClick(t) },
+          onRetry = { onRetryTask(t.id) },
+        )
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
       }
+    }
+  }
+}
+
+/**
+ * One row inside the Running section. Visual goal is to make in-flight tasks
+ * obviously *active*, not at-rest:
+ *   - Pulsing accent dot (vs the static green "done" check).
+ *   - Stage caption ("Running", "Evaluating", "Queued") with step counter
+ *     when execution-step data is available, in KlikRunning ink.
+ *   - Re-do chip at the trailing edge so the user can kick off a fresh run
+ *     without leaving the list.
+ */
+@Composable
+private fun RunningTaskRow(
+  t: TaskMetadata,
+  isUnread: Boolean,
+  onClick: () -> Unit,
+  onRetry: () -> Unit,
+) {
+  Row(
+    Modifier.fillMaxWidth().k1Clickable(onClick = onClick).padding(vertical = 10.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    val infinite = rememberInfiniteTransition(label = "runningPulse")
+    val pulse by infinite.animateFloat(
+      initialValue = 1f,
+      targetValue = 0.4f,
+      animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+      label = "pulseAlpha",
+    )
+    Box(
+      Modifier.size(7.dp).clip(CircleShape).background(KlikRunning.copy(alpha = pulse)),
+    )
+    Spacer(Modifier.width(10.dp))
+    Column(Modifier.weight(1f)) {
+      Text(
+        t.title,
+        style = K1Type.bodyMd.copy(
+          fontWeight = if (isUnread) FontWeight.Medium else FontWeight.Normal,
+        ),
+      )
+      // Stage line: "Running · step 3/5" or "Queued · projectName".
+      val stageLabel = execStageLabel(t.kkExecStatus)
+      val totalSteps = t.executionSteps.size + (if (t.currentExecutingStep != null) 1 else 0)
+      val stepInfo = t.currentExecutingStep?.let { current ->
+        if (totalSteps > 0) "step $current/$totalSteps" else "step $current"
+      }
+      val metaParts = buildList {
+        add(stageLabel)
+        stepInfo?.let { add(it) }
+        t.relatedProject.takeIf { it.isNotBlank() }?.let { add(it) }
+      }
+      Spacer(Modifier.height(2.dp))
+      Text(
+        metaParts.joinToString(" · "),
+        style = K1Type.metaSm.copy(color = KlikRunning),
+      )
+    }
+    if (isUnread) {
+      Spacer(Modifier.width(8.dp))
+      Box(Modifier.size(6.dp).clip(CircleShape).background(KlikAlert))
+    }
+    Spacer(Modifier.width(8.dp))
+    Box(
+      Modifier
+        .clip(K1R.chip)
+        .border(0.5.dp, KlikInkMuted, K1R.chip)
+        .k1Clickable(onClick = onRetry)
+        .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+      Text(
+        "Re-do",
+        style = K1Type.meta.copy(
+          color = KlikInkSecondary,
+          fontSize = 10.sp,
+          fontWeight = FontWeight.Medium,
+        ),
+      )
     }
   }
 }
@@ -741,7 +804,7 @@ private fun UnreadCountLabel(count: Int) {
 }
 
 @Composable
-private fun DoneRow(t: TaskMetadata) {
+private fun DoneRow(t: TaskMetadata, onRetry: () -> Unit = {}) {
   Row(
     Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
     verticalAlignment = Alignment.CenterVertically,
@@ -782,6 +845,23 @@ private fun DoneRow(t: TaskMetadata) {
     )
     if (t.completedInfo != null) {
       Text(t.completedInfo!!, style = K1Type.metaSm)
+      Spacer(Modifier.width(8.dp))
+    }
+    Box(
+      Modifier
+        .clip(K1R.chip)
+        .border(0.5.dp, KlikLineHairline, K1R.chip)
+        .k1Clickable(onClick = onRetry)
+        .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+      Text(
+        "Re-do",
+        style = K1Type.meta.copy(
+          color = KlikInkTertiary,
+          fontSize = 10.sp,
+          fontWeight = FontWeight.Medium,
+        ),
+      )
     }
   }
 }

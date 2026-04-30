@@ -84,6 +84,7 @@ private fun DetailScaffold(
     Modifier
       .fillMaxSize()
       .background(KlikPaperApp)
+      .k1SwipeBack(onBack)
       .verticalScroll(rememberScrollState()),
   ) {
     // Top bar

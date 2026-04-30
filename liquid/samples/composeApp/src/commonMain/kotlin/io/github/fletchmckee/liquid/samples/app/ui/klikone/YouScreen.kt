@@ -385,6 +385,23 @@ fun YouScreen(
         SettingsRow("Plans", onClick = onNavigateToPricing)
         Divider()
         SettingsRow("XP logs", onClick = onNavigateToXpLogs)
+        Divider()
+        // About row — last in the settings card. Trailing label shows the
+        // marketing version + build. Read at runtime from AppVersion (iOS:
+        // Info.plist, Android: PackageInfo) so it always tracks the
+        // installed binary; nothing hardcoded in commonMain.
+        Row(
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text("About", style = K1Type.bodyMd, modifier = Modifier.weight(1f))
+          Text(
+            "v${io.github.fletchmckee.liquid.samples.app.platform.AppVersion.marketing} (${io.github.fletchmckee.liquid.samples.app.platform.AppVersion.build})",
+            style = K1Type.metaSm.copy(color = KlikInkTertiary),
+          )
+        }
       }
       if (showImportSheet) {
         ImportFromAgentSheet(onDismiss = { showImportSheet = false })

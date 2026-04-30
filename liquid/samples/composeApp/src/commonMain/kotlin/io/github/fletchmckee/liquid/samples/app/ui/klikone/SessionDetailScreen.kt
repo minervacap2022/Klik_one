@@ -91,6 +91,7 @@ fun SessionDetailScreen(
     Modifier
       .fillMaxSize()
       .background(KlikPaperApp)
+      .k1SwipeBack(onBack)
       .verticalScroll(rememberScrollState()),
   ) {
     // Top bar
@@ -144,23 +145,73 @@ fun SessionDetailScreen(
 
     Spacer(Modifier.height(K1Sp.m))
 
-    // Participants pill
+    // Participants pill — collapsed shows count + avatar stack; tap to
+    // expand into a wrap of clickable name chips that route to person_detail.
     if (meeting.participants.isNotEmpty()) {
-      Row(
+      var participantsExpanded by remember { mutableStateOf(false) }
+      Column(
         Modifier
           .padding(horizontal = 20.dp)
           .fillMaxWidth()
           .clip(K1R.soft)
           .background(KlikPaperSoft)
+          .k1Clickable { participantsExpanded = !participantsExpanded }
           .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
       ) {
-        K1AvatarStack(
-          initialsList = meeting.participants.take(4).map { p -> initialsOf(p.name) },
-          size = 24.dp,
-        )
-        Spacer(Modifier.width(10.dp))
-        Text("${meeting.participants.size} people", style = K1Type.meta)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          K1AvatarStack(
+            initialsList = meeting.participants.take(4).map { p -> initialsOf(p.name) },
+            size = 24.dp,
+          )
+          Spacer(Modifier.width(10.dp))
+          val countLabel = if (meeting.participants.size == 1) "1 person" else "${meeting.participants.size} people"
+          Text(countLabel, style = K1Type.meta, modifier = Modifier.weight(1f))
+          Text(
+            if (participantsExpanded) "▴" else "▾",
+            style = K1Type.metaSm.copy(color = KlikInkMuted, fontSize = 9.sp),
+          )
+        }
+        if (participantsExpanded) {
+          Spacer(Modifier.height(K1Sp.s))
+          Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
+          Spacer(Modifier.height(K1Sp.s))
+          FlowRowCompat(horizontalGap = 5.dp, verticalGap = 5.dp) {
+            meeting.participants.forEach { p ->
+              K1Chip(
+                label = p.name,
+                onClick = if (p.id.isNotBlank()) {
+                  {
+                    onEntityClick(
+                      io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData(
+                        io.github.fletchmckee.liquid.samples.app.ui.components.EntityType.PERSON,
+                        p.id,
+                      ),
+                    )
+                  }
+                } else {
+                  null
+                },
+                leading = {
+                  val idx = p.name.hashCode().let { if (it < 0) -it else it }
+                  Box(
+                    Modifier.size(14.dp).clip(CircleShape)
+                      .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
+                    contentAlignment = Alignment.Center,
+                  ) {
+                    Text(
+                      initialsOf(p.name),
+                      style = K1Type.metaSm.copy(
+                        color = KlikAvatarFg[idx % KlikAvatarFg.size],
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Medium,
+                      ),
+                    )
+                  }
+                },
+              )
+            }
+          }
+        }
       }
     }
 
@@ -203,7 +254,11 @@ fun SessionDetailScreen(
         onEntityClick = onEntityClick,
       )
 
-      SessionTab.Todos -> TodosPanel(linked, onEntityClick)
+      SessionTab.Todos -> TodosPanel(
+        linked = linked,
+        actionItems = meeting.actionItems,
+        onEntityClick = onEntityClick,
+      )
 
       SessionTab.Transcript -> TranscriptPanel(meeting)
 
@@ -363,15 +418,32 @@ private fun SummaryPanel(
 @Composable
 private fun TodosPanel(
   linked: List<TaskMetadata>,
+  actionItems: List<io.github.fletchmckee.liquid.samples.app.domain.entity.TodoItem> = emptyList(),
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
 ) {
+  // Two sources of follow-ups:
+  //   1. KK_exec todos linked to this meeting's session_id (`linked`).
+  //   2. Action items extracted from the transcript (`actionItems`) — these
+  //      always exist for meetings the AI summarised, even before any KK_exec
+  //      todo has been generated, so a freshly-recorded session never reads
+  //      as empty.
+  // We render KK_exec todos first (clickable into task_detail) and any
+  // remaining transcript-only items as plain rows below.
+  val linkedTexts = linked.map { it.title.lowercase().trim() }.toSet()
+  val transcriptOnly = actionItems.filter { it.text.lowercase().trim() !in linkedTexts }
+
   Column(Modifier.padding(horizontal = 20.dp)) {
-    if (linked.isEmpty()) {
+    if (linked.isEmpty() && transcriptOnly.isEmpty()) {
       Text(
         "No follow-ups captured yet.",
         style = K1Type.caption.copy(color = KlikInkTertiary),
       )
-    } else {
+      return@Column
+    }
+
+    if (linked.isNotEmpty()) {
+      K1Eyebrow("From Klik")
+      Spacer(Modifier.height(K1Sp.s))
       linked.forEach { t ->
         Row(
           Modifier.fillMaxWidth()
@@ -392,54 +464,147 @@ private fun TodosPanel(
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikPaperChip))
       }
     }
-  }
-}
 
-@Composable
-private fun TranscriptPanel(m: Meeting) {
-  Column(Modifier.padding(horizontal = 20.dp)) {
-    val lines = m.transcript?.lines()?.filter { it.isNotBlank() }.orEmpty()
-    if (lines.isEmpty()) {
-      Text(
-        "Transcript not available yet.",
-        style = K1Type.caption.copy(color = KlikInkTertiary),
-      )
-    } else {
-      lines.take(40).forEach { line ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-          Text(line.take(240), style = K1Type.bodySm)
+    if (transcriptOnly.isNotEmpty()) {
+      if (linked.isNotEmpty()) Spacer(Modifier.height(K1Sp.xl))
+      K1Eyebrow("From transcript")
+      Spacer(Modifier.height(K1Sp.s))
+      transcriptOnly.forEach { item ->
+        Row(
+          Modifier.fillMaxWidth().padding(vertical = 12.dp),
+          verticalAlignment = Alignment.Top,
+        ) {
+          Box(
+            Modifier.size(14.dp).clip(CircleShape).background(KlikInkMuted),
+          )
+          Spacer(Modifier.width(10.dp))
+          Text(item.text, style = K1Type.bodyMd, modifier = Modifier.weight(1f))
         }
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikPaperChip))
       }
     }
   }
 }
 
 @Composable
+private fun TranscriptPanel(m: Meeting) {
+  // Per session-detail spec: each transcript turn renders with a coloured
+  // initials avatar + speaker name (medium weight) + optional timestamp +
+  // body paragraph. We collapse consecutive same-speaker turns visually by
+  // only repeating the avatar when the speaker changes — gives a chat feel.
+  Column(Modifier.padding(horizontal = 20.dp)) {
+    val rawLines = m.transcript?.lines()?.filter { it.isNotBlank() }.orEmpty()
+    if (rawLines.isEmpty()) {
+      Text(
+        "Transcript not available yet.",
+        style = K1Type.caption.copy(color = KlikInkTertiary),
+      )
+      return@Column
+    }
+    var lastSpeaker: String? = null
+    rawLines.forEach { raw ->
+      val parsed = parseTranscriptLine(raw)
+      val showAvatar = parsed.speaker != lastSpeaker
+      Row(
+        Modifier.fillMaxWidth().padding(vertical = if (showAvatar) 8.dp else 2.dp),
+      ) {
+        // Avatar column — fixed 22dp + 9dp gap so body text aligns when we
+        // suppress the avatar on continuation turns.
+        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+          if (showAvatar && parsed.speaker.isNotBlank()) {
+            val idx = parsed.speaker.hashCode().let { if (it < 0) -it else it }
+            Box(
+              Modifier.size(22.dp).clip(CircleShape)
+                .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
+              contentAlignment = Alignment.Center,
+            ) {
+              Text(
+                initialsOf(parsed.speaker),
+                style = K1Type.metaSm.copy(
+                  color = KlikAvatarFg[idx % KlikAvatarFg.size],
+                  fontSize = 9.sp,
+                  fontWeight = FontWeight.Medium,
+                ),
+              )
+            }
+          }
+        }
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+          if (showAvatar && parsed.speaker.isNotBlank()) {
+            Row(verticalAlignment = Alignment.Bottom) {
+              Text(
+                parsed.speaker,
+                style = K1Type.bodySm.copy(
+                  color = KlikInkPrimary,
+                  fontWeight = FontWeight.Medium,
+                ),
+              )
+              if (!parsed.timestamp.isNullOrBlank()) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                  parsed.timestamp,
+                  style = K1Type.metaSm.copy(color = KlikInkTertiary),
+                )
+              }
+            }
+            Spacer(Modifier.height(2.dp))
+          }
+          Text(
+            parsed.body,
+            style = K1Type.bodySm.copy(
+              color = KlikInkPrimary,
+              lineHeight = 18.sp,
+            ),
+          )
+        }
+      }
+      lastSpeaker = parsed.speaker
+    }
+  }
+}
+
+private data class TranscriptLine(val speaker: String, val timestamp: String?, val body: String)
+
+/**
+ * Parse a transcript line of the form "Speaker: body" or
+ * "Speaker (HH:MM:SS): body". Falls back to a body-only line when no colon
+ * separator is present, attributing it to the previous speaker.
+ */
+private fun parseTranscriptLine(raw: String): TranscriptLine {
+  val colon = raw.indexOf(':')
+  if (colon <= 0) return TranscriptLine(speaker = "", timestamp = null, body = raw.trim())
+  val head = raw.substring(0, colon).trim()
+  val body = raw.substring(colon + 1).trim()
+  // Strip a trailing "(timestamp)" off the speaker token.
+  val parenStart = head.indexOf('(')
+  val parenEnd = head.indexOf(')')
+  return if (parenStart > 0 && parenEnd > parenStart) {
+    val speaker = head.substring(0, parenStart).trim()
+    val ts = head.substring(parenStart + 1, parenEnd).trim()
+    TranscriptLine(speaker = speaker, timestamp = ts.takeIf { it.isNotBlank() }, body = body)
+  } else {
+    TranscriptLine(speaker = head, timestamp = null, body = body)
+  }
+}
+
+@Composable
 private fun HighlightsPanel(m: Meeting) {
-  var expanded by remember { mutableStateOf(false) }
-  val preview = 2
-  val items = if (expanded) m.actionItems else m.actionItems.take(preview)
+  // Show every flagged moment by default — no collapse. The session-detail
+  // spec calls for a single scannable list, not a fold.
   Column(Modifier.padding(horizontal = 20.dp)) {
     Text(
       "${m.actionItems.size} moments Klik flagged.",
       style = K1Type.caption,
     )
     Spacer(Modifier.height(K1Sp.m))
-    items.forEach { a ->
+    m.actionItems.forEach { a ->
       K1SignalCard(
         signal = K1Signal.Decision,
         eyebrow = "Decision",
         body = a.text,
       )
       Spacer(Modifier.height(8.dp))
-    }
-    if (m.actionItems.size > preview) {
-      Spacer(Modifier.height(4.dp))
-      Text(
-        if (expanded) "Show less" else "Show all ${m.actionItems.size}",
-        style = K1Type.bodySm.copy(color = KlikInkSecondary),
-        modifier = Modifier.k1Clickable { expanded = !expanded },
-      )
     }
   }
 }
