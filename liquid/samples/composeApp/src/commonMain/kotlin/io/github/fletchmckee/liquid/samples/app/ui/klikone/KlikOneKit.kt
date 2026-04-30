@@ -12,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +96,26 @@ fun Modifier.k1Clickable(enabled: Boolean = true, onClick: () -> Unit): Modifier
     indication = null,
     enabled = enabled,
     onClick = onClick,
+  )
+}
+
+// k1LongClickable — same editorial no-ripple behaviour as k1Clickable, but
+// also fires on long-press. Used by entity-detail screens to expose the
+// rename / correct-feedback affordances the old liquidglass app shipped.
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.k1LongClickable(
+  enabled: Boolean = true,
+  onClick: () -> Unit = {},
+  onLongClick: () -> Unit,
+): Modifier {
+  val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+  return this.combinedClickable(
+    interactionSource = interaction,
+    indication = null,
+    enabled = enabled,
+    onClick = onClick,
+    onLongClick = onLongClick,
   )
 }
 

@@ -36,7 +36,13 @@ data class Meeting(
   val dropboxUrl: String? = null,
   val source: MeetingSource = MeetingSource.KLIK,
   val sourceColor: Long? = null, // ARGB color from Apple Calendar (null = use default)
+  // The recording session that produced this meeting. Distinct from [id] because
+  // the meetings table primary key is not the same as the SESSION_… identifier
+  // used by KK_exec todos. Null for Apple-Calendar-only meetings.
+  val sessionId: String? = null,
 ) {
+  /** Identifier used to link KK_exec todos: prefer the explicit session_id, else fall back to id. */
+  val todoLinkId: String get() = sessionId ?: id
   /**
    * Parsed start time from the time string (format: "HH:mm" or "H:mm AM/PM")
    */

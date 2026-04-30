@@ -79,8 +79,13 @@ fun SessionDetailScreen(
 ) {
   var tab by remember { mutableStateOf(SessionTab.Summary) }
 
-  // Derive linked tasks
-  val linked = tasks.filter { it.relatedMeetingId == meeting.id }
+  // KK_exec todos carry the SESSION_… id, while the meetings table primary key is
+  // a separate UUID. Match against either so a Meeting links to its own todos
+  // regardless of which identifier the backend exposed first.
+  val linked = tasks.filter { task ->
+    val target = task.relatedMeetingId ?: task.kkExecSessionId
+    target != null && (target == meeting.sessionId || target == meeting.id)
+  }
 
   Column(
     Modifier

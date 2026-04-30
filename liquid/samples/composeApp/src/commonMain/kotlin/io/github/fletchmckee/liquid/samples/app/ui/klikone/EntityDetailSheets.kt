@@ -76,6 +76,7 @@ private fun DetailScaffold(
   eyebrow: String,
   title: String,
   onBack: () -> Unit,
+  onTitleLongPress: (() -> Unit)? = null,
   trailing: (@Composable () -> Unit)? = null,
   content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -101,11 +102,16 @@ private fun DetailScaffold(
       if (trailing != null) trailing()
     }
 
-    // Hero
+    // Hero — long-press the title to rename the entity (matches old liquid app).
     Column(Modifier.padding(horizontal = 20.dp)) {
       K1Eyebrow(eyebrow)
       Spacer(Modifier.height(6.dp))
-      Text(title, style = K1Type.h2)
+      val titleMod = if (onTitleLongPress != null) {
+        Modifier.k1LongClickable(onLongClick = onTitleLongPress)
+      } else {
+        Modifier
+      }
+      Text(title, style = K1Type.h2, modifier = titleMod)
     }
     Spacer(Modifier.height(K1Sp.lg))
 
@@ -524,6 +530,7 @@ fun PersonDetailScreen(
   allPeople: List<Person> = emptyList(),
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
+  onRename: ((String) -> Unit)? = null,
 ) {
   val personMeetings = meetings.filter { m -> m.participants.any { it.id == person.id } }
     .sortedByDescending { it.date }
@@ -532,10 +539,13 @@ fun PersonDetailScreen(
   val personProjects = projects.filter { p -> p.id in person.relatedProjects || p.relatedPeople.contains(person.name) }
   val personOrgs = organizations.filter { o -> o.id in person.relatedOrganizations || o.employees.contains(person.name) }
 
+  var showRename by remember { mutableStateOf(false) }
+
   DetailScaffold(
     eyebrow = "Person",
     title = person.name,
     onBack = onBack,
+    onTitleLongPress = if (onRename != null) ({ showRename = true }) else null,
   ) {
     // Hero row: big avatar + role
     Row(
@@ -665,6 +675,18 @@ fun PersonDetailScreen(
       },
     )
   }
+
+  if (showRename && onRename != null) {
+    RenameEntityDialog(
+      kind = "person",
+      currentName = person.name,
+      onCancel = { showRename = false },
+      onSave = { newName ->
+        onRename(newName)
+        showRename = false
+      },
+    )
+  }
 }
 
 // ─── PROJECT DETAIL ──────────────────────────────────────────────────────
@@ -678,6 +700,7 @@ fun ProjectDetailScreen(
   organizations: List<Organization> = emptyList(),
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
+  onRename: ((String) -> Unit)? = null,
 ) {
   val projectTasks = tasks.filter { t ->
     t.relatedProject.equals(project.name, true) || t.relatedProjects.contains(project.name)
@@ -686,10 +709,13 @@ fun ProjectDetailScreen(
     .sortedByDescending { it.date }
     .take(5)
 
+  var showRename by remember { mutableStateOf(false) }
+
   DetailScaffold(
     eyebrow = "Project",
     title = project.name,
     onBack = onBack,
+    onTitleLongPress = if (onRename != null) ({ showRename = true }) else null,
   ) {
     Column(Modifier.padding(horizontal = 20.dp)) {
       // Status row + stage
@@ -874,6 +900,18 @@ fun ProjectDetailScreen(
       },
     )
   }
+
+  if (showRename && onRename != null) {
+    RenameEntityDialog(
+      kind = "project",
+      currentName = project.name,
+      onCancel = { showRename = false },
+      onSave = { newName ->
+        onRename(newName)
+        showRename = false
+      },
+    )
+  }
 }
 
 @Composable
@@ -896,6 +934,7 @@ fun OrgDetailScreen(
   meetings: List<Meeting> = emptyList(),
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
+  onRename: ((String) -> Unit)? = null,
 ) {
   val orgEmployees = people.filter {
     it.id in org.employees || it.organizationId == org.id || org.employees.contains(it.name)
@@ -908,10 +947,13 @@ fun OrgDetailScreen(
     .sortedByDescending { it.date }
     .take(5)
 
+  var showRename by remember { mutableStateOf(false) }
+
   DetailScaffold(
     eyebrow = "Organization",
     title = org.name,
     onBack = onBack,
+    onTitleLongPress = if (onRename != null) ({ showRename = true }) else null,
   ) {
     Column(Modifier.padding(horizontal = 20.dp)) {
       // Hero: square monogram + industry/type
@@ -1031,6 +1073,100 @@ fun OrgDetailScreen(
       sessions = orgSessions,
       onClick = { m -> onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
     )
+  }
+
+  if (showRename && onRename != null) {
+    RenameEntityDialog(
+      kind = "organization",
+      currentName = org.name,
+      onCancel = { showRename = false },
+      onSave = { newName ->
+        onRename(newName)
+        showRename = false
+      },
+    )
+  }
+}
+
+// ─── Rename dialog ───────────────────────────────────────────────────────
+//
+// Long-press on an entity title (Person/Project/Org) opens this dialog.
+// The K1 redesign restores the rename affordance the old liquidglass app
+// had — corrections route through EntityFeedbackClient (port 8339), which
+// trains the user_id-scoped backend memory and updates the canonical name
+// across sessions, moves and the network graph.
+
+@Composable
+private fun RenameEntityDialog(
+  kind: String,
+  currentName: String,
+  onCancel: () -> Unit,
+  onSave: (String) -> Unit,
+) {
+  var draft by remember(currentName) { mutableStateOf(currentName) }
+  Box(
+    Modifier
+      .fillMaxSize()
+      .background(Color.Black.copy(alpha = 0.45f))
+      .k1Clickable(onClick = onCancel),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      Modifier
+        .padding(horizontal = 24.dp)
+        .fillMaxWidth()
+        .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+        .background(KlikPaperCard)
+        .k1Clickable(enabled = false) {}
+        .padding(24.dp),
+    ) {
+      Text("Rename $kind", style = K1Type.h3)
+      Spacer(Modifier.height(K1Sp.s))
+      Text(
+        "Klik will use this name everywhere it shows up.",
+        style = K1Type.bodySm.copy(color = KlikInkSecondary),
+      )
+      Spacer(Modifier.height(K1Sp.lg))
+      Box(
+        Modifier
+          .fillMaxWidth()
+          .clip(K1R.card)
+          .background(KlikPaperChip)
+          .padding(horizontal = 12.dp, vertical = 12.dp),
+      ) {
+        androidx.compose.foundation.text.BasicTextField(
+          value = draft,
+          onValueChange = { draft = it },
+          singleLine = true,
+          textStyle = K1Type.bodyMd,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+      Spacer(Modifier.height(K1Sp.xl))
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+          Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
+            .k1Clickable(onClick = onCancel).padding(vertical = 14.dp),
+          contentAlignment = Alignment.Center,
+        ) { Text("Cancel", style = K1Type.bodyMd) }
+        val canSave = draft.trim().isNotEmpty() && draft.trim() != currentName.trim()
+        Box(
+          Modifier.weight(1f).clip(K1R.pill)
+            .background(if (canSave) KlikInkPrimary else KlikInkMuted)
+            .k1Clickable(enabled = canSave) { onSave(draft.trim()) }
+            .padding(vertical = 14.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            "Save",
+            style = K1Type.bodyMd.copy(
+              color = KlikPaperCard,
+              fontWeight = FontWeight.Medium,
+            ),
+          )
+        }
+      }
+    }
   }
 }
 

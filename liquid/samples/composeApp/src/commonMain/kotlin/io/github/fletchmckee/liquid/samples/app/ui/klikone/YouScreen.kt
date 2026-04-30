@@ -278,14 +278,32 @@ fun YouScreen(
     // user previously connected but the token has been silently revoked,
     // so we need a distinct red affordance — rendering as "Connect" would
     // hide that the integration broke.
+    //
+    // We ALWAYS render the section, even when the catalogue is empty, so
+    // the user can't lose the entry point if the backend returns nothing
+    // (NO SILENT SWALLOW — show the empty state).
     val integrations = ui.integrations
-    if (integrations.isNotEmpty()) {
+    run {
       val needsReconnect = integrations.filter { it.needsReconnect }
       val connected = integrations.filter { it.connected }
       val available = integrations.filter { !it.connected && !it.needsReconnect }
       Column(Modifier.padding(horizontal = 20.dp)) {
-        K1SectionHeader("Integrations", count = integrations.size)
+        K1SectionHeader("Connectors", count = integrations.size)
         Spacer(Modifier.height(K1Sp.s))
+        if (integrations.isEmpty()) {
+          Box(
+            Modifier
+              .fillMaxWidth()
+              .clip(K1R.card)
+              .background(KlikPaperCard)
+              .padding(16.dp),
+          ) {
+            Text(
+              if (ui.isLoadingIntegrations) "Loading connectors…" else "No connectors loaded.",
+              style = K1Type.bodySm.copy(color = KlikInkSecondary),
+            )
+          }
+        }
         if (needsReconnect.isNotEmpty()) {
           Column(
             Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard)
@@ -693,6 +711,7 @@ private fun Divider() {
       .padding(horizontal = 16.dp),
   )
 }
+
 
 // ── Avatar pool: 10 K1-aesthetic geometric icons ─────────────────────────
 private val AVATAR_POOL_SIZE = 10

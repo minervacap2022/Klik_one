@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,17 +56,22 @@ fun ImportFromAgentSheet(
     if (ui.code == null && !ui.isLoading) viewModel.generateCode()
   }
 
+  // Scrim a bit lighter than the modal default so the rounded-corner cut
+  // outs at the sheet's top don't read as solid dark triangles peeking
+  // through. Also reserve the OS status bar so the sheet's curve never
+  // intersects the system clock / battery icons.
   Box(
     Modifier
       .fillMaxSize()
-      .background(Color.Black.copy(alpha = 0.45f))
+      .background(Color.Black.copy(alpha = 0.30f))
       .k1Clickable(onClick = onDismiss),
     contentAlignment = Alignment.BottomCenter,
   ) {
     Column(
       Modifier
         .fillMaxWidth()
-        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+        .statusBarsPadding()
+        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
         .background(KlikPaperCard)
         .k1Clickable(enabled = false) {}
         .padding(horizontal = 24.dp, vertical = 24.dp),

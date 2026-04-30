@@ -313,6 +313,60 @@ private fun getRouteIndex(route: String): Int = when (route) {
     else -> 0
 }
 
+/**
+ * For each Apple Calendar meeting, look up a temporally-overlapping Klik recording
+ * meeting on the same date and copy its [io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting.id]
+ * (which is the backend session_id) into [io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting.sessionId].
+ *
+ * The session detail screen filters todos by `meeting.sessionId ?: meeting.id`, so
+ * once an Apple Calendar event carries a sessionId, KK_exec todos created from the
+ * recording show up under the calendar event's per-session To-dos tab.
+ *
+ * Match policy: same date, and the Klik meeting's start time falls within the
+ * Apple event's [start, end] window (or vice versa for safety). First match wins.
+ */
+private fun linkAppleToKlikSessions(
+    apple: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting>,
+    klik: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting>,
+): List<io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting> {
+    if (apple.isEmpty() || klik.isEmpty()) return apple
+    val klikByDate = klik.groupBy { it.date }
+    return apple.map { ev ->
+        if (ev.sessionId != null) return@map ev
+        val candidates = klikByDate[ev.date] ?: return@map ev
+        val (evStart, evEnd) = parseTimeRangeMinutes(ev.time) ?: return@map ev
+        val match = candidates.firstOrNull { kl ->
+            val klStart = kl.startTime.hour * 60 + kl.startTime.minute
+            klStart in evStart..evEnd
+        } ?: return@map ev
+        ev.copy(sessionId = match.id)
+    }
+}
+
+/**
+ * Parse a time range string like "1:48 PM - 1:50 PM" into ([startMinutes], [endMinutes])
+ * since midnight. Returns null on parse failure.
+ */
+private fun parseTimeRangeMinutes(time: String): Pair<Int, Int>? {
+    val parts = time.split("-").map { it.trim() }
+    if (parts.size != 2) return null
+    val start = parseSingleTimeMinutes(parts[0]) ?: return null
+    val end = parseSingleTimeMinutes(parts[1]) ?: return null
+    return start to end
+}
+
+private fun parseSingleTimeMinutes(s: String): Int? = try {
+    val clean = s.uppercase().trim()
+    val isPM = clean.contains("PM")
+    val timeOnly = clean.replace("AM", "").replace("PM", "").trim()
+    val pieces = timeOnly.split(":")
+    var hour = pieces[0].toInt()
+    val minute = if (pieces.size > 1) pieces[1].toInt() else 0
+    if (isPM && hour != 12) hour += 12
+    if (!isPM && hour == 12) hour = 0
+    hour * 60 + minute
+} catch (_: Exception) { null }
+
 // Module-level init guard: prevents duplicate API calls when composition is disposed and recreated.
 // Tracks when each init block STARTED — skips re-entry within the debounce window.
 // Uses start time (not completion) because cancelled inits never complete but still did work.
@@ -660,16 +714,50 @@ fun MainApp() {
     }
   }
 
-  // Read Klik One first-run completion from SecureStorage once auth is ready.
-  // Use authState.userId (Compose state) — CurrentUser.userId may not be set yet at
-  // this point because saveAuthState updates the state flow before calling CurrentUser.setUser.
+  // Resolve Klik One first-run completion. Backend (KK_auth) is the source of
+  // truth — survives reinstalls, follows the user across devices. SecureStorage
+  // is a write-through cache for offline-first launches and a one-shot
+  // backfill bridge for installs that completed onboarding before this
+  // change shipped (legacy local-only flag → push to server on first run).
   LaunchedEffect(isAuthReady, authState.userId) {
     if (isAuthReady && hasCompletedKlikOnboarding == null) {
       val uid = authState.userId
-      // Stay null if userId not loaded yet — effect re-fires when userId arrives
-      if (!uid.isNullOrBlank()) {
-        hasCompletedKlikOnboarding =
-          onboardingStorage.getString(KlikOneOnboardingKeys.completedKey(uid)) == "true"
+      if (uid.isNullOrBlank()) return@LaunchedEffect
+
+      val cacheKey = KlikOneOnboardingKeys.completedKey(uid)
+      val localCached = onboardingStorage.getString(cacheKey) == "true"
+
+      val serverCompleted = try {
+        io.github.fletchmckee.liquid.samples.app.data.network.OnboardingStateClient
+          .fetch().onboardingComplete
+      } catch (t: Throwable) {
+        KlikLogger.e("MainApp", "Onboarding state fetch failed: ${t.message}", t)
+        // No fallback fabrication — fall back to local cache only when server
+        // is unreachable, never to "false".
+        null
+      }
+
+      hasCompletedKlikOnboarding = when {
+        serverCompleted == true -> {
+          // Mirror server → cache so next cold-start is instant.
+          if (!localCached) onboardingStorage.saveString(cacheKey, "true")
+          true
+        }
+        serverCompleted == false && localCached -> {
+          // Pre-migration install: backfill the server with a single PATCH so
+          // future devices/reinstalls see it.
+          try {
+            io.github.fletchmckee.liquid.samples.app.data.network.OnboardingStateClient
+              .patch(onboardingCompleted = true)
+            KlikLogger.i("MainApp", "Backfilled onboarding completion to server for $uid")
+          } catch (t: Throwable) {
+            KlikLogger.e("MainApp", "Onboarding backfill failed: ${t.message}", t)
+          }
+          true
+        }
+        serverCompleted == false -> false
+        // serverCompleted == null → server unreachable. Trust local cache.
+        else -> localCached
       }
     }
   }
@@ -2080,7 +2168,7 @@ fun MainApp() {
                                 isLoading = isEventsLoading,
                                 isRefreshing = isMeetingsRefreshing,
                                 isLlmDataLoading = isLlmDataLoading,
-                                meetings = meetings + appleCalendarMeetings,
+                                meetings = meetings + linkAppleToKlikSessions(appleCalendarMeetings, meetings),
                                 dailyBriefing = dailyBriefing,
                                 insights = insights,
                                 speakerMap = speakerMap,
@@ -2643,6 +2731,17 @@ fun MainApp() {
                                                 KlikOneOnboardingKeys.roleKey(uid), it
                                             )
                                         }
+                                        // Persist to KK_auth so the flag survives
+                                        // reinstall + follows the user across devices.
+                                        appScope.launch {
+                                            try {
+                                                io.github.fletchmckee.liquid.samples.app.data.network
+                                                    .OnboardingStateClient
+                                                    .patch(onboardingCompleted = true)
+                                            } catch (t: Throwable) {
+                                                KlikLogger.e("MainApp", "Onboarding PATCH failed: ${t.message}", t)
+                                            }
+                                        }
                                     } else {
                                         KlikLogger.e("MainApp", "Klik One onboarding complete but authState.userId is null — completion not persisted")
                                     }
@@ -2794,6 +2893,17 @@ fun MainApp() {
                                             currentRoute = lastMainRoute
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
+                                        onRename = { newName ->
+                                            appScope.launch {
+                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                    .updatePersonEntity(personId = p.id, name = newName)
+                                                if (r.isSuccess) {
+                                                    peopleState.value = peopleState.value.map {
+                                                        if (it.id == p.id) it.copy(name = newName) else it
+                                                    }
+                                                }
+                                            }
+                                        },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -2814,6 +2924,17 @@ fun MainApp() {
                                             currentRoute = lastMainRoute
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
+                                        onRename = { newName ->
+                                            appScope.launch {
+                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                    .updateProjectEntity(projectId = pr.id, name = newName)
+                                                if (r.isSuccess) {
+                                                    projectsState.value = projectsState.value.map {
+                                                        if (it.id == pr.id) it.copy(name = newName) else it
+                                                    }
+                                                }
+                                            }
+                                        },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -2832,6 +2953,17 @@ fun MainApp() {
                                             currentRoute = lastMainRoute
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
+                                        onRename = { newName ->
+                                            appScope.launch {
+                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                    .updateOrganizationEntity(orgId = o.id, name = newName)
+                                                if (r.isSuccess) {
+                                                    organizationsState.value = organizationsState.value.map {
+                                                        if (it.id == o.id) it.copy(name = newName) else it
+                                                    }
+                                                }
+                                            }
+                                        },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }

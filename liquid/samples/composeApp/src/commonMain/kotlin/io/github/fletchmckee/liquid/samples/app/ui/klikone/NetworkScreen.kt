@@ -216,6 +216,43 @@ fun NetworkScreen(
         Spacer(Modifier.height(K1Sp.xl))
       }
 
+      // ── GOALS & MILESTONES — sits with the XP/streak card so the answer
+      // to "where am I going" is right next to "where am I now". Reads
+      // from goalsState (KK_goal API). Always render the section so the
+      // user can never lose the entry point if the API blinks (NO SILENT
+      // SWALLOW). Empty state = paper card with "(none yet)".
+      run {
+        val goals = goalsData?.goals.orEmpty()
+        Column(Modifier.padding(horizontal = 20.dp)) {
+          K1SectionHeader("Goals & Milestones", count = goals.size)
+          Spacer(Modifier.height(K1Sp.s))
+          Column(
+            Modifier
+              .fillMaxWidth()
+              .clip(K1R.card)
+              .background(KlikPaperCard)
+              .padding(16.dp),
+          ) {
+            if (goals.isEmpty()) {
+              Text(
+                "No goals yet. Klik will surface them here as you record more sessions.",
+                style = K1Type.bodySm.copy(color = KlikInkTertiary),
+              )
+            } else {
+              goals.take(3).forEachIndexed { idx, g ->
+                if (idx > 0) {
+                  Spacer(Modifier.height(K1Sp.m))
+                  Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
+                  Spacer(Modifier.height(K1Sp.m))
+                }
+                K1GoalBlock(goal = g)
+              }
+            }
+          }
+        }
+        Spacer(Modifier.height(K1Sp.xl))
+      }
+
       // ── HIGHLIGHTS — encourage message + worklife recommendations ────
       val encourageMsg = encourageData?.message?.trim()?.takeIf { it.isNotBlank() }
       val recommendations = worklifeData?.insights
@@ -640,3 +677,93 @@ private fun initialsOfPerson(p: Person): String = p.name.trim().split(" ").filte
   .joinToString("") { it.take(1).uppercase() }
 
 private fun firstName(full: String): String = full.trim().split(" ").firstOrNull() ?: full
+
+// ─── Goal block (used by Goals & Milestones card) ──────────────────────
+//
+// One goal: title + category eyebrow, % progress bar, then its inline
+// milestone checklist. Completed milestones get a filled circle + ✓; the
+// rest are an outlined dot. Always render up to 4 milestones so the user
+// sees what's next, not just what's done.
+
+@Composable
+private fun K1GoalBlock(goal: io.github.fletchmckee.liquid.samples.app.data.source.remote.GoalDto) {
+  Column {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Column(Modifier.weight(1f)) {
+        if (goal.category.isNotBlank()) {
+          K1Eyebrow(goal.category.uppercase())
+          Spacer(Modifier.height(2.dp))
+        }
+        Text(goal.goal, style = K1Type.bodyMd)
+      }
+      val pct = (goal.currentProgress * 100).toInt().coerceIn(0, 100)
+      Text("$pct%", style = K1Type.bodyMd)
+    }
+    Spacer(Modifier.height(8.dp))
+    Box(
+      Modifier
+        .fillMaxWidth()
+        .height(3.dp)
+        .clip(K1R.pill)
+        .background(KlikLineHairline),
+    ) {
+      Box(
+        Modifier
+          .fillMaxHeight()
+          .fillMaxWidth(goal.currentProgress.coerceIn(0f, 1f))
+          .background(KlikInkPrimary),
+      )
+    }
+    if (goal.targetEndDate.isNotBlank()) {
+      Spacer(Modifier.height(4.dp))
+      Text("Target · ${goal.targetEndDate}", style = K1Type.metaSm)
+    }
+
+    if (goal.milestones.isNotEmpty()) {
+      Spacer(Modifier.height(K1Sp.m))
+      val sorted = goal.milestones.sortedBy { it.sequenceOrder }
+      sorted.take(4).forEach { m -> K1MilestoneRow(m) }
+      if (sorted.size > 4) {
+        Spacer(Modifier.height(4.dp))
+        Text("+${sorted.size - 4} more", style = K1Type.metaSm)
+      }
+    }
+  }
+}
+
+@Composable
+private fun K1MilestoneRow(m: io.github.fletchmckee.liquid.samples.app.data.source.remote.GoalMilestoneDto) {
+  val done = m.status.equals("completed", ignoreCase = true) ||
+    m.status.equals("done", ignoreCase = true)
+  Row(
+    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(
+      Modifier.size(16.dp).clip(CircleShape)
+        .background(if (done) KlikInkPrimary else KlikLineHairline),
+      contentAlignment = Alignment.Center,
+    ) {
+      Text(
+        if (done) "✓" else "·",
+        style = K1Type.metaSm.copy(
+          color = if (done) KlikPaperCard else KlikInkTertiary,
+          fontWeight = FontWeight.Medium,
+        ),
+      )
+    }
+    Spacer(Modifier.width(K1Sp.m))
+    Column(Modifier.weight(1f)) {
+      Text(
+        m.title,
+        style = K1Type.bodySm.copy(
+          color = if (done) KlikInkPrimary else KlikInkTertiary,
+        ),
+      )
+      if (m.targetDate.isNotBlank()) {
+        Spacer(Modifier.height(2.dp))
+        Text(m.targetDate, style = K1Type.metaSm)
+      }
+    }
+  }
+}
