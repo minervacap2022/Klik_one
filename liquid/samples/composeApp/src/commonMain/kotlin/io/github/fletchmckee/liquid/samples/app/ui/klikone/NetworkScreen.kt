@@ -214,32 +214,8 @@ fun NetworkScreen(
             }
           }
         }
-        // Recent XP rail — newest grants under the level card. Hidden when
-        // the backend has nothing to show so the layout doesn't shift.
-        if (xpHistoryItems.isNotEmpty()) {
-          Spacer(Modifier.height(K1Sp.md))
-          Column(Modifier.padding(horizontal = 20.dp)) {
-            K1Eyebrow("Recent XP")
-            Spacer(Modifier.height(6.dp))
-            xpHistoryItems.take(5).forEach { grant ->
-              Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-              ) {
-                val dateLabel = grant.createdAt
-                  ?.substringBefore('T')
-                  ?: "—"
-                Text(dateLabel, style = K1Type.metaSm, modifier = Modifier.width(96.dp))
-                val multiplierLabel = if (grant.multiplier > 1.0f) " × ${grant.multiplier}" else ""
-                Text(
-                  "+${grant.xpEarned} XP$multiplierLabel",
-                  style = K1Type.bodyMd,
-                  modifier = Modifier.weight(1f),
-                )
-              }
-            }
-          }
-        }
+        // XP log moved to the You → XP logs sub-screen. The Network screen
+        // now stays focused on level/streak + goals/people network.
         Spacer(Modifier.height(K1Sp.xl))
       }
 

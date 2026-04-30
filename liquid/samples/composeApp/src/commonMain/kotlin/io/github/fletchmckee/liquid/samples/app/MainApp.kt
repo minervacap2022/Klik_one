@@ -2535,7 +2535,18 @@ fun MainApp() {
                                 onNavigateToNotificationSettings = {
                                     lastMainRoute = currentRoute
                                     currentRoute = "notification_settings"
-                                }
+                                },
+                                onNavigateToXpLogs = {
+                                    lastMainRoute = currentRoute
+                                    currentRoute = "xp_logs"
+                                },
+                            )
+                            "xp_logs" -> io.github.fletchmckee.liquid.samples.app.ui.klikone.XpLogsScreen(
+                                items = io.github.fletchmckee.liquid.samples.app.model.xpHistoryItems,
+                                tasks = reviewMetadata + pendingMetadata + completedMetadata +
+                                    kkExecSensitiveTodosState.value + kkExecDailyTodosState.value,
+                                meetings = meetings,
+                                onBack = { currentRoute = lastMainRoute },
                             )
                             "archived" -> ArchivedScreen(
                                 onBack = {

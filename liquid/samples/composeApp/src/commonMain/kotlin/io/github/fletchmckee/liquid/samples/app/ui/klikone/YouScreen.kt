@@ -76,6 +76,7 @@ fun YouScreen(
   onNavigateToPrivacy: () -> Unit = {},
   onNavigateToAccountSecurity: () -> Unit = {},
   onNavigateToNotificationSettings: () -> Unit = {},
+  onNavigateToXpLogs: () -> Unit = {},
 ) {
   val ui by viewModel.state.collectAsState()
   val user = ui.user
@@ -382,6 +383,8 @@ fun YouScreen(
         SettingsRow("Import from Agent", onClick = { showImportSheet = true })
         Divider()
         SettingsRow("Plans", onClick = onNavigateToPricing)
+        Divider()
+        SettingsRow("XP logs", onClick = onNavigateToXpLogs)
       }
       if (showImportSheet) {
         ImportFromAgentSheet(onDismiss = { showImportSheet = false })
