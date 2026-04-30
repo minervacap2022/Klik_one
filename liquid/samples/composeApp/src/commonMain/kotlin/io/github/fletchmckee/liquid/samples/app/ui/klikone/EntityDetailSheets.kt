@@ -141,6 +141,9 @@ private fun BackChevron() {
 fun TaskDetailScreen(
   task: TaskMetadata,
   meetings: List<Meeting> = emptyList(),
+  projects: List<Project> = emptyList(),
+  people: List<Person> = emptyList(),
+  organizations: List<Organization> = emptyList(),
   onBack: () -> Unit,
   onApprove: (() -> Unit)? = null,
   onReject: (() -> Unit)? = null,
@@ -273,15 +276,36 @@ fun TaskDetailScreen(
         Spacer(Modifier.height(K1Sp.xl))
         K1Eyebrow("Related")
         Spacer(Modifier.height(K1Sp.s))
+        // Lookup helpers: resolve display name → entity id by case-insensitive match.
+        // Falls back to non-clickable rendering when no matching entity is loaded.
+        fun projectClick(name: String): (() -> Unit)? {
+          val match = projects.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
+            ?: return null
+          return { onEntityClick(EntityNavigationData(EntityType.PROJECT, match.id)) }
+        }
+        fun personClick(name: String): (() -> Unit)? {
+          val match = people.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
+            ?: return null
+          return { onEntityClick(EntityNavigationData(EntityType.PERSON, match.id)) }
+        }
+        fun orgClick(name: String): (() -> Unit)? {
+          val match = organizations.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
+            ?: return null
+          return { onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, match.id)) }
+        }
         K1Card(soft = true) {
           task.relatedProject.takeIf { it.isNotBlank() }?.let {
-            RelatedLine("Project", it, KlikDotProject)
+            RelatedLine("Project", it, KlikDotProject, onClick = projectClick(it))
           }
           task.relatedProjects.filter { it != task.relatedProject }.forEach {
-            RelatedLine("Project", it, KlikDotProject)
+            RelatedLine("Project", it, KlikDotProject, onClick = projectClick(it))
           }
-          task.relatedPeople.forEach { RelatedLine("Person", it, KlikDotPerson) }
-          task.relatedOrganizations.forEach { RelatedLine("Org", it, KlikDotOrg) }
+          task.relatedPeople.forEach {
+            RelatedLine("Person", it, KlikDotPerson, onClick = personClick(it))
+          }
+          task.relatedOrganizations.forEach {
+            RelatedLine("Org", it, KlikDotOrg, onClick = orgClick(it))
+          }
         }
       }
 
@@ -457,16 +481,35 @@ private fun RejectReasonDialog(
 }
 
 @Composable
-private fun RelatedLine(kind: String, label: String, dot: androidx.compose.ui.graphics.Color) {
+private fun RelatedLine(
+  kind: String,
+  label: String,
+  dot: androidx.compose.ui.graphics.Color,
+  onClick: (() -> Unit)? = null,
+) {
   Row(
-    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    Modifier
+      .fillMaxWidth()
+      .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
+      .padding(vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Box(Modifier.size(5.dp).clip(CircleShape).background(dot))
     Spacer(Modifier.width(K1Sp.s))
     Text(kind, style = K1Type.metaSm)
     Spacer(Modifier.width(K1Sp.s))
-    Text(label, style = K1Type.bodySm, modifier = Modifier.weight(1f))
+    Text(
+      label,
+      style = K1Type.bodySm.copy(
+        color = if (onClick != null) KlikInkPrimary else KlikInkPrimary,
+        textDecoration = if (onClick != null) {
+          androidx.compose.ui.text.style.TextDecoration.Underline
+        } else {
+          androidx.compose.ui.text.style.TextDecoration.None
+        },
+      ),
+      modifier = Modifier.weight(1f),
+    )
   }
 }
 
@@ -478,6 +521,7 @@ fun PersonDetailScreen(
   tasks: List<TaskMetadata> = emptyList(),
   projects: List<Project> = emptyList(),
   organizations: List<Organization> = emptyList(),
+  allPeople: List<Person> = emptyList(),
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
@@ -614,6 +658,11 @@ fun PersonDetailScreen(
       count = coAttendees.size,
       dotColor = KlikDotPerson,
       names = coAttendees,
+      onChipClick = { name ->
+        val match = allPeople.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
+          ?: meetings.flatMap { it.participants }.firstOrNull { it.name.equals(name, true) }
+        if (match != null) onEntityClick(EntityNavigationData(EntityType.PERSON, match.id))
+      },
     )
   }
 }
@@ -624,6 +673,9 @@ fun ProjectDetailScreen(
   project: Project,
   meetings: List<Meeting> = emptyList(),
   tasks: List<TaskMetadata> = emptyList(),
+  people: List<Person> = emptyList(),
+  allProjects: List<Project> = emptyList(),
+  organizations: List<Organization> = emptyList(),
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
@@ -760,7 +812,10 @@ fun ProjectDetailScreen(
         K1SectionHeader("Moves", count = projectTasks.size, dotColor = KlikRunning)
         Spacer(Modifier.height(K1Sp.s))
         projectTasks.forEach { t ->
-          K1Card(soft = true) {
+          K1Card(
+            soft = true,
+            onClick = { onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+          ) {
             Text(t.title, style = K1Type.bodyMd)
             if (t.subtitle.isNotBlank()) {
               Spacer(Modifier.height(2.dp))
@@ -780,28 +835,43 @@ fun ProjectDetailScreen(
       onClick = { m -> onEntityClick(EntityNavigationData(EntityType.MEETING, m.id)) },
     )
 
-    // Related people — names, non-clickable (no peopleList in scope here)
+    // Related people — chips look up Person by name; rows without a match
+    // remain non-clickable (no flicker, just a static chip).
     K1RelatedChipsSection(
       title = "Related people",
       count = project.relatedPeople.size,
       dotColor = KlikDotPerson,
       names = project.relatedPeople,
+      onChipClick = { name ->
+        val match = people.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
+        if (match != null) onEntityClick(EntityNavigationData(EntityType.PERSON, match.id))
+      },
     )
 
-    // Related projects — names, non-clickable
+    // Related projects
     K1RelatedChipsSection(
       title = "Related projects",
       count = project.relatedProjects.size,
       dotColor = KlikDotProject,
       names = project.relatedProjects,
+      onChipClick = { name ->
+        val match = allProjects.firstOrNull {
+          it.id != project.id && (it.name.equals(name, true) || it.canonicalName.equals(name, true))
+        }
+        if (match != null) onEntityClick(EntityNavigationData(EntityType.PROJECT, match.id))
+      },
     )
 
-    // Related organizations — names, non-clickable
+    // Related organizations
     K1RelatedChipsSection(
       title = "Related organizations",
       count = project.relatedOrganizations.size,
       dotColor = KlikDotOrg,
       names = project.relatedOrganizations,
+      onChipClick = { name ->
+        val match = organizations.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
+        if (match != null) onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, match.id))
+      },
     )
   }
 }

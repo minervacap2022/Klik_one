@@ -1050,6 +1050,9 @@ data class MeetingDto(
   val isPinned: Boolean = false,
   val isArchived: Boolean = false,
   val dropboxUrl: String? = null,
+  // session_id from the recording pipeline — needed to link KK_exec todos which
+  // are keyed by SESSION_… ids, not by the meetings table primary key.
+  @SerialName("session_id") val sessionId: String? = null,
 ) {
   fun toDomain(): Meeting {
     val localDate = try {
@@ -1082,6 +1085,7 @@ data class MeetingDto(
       isPinned = isPinned,
       isArchived = isArchived,
       dropboxUrl = dropboxUrl,
+      sessionId = sessionId,
     )
   }
 
@@ -2147,6 +2151,7 @@ data class KKExecTodoItem(
       null
     },
     reauthInfo = reauthInfo,
+    createdAt = createdAt,
   )
 }
 // Goal/Level DTOs

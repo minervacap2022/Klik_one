@@ -2107,32 +2107,11 @@ fun MainApp() {
                                 people = peopleState.value,
                                 organizations = organizationsState.value,
                                 onEntityClick = { entityNav ->
-                                    // Navigate to entity card based on type
-                                    when (entityNav.entityType) {
-                                        EntityType.TASK -> {
-                                            // Navigate to EventsScreen (function) to show task
-                                            currentRoute = "function"
-                                        }
-                                        EntityType.MEETING -> {
-                                            // Expand meeting in current screen if it's today
-                                            // Otherwise navigate to calendar and expand
-                                            expandMeetingSessionId = entityNav.entityId
-                                            currentRoute = "today"
-                                        }
-                                        EntityType.PROJECT -> {
-                                            // Navigate to WorkLifeScreen (growth) and highlight entity
-                                            highlightProjectId = entityNav.entityId
-                                            currentRoute = "growth"
-                                        }
-                                        EntityType.PERSON -> {
-                                            highlightPersonId = entityNav.entityId
-                                            currentRoute = "growth"
-                                        }
-                                        EntityType.ORGANIZATION -> {
-                                            highlightOrganizationId = entityNav.entityId
-                                            currentRoute = "growth"
-                                        }
-                                    }
+                                    // Underlined entities in Today's Insights / brief should land on
+                                    // the same detail screens as the rest of the app — not on the
+                                    // parent list. Delegate to the shared router.
+                                    lastMainRoute = currentRoute
+                                    navigateToEntity(entityNav)
                                 },
                                 onSegmentClick = { segmentNav ->
                                     KlikLogger.d("CalendarScreen", "Segment clicked: sessionId=${segmentNav.sessionId}, segmentId=${segmentNav.segmentId}")
@@ -2704,6 +2683,9 @@ fun MainApp() {
                                     io.github.fletchmckee.liquid.samples.app.ui.klikone.TaskDetailScreen(
                                         task = t,
                                         meetings = meetings,
+                                        projects = projectsState.value,
+                                        people = peopleState.value,
+                                        organizations = organizationsState.value,
                                         onBack = {
                                             taskDetailId = null
                                             currentRoute = lastMainRoute
@@ -2806,6 +2788,7 @@ fun MainApp() {
                                         tasks = reviewMetadata + pendingMetadata + completedMetadata,
                                         projects = projectsState.value,
                                         organizations = organizationsState.value,
+                                        allPeople = peopleState.value,
                                         onBack = {
                                             personDetailId = null
                                             currentRoute = lastMainRoute
@@ -2823,6 +2806,9 @@ fun MainApp() {
                                         project = pr,
                                         meetings = meetings,
                                         tasks = reviewMetadata + pendingMetadata + completedMetadata,
+                                        people = peopleState.value,
+                                        allProjects = projectsState.value,
+                                        organizations = organizationsState.value,
                                         onBack = {
                                             projectDetailId = null
                                             currentRoute = lastMainRoute

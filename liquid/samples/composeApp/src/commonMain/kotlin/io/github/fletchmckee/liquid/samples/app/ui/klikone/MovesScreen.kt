@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
+import io.github.fletchmckee.liquid.samples.app.model.markTaskSeen
+import io.github.fletchmckee.liquid.samples.app.model.seenTaskIdsState
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
@@ -89,23 +92,38 @@ fun MovesScreen(
   var searchActive by remember { mutableStateOf(false) }
   var searchQuery by remember { mutableStateOf("") }
 
-  // Completed buckets the Done list; everything else daily-tasks goes into Running.
-  // Needs-your-OK is the combined review queue (featured AI suggestions + sensitive
-  // todos that require explicit user confirmation).
+  // Completed buckets the Done list; failed terminal states get their own
+  // bucket so the user can tell them apart from the green check-marked successes.
+  // Everything else daily-tasks goes into Running. Needs-your-OK is the combined
+  // review queue (featured AI suggestions + sensitive todos requiring confirmation).
   fun isDone(t: TaskMetadata): Boolean = t.status == TaskStatus.COMPLETED ||
     t.kkExecStatus?.uppercase() in setOf("COMPLETED", "APPROVED")
 
-  val needsOk = featuredTasks + sensitiveTasks
+  fun isFailed(t: TaskMetadata): Boolean =
+    t.kkExecStatus?.uppercase() in setOf("FAILED", "ERROR", "CANNOT_EXECUTE", "REJECTED")
+
+  // Newest first. ISO-8601 strings sort lexically; null/blank goes last.
+  val recencyKey: (TaskMetadata) -> String = { it.createdAt?.takeIf { s -> s.isNotBlank() } ?: "" }
+
+  val needsOk = (featuredTasks + sensitiveTasks).sortedByDescending(recencyKey)
   val doneIds = dailyTasks.filter(::isDone).map { it.id }.toSet()
-  val running = dailyTasks.filter { it.id !in doneIds }
-  val done = dailyTasks.filter { it.id in doneIds }
-  val totalAll = needsOk.size + running.size + done.size
+  val failedIds = dailyTasks.filter(::isFailed).map { it.id }.toSet()
+  val running = dailyTasks
+    .filter { it.id !in doneIds && it.id !in failedIds }
+    .sortedByDescending(recencyKey)
+  val done = dailyTasks.filter { it.id in doneIds }.sortedByDescending(recencyKey)
+  val failed = dailyTasks.filter { it.id in failedIds }.sortedByDescending(recencyKey)
+  val totalAll = needsOk.size + running.size + done.size + failed.size
+
+  val seenIds by seenTaskIdsState
+  fun unread(t: TaskMetadata): Boolean = t.id !in seenIds
 
   val baseFiltered = when (filter) {
     "needs" -> needsOk
     "running" -> running
+    "failed" -> failed
     "done" -> done
-    else -> needsOk + running + done
+    else -> needsOk + running + failed + done
   }
   val filteredAll = if (searchQuery.isBlank()) {
     baseFiltered
@@ -191,7 +209,9 @@ fun MovesScreen(
 
       // Filter chips
       Row(
-        Modifier.padding(horizontal = 20.dp),
+        Modifier
+          .horizontalScroll(rememberScrollState())
+          .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
       ) {
         K1Chip(
@@ -209,6 +229,13 @@ fun MovesScreen(
           selected = filter == "running",
           onClick = { filter = "running" },
         )
+        if (failed.isNotEmpty()) {
+          K1Chip(
+            label = "Failed · ${failed.size}",
+            selected = filter == "failed",
+            onClick = { filter = "failed" },
+          )
+        }
         K1Chip(
           label = "Done",
           selected = filter == "done",
@@ -220,14 +247,24 @@ fun MovesScreen(
 
       if ((filter == "all" || filter == "needs") && needsOk.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Needs your OK", count = needsOk.size, dotColor = KlikWarn)
+          val needsUnread = needsOk.count(::unread)
+          K1SectionHeader(
+            "Needs your OK",
+            count = needsOk.size,
+            dotColor = KlikWarn,
+            trailing = if (needsUnread > 0) ({ UnreadCountLabel(needsUnread) }) else null,
+          )
           Spacer(Modifier.height(K1Sp.s))
           needsOk.forEach { t ->
             NeedsOkCard(
               t = t,
+              isUnread = unread(t),
               onApprove = onApproveTask,
               onArchive = onArchiveTaskOnBackend,
-              onOpen = { onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+              onOpen = {
+                markTaskSeen(t.id)
+                onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+              },
             )
             Spacer(Modifier.height(8.dp))
           }
@@ -250,7 +287,13 @@ fun MovesScreen(
           }
         }
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Running", count = running.size, dotColor = KlikRunning)
+          val runningUnread = running.count(::unread)
+          K1SectionHeader(
+            "Running",
+            count = running.size,
+            dotColor = KlikRunning,
+            trailing = if (runningUnread > 0) ({ UnreadCountLabel(runningUnread) }) else null,
+          )
           Spacer(Modifier.height(K1Sp.s))
           grouped.entries.forEach { (groupLabel, tasks) ->
             TaskCategoryGroup(
@@ -262,9 +305,39 @@ fun MovesScreen(
                 }
               },
               tasks = tasks,
-              onTaskClick = { t -> onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+              isUnread = ::unread,
+              onTaskClick = { t ->
+                markTaskSeen(t.id)
+                onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+              },
             )
             Spacer(Modifier.height(K1Sp.s))
+          }
+        }
+        Spacer(Modifier.height(K1Sp.xxl))
+      }
+
+      if ((filter == "all" || filter == "failed") && failed.isNotEmpty()) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
+          val failedUnread = failed.count(::unread)
+          K1SectionHeader(
+            "Failed",
+            count = failed.size,
+            dotColor = KlikAlert,
+            trailing = if (failedUnread > 0) ({ UnreadCountLabel(failedUnread) }) else null,
+          )
+          Spacer(Modifier.height(K1Sp.s))
+          failed.forEach { t ->
+            FailedRow(
+              t = t,
+              isUnread = unread(t),
+              onRetry = { onRetryTask(t.id) },
+              onOpen = {
+                markTaskSeen(t.id)
+                onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+              },
+            )
+            Spacer(Modifier.height(6.dp))
           }
         }
         Spacer(Modifier.height(K1Sp.xxl))
@@ -298,15 +371,25 @@ fun MovesScreen(
 @Composable
 private fun NeedsOkCard(
   t: TaskMetadata,
+  isUnread: Boolean = false,
   onApprove: (String) -> Unit,
   onArchive: (String) -> Unit,
   onOpen: () -> Unit = {},
 ) {
   K1Card(soft = true, onClick = onOpen) {
-    // Top row: title + subtitle | time ago
+    // Top row: unread dot + title + subtitle | time ago
     Row(verticalAlignment = Alignment.Top) {
+      if (isUnread) {
+        UnreadDot(KlikWarn)
+        Spacer(Modifier.width(K1Sp.s))
+      }
       Column(Modifier.weight(1f)) {
-        Text(t.title, style = K1Type.bodyMd)
+        Text(
+          t.title,
+          style = K1Type.bodyMd.copy(
+            fontWeight = if (isUnread) FontWeight.Medium else FontWeight.Normal,
+          ),
+        )
         if (t.subtitle.isNotBlank()) {
           Spacer(Modifier.height(3.dp))
           Text(t.subtitle, style = K1Type.caption)
@@ -412,15 +495,21 @@ private fun ActionButton(
 private fun TaskCategoryGroup(
   label: String,
   tasks: List<TaskMetadata>,
+  isUnread: (TaskMetadata) -> Boolean = { false },
   onTaskClick: (TaskMetadata) -> Unit = {},
 ) {
   var expanded by remember { mutableStateOf(tasks.size <= 3) }
+  val unreadCount = tasks.count(isUnread)
   K1Card(soft = true, onClick = if (!expanded) ({ expanded = true }) else null) {
     Row(
       Modifier.fillMaxWidth().k1Clickable { expanded = !expanded },
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(label, style = K1Type.bodySm.copy(fontWeight = FontWeight.Medium), modifier = Modifier.weight(1f))
+      if (unreadCount > 0) {
+        UnreadCountLabel(unreadCount)
+        Spacer(Modifier.width(8.dp))
+      }
       Text(
         "${tasks.size}",
         style = K1Type.metaSm.copy(color = KlikInkTertiary),
@@ -435,6 +524,7 @@ private fun TaskCategoryGroup(
       Spacer(Modifier.height(K1Sp.s))
       Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
       tasks.forEach { t ->
+        val unread = isUnread(t)
         Row(
           Modifier.fillMaxWidth().k1Clickable { onTaskClick(t) }.padding(vertical = 10.dp),
           verticalAlignment = Alignment.Top,
@@ -442,11 +532,22 @@ private fun TaskCategoryGroup(
           Box(Modifier.size(6.dp).clip(CircleShape).background(KlikRunning).offset(y = 6.dp))
           Spacer(Modifier.width(10.dp))
           Column(Modifier.weight(1f)) {
-            Text(t.title, style = K1Type.bodyMd)
+            Text(
+              t.title,
+              style = K1Type.bodyMd.copy(
+                fontWeight = if (unread) FontWeight.Medium else FontWeight.Normal,
+              ),
+            )
             if (t.subtitle.isNotBlank()) {
               Spacer(Modifier.height(2.dp))
               Text(t.subtitle, style = K1Type.caption.copy(color = KlikInkTertiary))
             }
+          }
+          if (unread) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+              Modifier.size(6.dp).clip(CircleShape).background(KlikAlert).offset(y = 6.dp),
+            )
           }
         }
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
@@ -535,6 +636,107 @@ private fun RunningRow(t: TaskMetadata, onClick: () -> Unit = {}) {
           .background(KlikInkPrimary.copy(alpha = pulseAlpha), CircleShape),
       )
     }
+  }
+}
+
+@Composable
+private fun FailedRow(
+  t: TaskMetadata,
+  isUnread: Boolean = false,
+  onRetry: () -> Unit = {},
+  onOpen: () -> Unit = {},
+) {
+  // Failed tasks read as a paper card tinted with a hairline KlikAlert border so
+  // they stay editorial but never blend into the green check-marked Done list.
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .clip(K1R.card)
+      .background(KlikPaperCard)
+      .border(0.5.dp, KlikAlert.copy(alpha = 0.55f), K1R.card)
+      .k1Clickable(onClick = onOpen)
+      .padding(horizontal = 14.dp, vertical = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    // ✕-in-circle, mirrors the ✓-in-circle of DoneRow but in alert ink.
+    Canvas(Modifier.size(14.dp)) {
+      val w = 1.dp.toPx()
+      drawCircle(
+        color = KlikAlert,
+        style = Stroke(w),
+        radius = 5.5.dp.toPx(),
+        center = Offset(size.width / 2f, size.height / 2f),
+      )
+      val s = size.width
+      drawLine(
+        color = KlikAlert,
+        strokeWidth = 1.2.dp.toPx(),
+        cap = StrokeCap.Round,
+        start = Offset(s * 0.36f, s * 0.36f),
+        end = Offset(s * 0.64f, s * 0.64f),
+      )
+      drawLine(
+        color = KlikAlert,
+        strokeWidth = 1.2.dp.toPx(),
+        cap = StrokeCap.Round,
+        start = Offset(s * 0.64f, s * 0.36f),
+        end = Offset(s * 0.36f, s * 0.64f),
+      )
+    }
+    Spacer(Modifier.width(K1Sp.m))
+    Column(Modifier.weight(1f)) {
+      Text(
+        t.title,
+        style = K1Type.bodySm.copy(
+          color = KlikInkPrimary,
+          fontWeight = if (isUnread) FontWeight.Medium else FontWeight.Normal,
+        ),
+      )
+      val reason = execStageLabel(t.kkExecStatus)
+      val meta = buildList {
+        add(reason)
+        t.relatedProject.takeIf { it.isNotBlank() }?.let { add(it) }
+      }.joinToString(" · ")
+      Spacer(Modifier.height(2.dp))
+      Text(meta, style = K1Type.metaSm.copy(color = KlikAlert))
+    }
+    Spacer(Modifier.width(K1Sp.s))
+    Box(
+      Modifier
+        .clip(K1R.chip)
+        .border(0.5.dp, KlikAlert, K1R.chip)
+        .k1Clickable(onClick = onRetry)
+        .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+      Text(
+        "Retry",
+        style = K1Type.meta.copy(color = KlikAlert, fontSize = 11.sp, fontWeight = FontWeight.Medium),
+      )
+    }
+    if (isUnread) {
+      Spacer(Modifier.width(8.dp))
+      UnreadDot(KlikAlert)
+    }
+  }
+}
+
+@Composable
+private fun UnreadDot(color: androidx.compose.ui.graphics.Color = KlikAlert) {
+  Box(Modifier.size(6.dp).clip(CircleShape).background(color))
+}
+
+@Composable
+private fun UnreadCountLabel(count: Int) {
+  Box(
+    Modifier
+      .clip(K1R.pill)
+      .background(KlikAlert)
+      .padding(horizontal = 6.dp, vertical = 1.dp),
+  ) {
+    Text(
+      "$count new",
+      style = K1Type.meta.copy(color = KlikPaperCard, fontSize = 10.sp, fontWeight = FontWeight.Medium),
+    )
   }
 }
 

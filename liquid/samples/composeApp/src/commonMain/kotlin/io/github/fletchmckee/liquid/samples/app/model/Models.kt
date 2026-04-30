@@ -119,6 +119,8 @@ data class TaskMetadata(
   val currentExecutingStep: Int? = null, // Current step being executed (for animation)
   // OAuth reconnect payload — non-null when status is REQUIRES_REAUTH
   val reauthInfo: ReauthInfo? = null,
+  // ISO 8601 timestamp when the todo was created — used to sort Moves newest-first.
+  val createdAt: String? = null,
 ) {
   /**
    * Check if this task is from KK_exec (has KK_exec integration fields).
@@ -250,6 +252,17 @@ val pinnedMeetingIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
 val pinnedProjectIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
 val pinnedPersonIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
 val pinnedOrganizationIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
+
+/**
+ * Task IDs the user has opened/seen this session. Drives the unread dot on Moves.
+ * Session-scoped — cleared on app restart by design.
+ */
+val seenTaskIdsState = mutableStateOf<Set<String>>(emptySet())
+
+fun markTaskSeen(id: String) {
+  if (id.isBlank() || id in seenTaskIdsState.value) return
+  seenTaskIdsState.value = seenTaskIdsState.value + id
+}
 
 /**
  * Permanently deleted IDs - items that have been permanently removed from archive.

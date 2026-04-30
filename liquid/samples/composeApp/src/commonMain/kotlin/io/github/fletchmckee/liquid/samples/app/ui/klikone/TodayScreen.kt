@@ -322,6 +322,50 @@ fun TodayScreen(
         Spacer(Modifier.height(K1Sp.xxl))
       }
 
+      // ── INSIGHTS ──────────────────────────────────────────────────────
+      // Real AI-generated insights from KK_tools. Surfaced near the top so
+      // the day's read precedes the meeting list — entity mentions are
+      // underlined and route to detail via onEntityClick.
+      val hasInsights = !insights?.summary.isNullOrBlank()
+      val hasBriefFallback = !dailyBriefing?.summary.isNullOrBlank() && !hasInsights
+      val showInsightsSection = hasInsights || hasBriefFallback || isLlmDataLoading || isLoading
+      if (showInsightsSection) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
+          K1SectionHeader("Insights")
+          Spacer(Modifier.height(K1Sp.s))
+          when {
+            hasInsights -> {
+              val ins = insights!!
+              K1ExpandableCard(soft = true) { expanded ->
+                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                  text = ins.summary,
+                  tasks = tasks,
+                  meetings = meetings,
+                  projects = projects,
+                  people = people,
+                  organizations = organizations,
+                  onEntityClick = onEntityClick,
+                  style = K1Type.bodySm,
+                  maxLines = if (expanded) Int.MAX_VALUE else 3,
+                )
+              }
+            }
+
+            hasBriefFallback -> {
+              K1Card(soft = true) {
+                Text(
+                  dailyBriefing!!.summary,
+                  style = K1Type.bodySm.copy(color = KlikInkSecondary),
+                )
+              }
+            }
+
+            else -> K1SkeletonCard(lines = 3)
+          }
+        }
+        Spacer(Modifier.height(K1Sp.xxl))
+      }
+
       // ── DAY MEETINGS ──────────────────────────────────────────────────
       // While the initial meetings list is in flight, show a couple of
       // breathing rows so the page reads as "loading" instead of "empty".
@@ -409,53 +453,6 @@ fun TodayScreen(
           pending.forEach { t ->
             MoveMiniCard(t)
             Spacer(Modifier.height(6.dp))
-          }
-        }
-        Spacer(Modifier.height(K1Sp.xxl))
-      }
-
-      // ── INSIGHTS ──────────────────────────────────────────────────────
-      // Real AI-generated insights from KK_tools. While the LLM endpoint is
-      // still in flight, show a breathing skeleton so the page never feels
-      // blank. Insight summaries can be long → render via K1ExpandableCard:
-      // tap to expand, tap again to collapse. The previous "highlights"
-      // bullet list duplicated content already in `summary` and read as a
-      // grey echo, so it's been removed.
-      val hasInsights = !insights?.summary.isNullOrBlank()
-      val hasBriefFallback = !dailyBriefing?.summary.isNullOrBlank() && !hasInsights
-      val showInsightsSection = hasInsights || hasBriefFallback || isLlmDataLoading || isLoading
-      if (showInsightsSection) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Insights")
-          Spacer(Modifier.height(K1Sp.s))
-          when {
-            hasInsights -> {
-              val ins = insights!!
-              K1ExpandableCard(soft = true) { expanded ->
-                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-                  text = ins.summary,
-                  tasks = tasks,
-                  meetings = meetings,
-                  projects = projects,
-                  people = people,
-                  organizations = organizations,
-                  onEntityClick = onEntityClick,
-                  style = K1Type.bodySm,
-                  maxLines = if (expanded) Int.MAX_VALUE else 3,
-                )
-              }
-            }
-
-            hasBriefFallback -> {
-              K1Card(soft = true) {
-                Text(
-                  dailyBriefing!!.summary,
-                  style = K1Type.bodySm.copy(color = KlikInkSecondary),
-                )
-              }
-            }
-
-            else -> K1SkeletonCard(lines = 3)
           }
         }
         Spacer(Modifier.height(K1Sp.xxl))
