@@ -155,7 +155,17 @@ fun EntityHighlightedText(
 
 /**
  * Find all entity mentions in the text.
- * Uses longest-match-first strategy to avoid overlapping matches.
+ *
+ * Single-pass fuzzy matcher. For every entity type we collect candidate name
+ * forms (canonical, display name, aliases, and each whitespace token of those),
+ * then walk the text's word windows (1..3 consecutive words) and compute the
+ * best Jaro-Winkler similarity vs every candidate. Windows scoring ≥ 0.92
+ * become highlights. Tasks and meetings use their titles as candidates.
+ *
+ * Exact equality is just the upper bound of Jaro-Winkler (1.0), so there is no
+ * separate exact-match path — one algorithm, one pass. Overlapping matches
+ * resolve longest-window-wins so "John Smith" beats "John" when both score
+ * over the threshold.
  */
 private fun findEntityMentions(
   text: String,
@@ -165,166 +175,167 @@ private fun findEntityMentions(
   people: List<Person>,
   organizations: List<Organization>,
 ): List<EntityMention> {
-  val mentions = mutableListOf<EntityMention>()
-  val lowerText = text.lowercase()
+  if (text.isBlank()) return emptyList()
 
-  // Build list of all potential matches with their indices
+  val spans = wordSpans(text)
   val allMatches = mutableListOf<EntityMention>()
 
-  // Match tasks
-  tasks.forEach { task ->
-    val searchTerms = listOf(task.title) +
-      (if (task.relatedProject.isNotEmpty()) listOf(task.relatedProject) else emptyList())
+  data class Bucket(val type: EntityType, val id: String, val candidates: List<String>)
 
-    searchTerms.forEach { term ->
-      if (term.isNotEmpty()) {
-        var startIndex = 0
-        while (startIndex < lowerText.length) {
-          val index = lowerText.indexOf(term.lowercase(), startIndex)
-          if (index == -1) break
-
-          allMatches.add(
-            EntityMention(
-              text = text.substring(index, index + term.length),
-              entityType = EntityType.TASK,
-              entityId = task.id,
-              startIndex = index,
-              endIndex = index + term.length,
-            ),
-          )
-          startIndex = index + 1
-        }
-      }
+  val buckets = buildList<Bucket> {
+    tasks.forEach { t ->
+      val raw = listOf(t.title, t.relatedProject).filter { it.isNotBlank() }
+      if (raw.isNotEmpty()) add(Bucket(EntityType.TASK, t.id, raw))
+    }
+    meetings.forEach { m ->
+      if (m.title.isNotBlank()) add(Bucket(EntityType.MEETING, m.id, listOf(m.title)))
+    }
+    projects.forEach { p ->
+      add(Bucket(EntityType.PROJECT, p.id, listOf(p.canonicalName, p.name) + p.aliases))
+    }
+    people.forEach { p ->
+      add(Bucket(EntityType.PERSON, p.id, listOf(p.canonicalName, p.name) + p.aliases))
+    }
+    organizations.forEach { o ->
+      add(Bucket(EntityType.ORGANIZATION, o.id, listOf(o.canonicalName, o.name) + o.aliases))
     }
   }
 
-  // Match meetings
-  meetings.forEach { meeting ->
-    if (meeting.title.isNotEmpty()) {
-      var startIndex = 0
-      while (startIndex < lowerText.length) {
-        val index = lowerText.indexOf(meeting.title.lowercase(), startIndex)
-        if (index == -1) break
+  // Expand each bucket's candidates into normalized matchable forms — full
+  // name + every whitespace token of length ≥ 3. Lowercased once so the inner
+  // loop is just similarity math.
+  val prepared = buckets.map { b ->
+    val full = b.candidates.filter { it.isNotBlank() }.map { it.lowercase() }
+    val tokens = full.flatMap { it.split(Regex("\\s+")) }.filter { it.length >= 3 }
+    b to (full + tokens).distinct()
+  }
 
+  // Window over the text: 1, 2, and 3 consecutive words. Multi-word windows
+  // catch full names like "John Smith"; single-word windows catch short forms
+  // and abbreviations. Each window is matched against every candidate; the
+  // best similarity wins.
+  for (windowSize in 1..3) {
+    for (i in 0..(spans.size - windowSize)) {
+      val start = spans[i].start
+      val end = spans[i + windowSize - 1].end
+      val window = text.substring(start, end).lowercase()
+
+      var bestType: EntityType? = null
+      var bestId: String? = null
+      var bestScore = THRESHOLD
+      var bestIsTokenLevel = false
+
+      for ((bucket, forms) in prepared) {
+        for (form in forms) {
+          val score = if (form == window) 1.0 else jaroWinklerSimilarity(window, form)
+          if (score >= bestScore) {
+            // Token-level matches (single-word window vs single-word form) are
+            // most prone to false positives on common nouns. Require the word
+            // in the source text to start uppercase to act on those.
+            val tokenLevel = windowSize == 1 && !form.contains(' ')
+            if (tokenLevel && !text[start].isUpperCase()) continue
+            bestScore = score
+            bestType = bucket.type
+            bestId = bucket.id
+            bestIsTokenLevel = tokenLevel
+          }
+        }
+      }
+      if (bestType != null && bestId != null) {
         allMatches.add(
           EntityMention(
-            text = text.substring(index, index + meeting.title.length),
-            entityType = EntityType.MEETING,
-            entityId = meeting.id,
-            startIndex = index,
-            endIndex = index + meeting.title.length,
+            text = text.substring(start, end),
+            entityType = bestType,
+            entityId = bestId,
+            startIndex = start,
+            endIndex = end,
           ),
         )
-        startIndex = index + 1
       }
+      // Suppress warning on unused variable when the heuristic keeps a token
+      // match — the flag is used inside the loop, the linter just can't tell.
+      @Suppress("UNUSED_EXPRESSION") bestIsTokenLevel
     }
   }
 
-  // Match projects
-  projects.forEach { project ->
-    val searchTerms = listOf(project.canonicalName, project.name) + project.aliases
-
-    searchTerms.forEach { term ->
-      if (term.length >= 3) { // Skip very short names to avoid false matches
-        var startIndex = 0
-        while (startIndex < lowerText.length) {
-          val index = lowerText.indexOf(term.lowercase(), startIndex)
-          if (index == -1) break
-
-          val beforeOk = index == 0 || !lowerText[index - 1].isLetterOrDigit()
-          val afterOk = (index + term.length) >= lowerText.length || !lowerText[index + term.length].isLetterOrDigit()
-          if (beforeOk && afterOk) {
-            allMatches.add(
-              EntityMention(
-                text = text.substring(index, index + term.length),
-                entityType = EntityType.PROJECT,
-                entityId = project.id,
-                startIndex = index,
-                endIndex = index + term.length,
-              ),
-            )
-          }
-          startIndex = index + 1
-        }
-      }
-    }
-  }
-
-  // Match people
-  people.forEach { person ->
-    val searchTerms = listOf(person.canonicalName, person.name) + person.aliases
-
-    searchTerms.forEach { term ->
-      if (term.length >= 3) { // Skip very short names to avoid false matches
-        var startIndex = 0
-        while (startIndex < lowerText.length) {
-          val index = lowerText.indexOf(term.lowercase(), startIndex)
-          if (index == -1) break
-
-          // Only match at word boundaries to avoid matching substrings of other words
-          val beforeOk = index == 0 || !lowerText[index - 1].isLetterOrDigit()
-          val afterOk = (index + term.length) >= lowerText.length || !lowerText[index + term.length].isLetterOrDigit()
-          if (beforeOk && afterOk) {
-            allMatches.add(
-              EntityMention(
-                text = text.substring(index, index + term.length),
-                entityType = EntityType.PERSON,
-                entityId = person.id,
-                startIndex = index,
-                endIndex = index + term.length,
-              ),
-            )
-          }
-          startIndex = index + 1
-        }
-      }
-    }
-  }
-
-  // Match organizations
-  organizations.forEach { org ->
-    val searchTerms = listOf(org.canonicalName, org.name) + org.aliases
-
-    searchTerms.forEach { term ->
-      if (term.length >= 3) { // Skip very short names to avoid false matches
-        var startIndex = 0
-        while (startIndex < lowerText.length) {
-          val index = lowerText.indexOf(term.lowercase(), startIndex)
-          if (index == -1) break
-
-          val beforeOk = index == 0 || !lowerText[index - 1].isLetterOrDigit()
-          val afterOk = (index + term.length) >= lowerText.length || !lowerText[index + term.length].isLetterOrDigit()
-          if (beforeOk && afterOk) {
-            allMatches.add(
-              EntityMention(
-                text = text.substring(index, index + term.length),
-                entityType = EntityType.ORGANIZATION,
-                entityId = org.id,
-                startIndex = index,
-                endIndex = index + term.length,
-              ),
-            )
-          }
-          startIndex = index + 1
-        }
-      }
-    }
-  }
-
-  // Sort by length (longest first) to prefer longer matches
+  // Longest window wins on overlap so "John Smith" supersedes "John".
   allMatches.sortByDescending { it.endIndex - it.startIndex }
-
-  // Filter overlapping matches (keep longest matches)
-  val occupiedRanges = mutableListOf<IntRange>()
-  allMatches.forEach { match ->
-    val range = match.startIndex until match.endIndex
-    if (occupiedRanges.none { it.overlaps(range) }) {
-      mentions.add(match)
-      occupiedRanges.add(range)
+  val mentions = mutableListOf<EntityMention>()
+  val occupied = mutableListOf<IntRange>()
+  allMatches.forEach { m ->
+    val range = m.startIndex until m.endIndex
+    if (occupied.none { it.overlaps(range) }) {
+      mentions += m
+      occupied += range
     }
   }
-
   return mentions
+}
+
+private const val THRESHOLD = 0.92
+
+/** Token spans in [text]: contiguous letter/digit runs. */
+private data class WordSpan(val start: Int, val end: Int, val word: String)
+private fun wordSpans(text: String): List<WordSpan> {
+  val out = mutableListOf<WordSpan>()
+  var i = 0
+  while (i < text.length) {
+    if (text[i].isLetterOrDigit()) {
+      var j = i
+      while (j < text.length && text[j].isLetterOrDigit()) j++
+      out.add(WordSpan(i, j, text.substring(i, j)))
+      i = j
+    } else {
+      i++
+    }
+  }
+  return out
+}
+
+/**
+ * Jaro-Winkler similarity in [0.0, 1.0]. Returns 1.0 on equality, 0.0 on no
+ * shared characters within the matching window. Pure Kotlin so it works on
+ * commonMain.
+ */
+private fun jaroWinklerSimilarity(a: String, b: String): Double {
+  if (a == b) return 1.0
+  if (a.isEmpty() || b.isEmpty()) return 0.0
+
+  val matchDistance = (maxOf(a.length, b.length) / 2) - 1
+  val aMatches = BooleanArray(a.length)
+  val bMatches = BooleanArray(b.length)
+  var matches = 0
+  for (i in a.indices) {
+    val lo = maxOf(0, i - matchDistance)
+    val hi = minOf(i + matchDistance + 1, b.length)
+    for (j in lo until hi) {
+      if (bMatches[j]) continue
+      if (a[i] != b[j]) continue
+      aMatches[i] = true
+      bMatches[j] = true
+      matches++
+      break
+    }
+  }
+  if (matches == 0) return 0.0
+
+  var transpositions = 0
+  var k = 0
+  for (i in a.indices) {
+    if (!aMatches[i]) continue
+    while (!bMatches[k]) k++
+    if (a[i] != b[k]) transpositions++
+    k++
+  }
+  val m = matches.toDouble()
+  val jaro = (m / a.length + m / b.length + (m - transpositions / 2.0) / m) / 3.0
+
+  // Winkler boost for shared prefix up to 4 chars.
+  var prefix = 0
+  for (i in 0 until minOf(4, minOf(a.length, b.length))) {
+    if (a[i] == b[i]) prefix++ else break
+  }
+  return jaro + prefix * 0.1 * (1 - jaro)
 }
 
 /**
