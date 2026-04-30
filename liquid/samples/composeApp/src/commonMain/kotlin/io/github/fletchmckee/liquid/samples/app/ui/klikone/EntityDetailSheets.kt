@@ -156,14 +156,27 @@ fun TaskDetailScreen(
   onReject: (() -> Unit)? = null,
   onRetry: (() -> Unit)? = null,
   onRejectWithReason: ((String) -> Unit)? = null,
+  onRename: ((String) -> Unit)? = null,
+  // Triple of (entityType, entityId, newName). Used when the user
+  // long-presses a Related row to correct the linked entity's display name.
+  onRenameRelatedEntity: ((EntityType, String, String) -> Unit)? = null,
+  // (sessionId, anchorText). Used when the user taps Source Session — the
+  // host should open SessionDetail's Transcript tab and scroll to the line
+  // matching anchorText. Falls back to a plain MEETING entity-click when null.
+  onJumpToTranscript: ((String, String) -> Unit)? = null,
   onEntityClick: (EntityNavigationData) -> Unit = {},
 ) {
   var showRejectReasonDialog by remember { mutableStateOf(false) }
   var rejectReason by remember { mutableStateOf("") }
+  var showRename by remember { mutableStateOf(false) }
+  // Active rename target: (entityType, entityId, currentName). Null when no
+  // rename dialog is open.
+  var relatedRenameTarget by remember { mutableStateOf<Triple<EntityType, String, String>?>(null) }
   DetailScaffold(
     eyebrow = "Move",
     title = task.title,
     onBack = onBack,
+    onTitleLongPress = if (onRename != null) ({ showRename = true }) else null,
   ) {
     Column(Modifier.padding(horizontal = 20.dp)) {
       // Subtitle / context
@@ -283,40 +296,96 @@ fun TaskDetailScreen(
         Spacer(Modifier.height(K1Sp.xl))
         K1Eyebrow("Related")
         Spacer(Modifier.height(K1Sp.s))
-        // Lookup helpers: resolve display name → entity id by case-insensitive match.
-        // Falls back to non-clickable rendering when no matching entity is loaded.
-        fun projectClick(name: String): (() -> Unit)? {
-          val match = projects.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
-            ?: return null
-          return { onEntityClick(EntityNavigationData(EntityType.PROJECT, match.id)) }
+        // Resolve a related-entity reference to a real entity. The backend
+        // emits names ("蒙哥"), canonical names, voiceprint placeholders
+        // ("VP_D5780BD8AD1A"), and aliases interchangeably — so we match in
+        // that order: id, canonicalName, name, aliases, case-insensitive.
+        // Returns Triple(matchedId, displayLabel, onClick) or null when the
+        // reference can't be resolved against loaded data.
+        fun resolveProject(ref: String): Triple<String, String, () -> Unit>? {
+          val match = projects.firstOrNull {
+            it.id == ref ||
+              it.canonicalName.equals(ref, true) ||
+              it.name.equals(ref, true) ||
+              it.aliases.any { a -> a.equals(ref, true) }
+          } ?: return null
+          val label = match.canonicalName.ifBlank { match.name }
+          return Triple(match.id, label) {
+            onEntityClick(EntityNavigationData(EntityType.PROJECT, match.id))
+          }
         }
-        fun personClick(name: String): (() -> Unit)? {
-          val match = people.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
-            ?: return null
-          return { onEntityClick(EntityNavigationData(EntityType.PERSON, match.id)) }
+        fun resolvePerson(ref: String): Triple<String, String, () -> Unit>? {
+          val match = people.firstOrNull {
+            it.id == ref ||
+              it.canonicalName.equals(ref, true) ||
+              it.name.equals(ref, true) ||
+              it.aliases.any { a -> a.equals(ref, true) }
+          } ?: return null
+          val label = match.canonicalName.ifBlank { match.name }
+          return Triple(match.id, label) {
+            onEntityClick(EntityNavigationData(EntityType.PERSON, match.id))
+          }
         }
-        fun orgClick(name: String): (() -> Unit)? {
-          val match = organizations.firstOrNull { it.name.equals(name, true) || it.canonicalName.equals(name, true) }
-            ?: return null
-          return { onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, match.id)) }
+        fun resolveOrg(ref: String): Triple<String, String, () -> Unit>? {
+          val match = organizations.firstOrNull {
+            it.id == ref ||
+              it.canonicalName.equals(ref, true) ||
+              it.name.equals(ref, true) ||
+              it.aliases.any { a -> a.equals(ref, true) }
+          } ?: return null
+          val label = match.canonicalName.ifBlank { match.name }
+          return Triple(match.id, label) {
+            onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, match.id))
+          }
         }
+        // Helper: produce the long-press handler that opens the rename dialog
+        // for a resolved entity. Returns null when caller didn't supply an
+        // onRenameRelatedEntity sink, so RelatedLine falls back to tap-only.
+        fun renameLongPress(type: EntityType, id: String, label: String): (() -> Unit)? =
+          if (onRenameRelatedEntity != null) {
+            { relatedRenameTarget = Triple(type, id, label) }
+          } else {
+            null
+          }
         K1Card(soft = true) {
-          task.relatedProject.takeIf { it.isNotBlank() }?.let {
-            RelatedLine("Project", it, KlikDotProject, onClick = projectClick(it))
+          task.relatedProject.takeIf { it.isNotBlank() }?.let { ref ->
+            val r = resolveProject(ref)
+            RelatedLine(
+              "Project", r?.second ?: ref, KlikDotProject,
+              onClick = r?.third,
+              onLongClick = r?.let { renameLongPress(EntityType.PROJECT, it.first, it.second) },
+            )
           }
-          task.relatedProjects.filter { it != task.relatedProject }.forEach {
-            RelatedLine("Project", it, KlikDotProject, onClick = projectClick(it))
+          task.relatedProjects.filter { it != task.relatedProject }.forEach { ref ->
+            val r = resolveProject(ref)
+            RelatedLine(
+              "Project", r?.second ?: ref, KlikDotProject,
+              onClick = r?.third,
+              onLongClick = r?.let { renameLongPress(EntityType.PROJECT, it.first, it.second) },
+            )
           }
-          task.relatedPeople.forEach {
-            RelatedLine("Person", it, KlikDotPerson, onClick = personClick(it))
+          task.relatedPeople.forEach { ref ->
+            val r = resolvePerson(ref)
+            RelatedLine(
+              "Person", r?.second ?: ref, KlikDotPerson,
+              onClick = r?.third,
+              onLongClick = r?.let { renameLongPress(EntityType.PERSON, it.first, it.second) },
+            )
           }
-          task.relatedOrganizations.forEach {
-            RelatedLine("Org", it, KlikDotOrg, onClick = orgClick(it))
+          task.relatedOrganizations.forEach { ref ->
+            val r = resolveOrg(ref)
+            RelatedLine(
+              "Org", r?.second ?: ref, KlikDotOrg,
+              onClick = r?.third,
+              onLongClick = r?.let { renameLongPress(EntityType.ORGANIZATION, it.first, it.second) },
+            )
           }
         }
       }
 
-      // Source session
+      // Source session — tap opens the originating meeting and (when the
+      // task carries a transcript snippet via [task.subtitle] / description)
+      // jumps the Transcript tab to that line.
       val sessionId = task.relatedMeetingId
       if (!sessionId.isNullOrBlank()) {
         val meetingMatch = meetings.find { it.id == sessionId }
@@ -325,7 +394,17 @@ fun TaskDetailScreen(
         Spacer(Modifier.height(K1Sp.s))
         K1Card(
           soft = true,
-          onClick = { onEntityClick(EntityNavigationData(EntityType.MEETING, sessionId)) },
+          onClick = {
+            // Pass the subtitle as the jump-anchor text — TranscriptPanel
+            // does a substring match against transcript bodies. Fall back to
+            // a plain meeting nav when there's no anchor text.
+            val anchor = task.subtitle.ifBlank { task.description.orEmpty() }
+            if (anchor.isNotBlank() && onJumpToTranscript != null) {
+              onJumpToTranscript(sessionId, anchor)
+            } else {
+              onEntityClick(EntityNavigationData(EntityType.MEETING, sessionId))
+            }
+          },
         ) {
           Text(
             meetingMatch?.title?.ifBlank { null } ?: sessionId.take(24),
@@ -404,6 +483,36 @@ fun TaskDetailScreen(
         onRejectWithReason(rejectReason.trim())
         showRejectReasonDialog = false
         rejectReason = ""
+      },
+    )
+  }
+
+  if (showRename && onRename != null) {
+    RenameEntityDialog(
+      kind = "move",
+      currentName = task.title,
+      onCancel = { showRename = false },
+      onSave = { newName ->
+        onRename(newName)
+        showRename = false
+      },
+    )
+  }
+
+  relatedRenameTarget?.let { target ->
+    val (type, id, current) = target
+    RenameEntityDialog(
+      kind = when (type) {
+        EntityType.PERSON -> "person"
+        EntityType.PROJECT -> "project"
+        EntityType.ORGANIZATION -> "organization"
+        else -> "entity"
+      },
+      currentName = current,
+      onCancel = { relatedRenameTarget = null },
+      onSave = { newName ->
+        onRenameRelatedEntity?.invoke(type, id, newName)
+        relatedRenameTarget = null
       },
     )
   }
@@ -493,11 +602,22 @@ private fun RelatedLine(
   label: String,
   dot: androidx.compose.ui.graphics.Color,
   onClick: (() -> Unit)? = null,
+  onLongClick: (() -> Unit)? = null,
 ) {
+  // Tap → navigate; long-press → rename the linked entity (matches the
+  // long-press-on-title pattern on Person/Project/Org detail screens).
+  val tapMod = when {
+    onLongClick != null -> Modifier.k1LongClickable(
+      onClick = onClick ?: {},
+      onLongClick = onLongClick,
+    )
+    onClick != null -> Modifier.k1Clickable(onClick = onClick)
+    else -> Modifier
+  }
   Row(
     Modifier
       .fillMaxWidth()
-      .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
+      .then(tapMod)
       .padding(vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -508,7 +628,7 @@ private fun RelatedLine(
     Text(
       label,
       style = K1Type.bodySm.copy(
-        color = if (onClick != null) KlikInkPrimary else KlikInkPrimary,
+        color = KlikInkPrimary,
         textDecoration = if (onClick != null) {
           androidx.compose.ui.text.style.TextDecoration.Underline
         } else {

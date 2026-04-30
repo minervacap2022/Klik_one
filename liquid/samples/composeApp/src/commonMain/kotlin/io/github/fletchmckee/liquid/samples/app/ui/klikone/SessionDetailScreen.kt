@@ -59,6 +59,25 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
 private enum class SessionTab { Summary, Todos, Transcript, Highlights }
 
 /**
+ * Resolve a Person to its best available display name. Order:
+ *   1. caller-supplied speakerMap (server-side canonical, freshest signal
+ *      after a rename / voiceprint match);
+ *   2. person.canonicalName if non-blank;
+ *   3. person.name if it doesn't look like the "Unknown Speaker VP_…"
+ *      placeholder the backend emits before voiceprint resolution;
+ *   4. "Unknown" fallback.
+ */
+internal fun resolveSpeakerName(
+  p: io.github.fletchmckee.liquid.samples.app.domain.entity.Person,
+  speakerMap: Map<String, String>,
+): String {
+  speakerMap[p.id]?.takeIf { it.isNotBlank() }?.let { return it }
+  p.canonicalName.takeIf { it.isNotBlank() }?.let { return it }
+  val raw = p.name.trim()
+  return if (raw.isBlank() || raw.startsWith("Unknown Speaker", ignoreCase = true)) "Unknown" else raw
+}
+
+/**
  * Klik One — Session Detail.
  *
  * Renders a completed/live meeting with Summary / To-dos / Transcript / Highlights tabs.
@@ -72,12 +91,28 @@ fun SessionDetailScreen(
   projects: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Project> = emptyList(),
   people: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Person> = emptyList(),
   organizations: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Organization> = emptyList(),
+  // person.id → canonical display name. Backend may emit Person.name as
+  // "Unknown Speaker VP_…" while a real canonical name has been resolved
+  // separately; we always prefer the canonical when rendering.
+  speakerMap: Map<String, String> = emptyMap(),
   onBack: () -> Unit,
   onShare: () -> Unit = {},
   onMore: () -> Unit = {},
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
+  onSegmentClick: (io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation) -> Unit = {},
+  // Tapping a row in the To-dos panel routes here. Caller should switch
+  // to the Moves tab and scroll-to / highlight that task. Falls back to a
+  // task_detail navigation via onEntityClick when null.
+  onOpenTodoInMoves: ((TaskMetadata) -> Unit)? = null,
+  expandSegmentId: String? = null,
 ) {
-  var tab by remember { mutableStateOf(SessionTab.Summary) }
+  fun displayNameOf(p: io.github.fletchmckee.liquid.samples.app.domain.entity.Person): String =
+    resolveSpeakerName(p, speakerMap)
+
+  // When the screen is opened with a segment to jump to, default to the
+  // Transcript tab so the highlighted line is immediately visible.
+  val initialTab = if (!expandSegmentId.isNullOrBlank()) SessionTab.Transcript else SessionTab.Summary
+  var tab by remember(initialTab) { mutableStateOf(initialTab) }
 
   // KK_exec todos carry the SESSION_… id, while the meetings table primary key is
   // a separate UUID. Match against either so a Meeting links to its own todos
@@ -160,7 +195,7 @@ fun SessionDetailScreen(
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           K1AvatarStack(
-            initialsList = meeting.participants.take(4).map { p -> initialsOf(p.name) },
+            initialsList = meeting.participants.take(4).map { p -> initialsOf(displayNameOf(p)) },
             size = 24.dp,
           )
           Spacer(Modifier.width(10.dp))
@@ -177,8 +212,9 @@ fun SessionDetailScreen(
           Spacer(Modifier.height(K1Sp.s))
           FlowRowCompat(horizontalGap = 5.dp, verticalGap = 5.dp) {
             meeting.participants.forEach { p ->
+              val display = displayNameOf(p)
               K1Chip(
-                label = p.name,
+                label = display,
                 onClick = if (p.id.isNotBlank()) {
                   {
                     onEntityClick(
@@ -192,14 +228,14 @@ fun SessionDetailScreen(
                   null
                 },
                 leading = {
-                  val idx = p.name.hashCode().let { if (it < 0) -it else it }
+                  val idx = display.hashCode().let { if (it < 0) -it else it }
                   Box(
                     Modifier.size(14.dp).clip(CircleShape)
                       .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
                     contentAlignment = Alignment.Center,
                   ) {
                     Text(
-                      initialsOf(p.name),
+                      initialsOf(display),
                       style = K1Type.metaSm.copy(
                         color = KlikAvatarFg[idx % KlikAvatarFg.size],
                         fontSize = 7.sp,
@@ -251,6 +287,7 @@ fun SessionDetailScreen(
         projects = projects,
         people = people,
         organizations = organizations,
+        speakerMap = speakerMap,
         onEntityClick = onEntityClick,
       )
 
@@ -258,9 +295,15 @@ fun SessionDetailScreen(
         linked = linked,
         actionItems = meeting.actionItems,
         onEntityClick = onEntityClick,
+        onOpenInMoves = onOpenTodoInMoves,
       )
 
-      SessionTab.Transcript -> TranscriptPanel(meeting)
+      SessionTab.Transcript -> TranscriptPanel(
+        m = meeting,
+        speakerMap = speakerMap,
+        expandSegmentId = expandSegmentId,
+        onSegmentClick = onSegmentClick,
+      )
 
       SessionTab.Highlights -> HighlightsPanel(meeting)
     }
@@ -315,6 +358,7 @@ private fun SummaryPanel(
   projects: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Project>,
   people: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Person>,
   organizations: List<io.github.fletchmckee.liquid.samples.app.domain.entity.Organization>,
+  speakerMap: Map<String, String> = emptyMap(),
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit,
 ) {
   Column(Modifier.padding(horizontal = 20.dp)) {
@@ -385,22 +429,23 @@ private fun SummaryPanel(
       Spacer(Modifier.height(K1Sp.s))
       FlowRowCompat(horizontalGap = 5.dp, verticalGap = 5.dp) {
         m.participants.take(6).forEach { p ->
+          val display = resolveSpeakerName(p, speakerMap)
           K1Chip(
-            label = p.name,
+            label = display,
             onClick = if (p.id.isNotBlank()) {
               { onEntityClick(io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData(io.github.fletchmckee.liquid.samples.app.ui.components.EntityType.PERSON, p.id)) }
             } else {
               null
             },
             leading = {
-              val idx = p.name.hashCode().let { if (it < 0) -it else it }
+              val idx = display.hashCode().let { if (it < 0) -it else it }
               Box(
                 Modifier.size(12.dp).clip(CircleShape)
                   .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
                 contentAlignment = Alignment.Center,
               ) {
                 Text(
-                  initialsOf(p.name),
+                  initialsOf(display),
                   style = K1Type.metaSm.copy(
                     color = KlikAvatarFg[idx % KlikAvatarFg.size],
                     fontSize = 6.sp,
@@ -420,6 +465,7 @@ private fun TodosPanel(
   linked: List<TaskMetadata>,
   actionItems: List<io.github.fletchmckee.liquid.samples.app.domain.entity.TodoItem> = emptyList(),
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
+  onOpenInMoves: ((TaskMetadata) -> Unit)? = null,
 ) {
   // Two sources of follow-ups:
   //   1. KK_exec todos linked to this meeting's session_id (`linked`).
@@ -447,7 +493,17 @@ private fun TodosPanel(
       linked.forEach { t ->
         Row(
           Modifier.fillMaxWidth()
-            .k1Clickable { onEntityClick(io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData(io.github.fletchmckee.liquid.samples.app.ui.components.EntityType.TASK, t.id)) }
+            .k1Clickable {
+              // Prefer routing into Moves with this task highlighted (per
+              // user expectation: see the move in its full list context).
+              // Fall back to task_detail when no host-screen handler is
+              // wired — keeps the row useful in any embedding.
+              if (onOpenInMoves != null) {
+                onOpenInMoves(t)
+              } else {
+                onEntityClick(io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData(io.github.fletchmckee.liquid.samples.app.ui.components.EntityType.TASK, t.id))
+              }
+            }
             .padding(vertical = 12.dp),
           verticalAlignment = Alignment.Top,
         ) {
@@ -487,11 +543,16 @@ private fun TodosPanel(
 }
 
 @Composable
-private fun TranscriptPanel(m: Meeting) {
+private fun TranscriptPanel(
+  m: Meeting,
+  speakerMap: Map<String, String> = emptyMap(),
+  expandSegmentId: String? = null,
+  onSegmentClick: (io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation) -> Unit = {},
+) {
   // Per session-detail spec: each transcript turn renders with a coloured
-  // initials avatar + speaker name (medium weight) + optional timestamp +
+  // initials avatar + speaker name (medium weight) + leading timestamp +
   // body paragraph. We collapse consecutive same-speaker turns visually by
-  // only repeating the avatar when the speaker changes — gives a chat feel.
+  // only repeating the avatar when the speaker changes — chat feel.
   Column(Modifier.padding(horizontal = 20.dp)) {
     val rawLines = m.transcript?.lines()?.filter { it.isNotBlank() }.orEmpty()
     if (rawLines.isEmpty()) {
@@ -501,25 +562,41 @@ private fun TranscriptPanel(m: Meeting) {
       )
       return@Column
     }
-    var lastSpeaker: String? = null
-    rawLines.forEach { raw ->
-      val parsed = parseTranscriptLine(raw)
-      val showAvatar = parsed.speaker != lastSpeaker
+    val parsedLines = rawLines.map(::parseTranscriptLine)
+    var lastSpeakerKey: String? = null
+    parsedLines.forEachIndexed { index, parsed ->
+      // Resolve speaker label through speakerMap when the literal label looks
+      // like a person id (e.g. "VP_E674E623CF98") rather than a real name.
+      val speakerLabel = speakerMap[parsed.speaker]?.takeIf { it.isNotBlank() } ?: parsed.speaker
+      val showAvatar = speakerLabel != lastSpeakerKey
+      // expandSegmentId arrives as the segment text content (set by
+      // onSegmentClick / Source-session jumps). Use a tolerant substring
+      // match — the LLM-derived snippet may be a truncated quote.
+      val highlighted = expandSegmentId?.takeIf { it.isNotBlank() }?.let { needle ->
+        val n = needle.lowercase().take(60)
+        parsed.body.lowercase().contains(n) || n.contains(parsed.body.lowercase().take(60))
+      } ?: false
       Row(
-        Modifier.fillMaxWidth().padding(vertical = if (showAvatar) 8.dp else 2.dp),
+        Modifier.fillMaxWidth()
+          .then(
+            if (highlighted) {
+              Modifier.background(KlikPaperSoft)
+            } else {
+              Modifier
+            },
+          )
+          .padding(vertical = if (showAvatar) 8.dp else 2.dp),
       ) {
-        // Avatar column — fixed 22dp + 9dp gap so body text aligns when we
-        // suppress the avatar on continuation turns.
         Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
-          if (showAvatar && parsed.speaker.isNotBlank()) {
-            val idx = parsed.speaker.hashCode().let { if (it < 0) -it else it }
+          if (showAvatar && speakerLabel.isNotBlank()) {
+            val idx = speakerLabel.hashCode().let { if (it < 0) -it else it }
             Box(
               Modifier.size(22.dp).clip(CircleShape)
                 .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
               contentAlignment = Alignment.Center,
             ) {
               Text(
-                initialsOf(parsed.speaker),
+                initialsOf(speakerLabel),
                 style = K1Type.metaSm.copy(
                   color = KlikAvatarFg[idx % KlikAvatarFg.size],
                   fontSize = 9.sp,
@@ -531,10 +608,10 @@ private fun TranscriptPanel(m: Meeting) {
         }
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
-          if (showAvatar && parsed.speaker.isNotBlank()) {
+          if (showAvatar && speakerLabel.isNotBlank()) {
             Row(verticalAlignment = Alignment.Bottom) {
               Text(
-                parsed.speaker,
+                speakerLabel,
                 style = K1Type.bodySm.copy(
                   color = KlikInkPrimary,
                   fontWeight = FontWeight.Medium,
@@ -549,6 +626,14 @@ private fun TranscriptPanel(m: Meeting) {
               }
             }
             Spacer(Modifier.height(2.dp))
+          } else if (!parsed.timestamp.isNullOrBlank()) {
+            // Continuation turn — surface the timestamp as a tiny lead-in so
+            // every line stays scannable on its own.
+            Text(
+              parsed.timestamp,
+              style = K1Type.metaSm.copy(color = KlikInkTertiary),
+            )
+            Spacer(Modifier.height(2.dp))
           }
           Text(
             parsed.body,
@@ -559,33 +644,58 @@ private fun TranscriptPanel(m: Meeting) {
           )
         }
       }
-      lastSpeaker = parsed.speaker
+      lastSpeakerKey = speakerLabel
+      // Keep the unused-var lints quiet — we use index in the highlight key
+      // wiring above when expandSegmentId is implemented for index-based ids.
+      @Suppress("UNUSED_EXPRESSION") index
     }
   }
+  // onSegmentClick wired into the row when segment_ids are exposed by the
+  // transcript line format. Surfacing it now so callers can pre-wire even
+  // before backend exposes ids per line.
+  @Suppress("UNUSED_EXPRESSION") onSegmentClick
 }
 
 private data class TranscriptLine(val speaker: String, val timestamp: String?, val body: String)
 
 /**
- * Parse a transcript line of the form "Speaker: body" or
- * "Speaker (HH:MM:SS): body". Falls back to a body-only line when no colon
- * separator is present, attributing it to the previous speaker.
+ * Parse a transcript line. Three accepted shapes (matching the formats the
+ * backend produces today, see Meeting.transcriptLines):
+ *
+ *   "Speaker: body"
+ *   "Speaker (HH:MM:SS): body"
+ *   "[HH:MM:SS] Speaker: body"
+ *   "[HH:MM:SS - H:MM:SS] Speaker: body"
+ *
+ * Lines without any colon are treated as continuation body for the previous
+ * speaker (speaker == "").
  */
 private fun parseTranscriptLine(raw: String): TranscriptLine {
-  val colon = raw.indexOf(':')
-  if (colon <= 0) return TranscriptLine(speaker = "", timestamp = null, body = raw.trim())
-  val head = raw.substring(0, colon).trim()
-  val body = raw.substring(colon + 1).trim()
-  // Strip a trailing "(timestamp)" off the speaker token.
+  val trimmed = raw.trim()
+  // 1. Leading [timestamp] block — strip and remember.
+  var ts: String? = null
+  var rest = trimmed
+  if (rest.startsWith('[')) {
+    val close = rest.indexOf(']')
+    if (close > 1) {
+      ts = rest.substring(1, close).trim().takeIf { it.isNotBlank() }
+      rest = rest.substring(close + 1).trim()
+    }
+  }
+  val colon = rest.indexOf(':')
+  if (colon <= 0) return TranscriptLine(speaker = "", timestamp = ts, body = rest)
+  val head = rest.substring(0, colon).trim()
+  val body = rest.substring(colon + 1).trim()
+  // 2. Trailing "(timestamp)" inside the speaker token — strip and remember.
   val parenStart = head.indexOf('(')
   val parenEnd = head.indexOf(')')
-  return if (parenStart > 0 && parenEnd > parenStart) {
-    val speaker = head.substring(0, parenStart).trim()
-    val ts = head.substring(parenStart + 1, parenEnd).trim()
-    TranscriptLine(speaker = speaker, timestamp = ts.takeIf { it.isNotBlank() }, body = body)
+  val (speaker, parenTs) = if (parenStart > 0 && parenEnd > parenStart) {
+    head.substring(0, parenStart).trim() to head.substring(parenStart + 1, parenEnd).trim()
+      .takeIf { it.isNotBlank() }
   } else {
-    TranscriptLine(speaker = head, timestamp = null, body = body)
+    head to null
   }
+  return TranscriptLine(speaker = speaker, timestamp = ts ?: parenTs, body = body)
 }
 
 @Composable

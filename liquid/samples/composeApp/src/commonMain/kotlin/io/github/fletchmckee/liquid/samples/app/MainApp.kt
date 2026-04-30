@@ -487,6 +487,9 @@ fun MainApp() {
   // Meeting selected for the SessionDetailScreen route (tapped from TodayScreen).
   var sessionDetailMeeting by remember { mutableStateOf<Meeting?>(null) }
   var taskDetailId by remember { mutableStateOf<String?>(null) }
+  // When set, MovesScreen renders the matching task with a highlight band
+  // and scrolls it into view. Cleared on any non-Moves navigation.
+  var highlightedMoveId by remember { mutableStateOf<String?>(null) }
   var personDetailId by remember { mutableStateOf<String?>(null) }
   var projectDetailId by remember { mutableStateOf<String?>(null) }
   var orgDetailId by remember { mutableStateOf<String?>(null) }
@@ -2280,6 +2283,8 @@ fun MainApp() {
                             "function" -> MovesScreen(
                                 isLoading = isEventsLoading,
                                 isRefreshing = isTasksRefreshing,
+                                highlightedTaskId = highlightedMoveId,
+                                onHighlightConsumed = { highlightedMoveId = null },
                                 // Featured: AI suggestions from backend
                                 featuredTasks = if (isEventsLoading) emptyList() else reviewMetadata.take(3),
                                 // Sensitive: KK_exec todos that require confirmation (e_complex_level3)
@@ -2776,11 +2781,23 @@ fun MainApp() {
                                         projects = projectsState.value,
                                         people = peopleState.value,
                                         organizations = organizationsState.value,
+                                        speakerMap = speakerMap,
+                                        expandSegmentId = expandSegmentText,
                                         onBack = {
                                             sessionDetailMeeting = null
+                                            expandSegmentId = null
+                                            expandSegmentText = null
                                             currentRoute = "today"
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
+                                        onOpenTodoInMoves = { t ->
+                                            // Land on Moves with this task highlighted. We carry
+                                            // the id through highlightedMoveId so MovesScreen can
+                                            // visually flag the row when it lands.
+                                            highlightedMoveId = t.id
+                                            sessionDetailMeeting = null
+                                            currentRoute = "function"
+                                        },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = "today" }
@@ -2884,6 +2901,67 @@ fun MainApp() {
                                                     }
                                                 }
                                             } else null
+                                        },
+                                        onJumpToTranscript = { sessionId, anchor ->
+                                            // Open the source session and pre-scroll its Transcript
+                                            // tab to the line matching `anchor`. We pass the anchor
+                                            // through the existing expandSegmentText slot — Session
+                                            // Detail's TranscriptPanel does a tolerant substring
+                                            // match against transcript bodies and tints the row.
+                                            val target = meetings.find { it.id == sessionId }
+                                            if (target != null) {
+                                                lastMainRoute = currentRoute
+                                                sessionDetailMeeting = target
+                                                expandSegmentText = anchor
+                                                currentRoute = "session_detail"
+                                            }
+                                        },
+                                        onRenameRelatedEntity = { type, id, newName ->
+                                            // Long-press a Related row → rename the linked entity.
+                                            // Routes to the per-type EntityFeedbackClient endpoint and
+                                            // optimistically updates the in-memory state so the row
+                                            // re-renders immediately. No silent fallback — failures
+                                            // surface in the log; UI shows the optimistic name until
+                                            // the next tasks/people refresh confirms or reverts.
+                                            appScope.launch {
+                                                when (type) {
+                                                    EntityType.PERSON -> {
+                                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                            .updatePersonEntity(personId = id, name = newName)
+                                                        if (r.isSuccess) {
+                                                            peopleState.value = peopleState.value.map {
+                                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
+                                                            }
+                                                            speakerMap = speakerMap + (id to newName)
+                                                        } else {
+                                                            KlikLogger.e("MainApp", "Person rename failed: ${r.exceptionOrNull()?.message}")
+                                                        }
+                                                    }
+                                                    EntityType.PROJECT -> {
+                                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                            .updateProjectEntity(projectId = id, name = newName)
+                                                        if (r.isSuccess) {
+                                                            projectsState.value = projectsState.value.map {
+                                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
+                                                            }
+                                                        } else {
+                                                            KlikLogger.e("MainApp", "Project rename failed: ${r.exceptionOrNull()?.message}")
+                                                        }
+                                                    }
+                                                    EntityType.ORGANIZATION -> {
+                                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                            .updateOrganizationEntity(orgId = id, name = newName)
+                                                        if (r.isSuccess) {
+                                                            organizationsState.value = organizationsState.value.map {
+                                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
+                                                            }
+                                                        } else {
+                                                            KlikLogger.e("MainApp", "Org rename failed: ${r.exceptionOrNull()?.message}")
+                                                        }
+                                                    }
+                                                    else -> Unit
+                                                }
+                                            }
                                         },
                                     )
                                 } else {

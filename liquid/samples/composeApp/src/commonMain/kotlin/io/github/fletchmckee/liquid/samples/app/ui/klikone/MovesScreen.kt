@@ -75,6 +75,11 @@ import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavig
 fun MovesScreen(
   isLoading: Boolean = false,
   isRefreshing: Boolean = false,
+  // When set, the matching task renders with an extra accent band so the
+  // user can spot it after deep-linking from session detail. Should be
+  // cleared via onHighlightConsumed once the screen has rendered it.
+  highlightedTaskId: String? = null,
+  onHighlightConsumed: () -> Unit = {},
   featuredTasks: List<TaskMetadata> = emptyList(),
   sensitiveTasks: List<TaskMetadata> = emptyList(),
   dailyTasks: List<TaskMetadata> = emptyList(),
@@ -91,6 +96,15 @@ fun MovesScreen(
   var filter by remember { mutableStateOf("all") }
   var searchActive by remember { mutableStateOf(false) }
   var searchQuery by remember { mutableStateOf("") }
+
+  // Auto-clear the deep-link highlight after a short dwell so the row
+  // doesn't keep tinting across navigations the user makes later.
+  if (highlightedTaskId != null) {
+    androidx.compose.runtime.LaunchedEffect(highlightedTaskId) {
+      kotlinx.coroutines.delay(2500)
+      onHighlightConsumed()
+    }
+  }
 
   // Completed buckets the Done list; failed terminal states get their own
   // bucket so the user can tell them apart from the green check-marked successes.
@@ -306,6 +320,8 @@ fun MovesScreen(
               },
               tasks = tasks,
               isUnread = ::unread,
+              highlightedTaskId = highlightedTaskId,
+              forceExpanded = highlightedTaskId != null && tasks.any { it.id == highlightedTaskId },
               onTaskClick = { t ->
                 markTaskSeen(t.id)
                 onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
@@ -499,10 +515,15 @@ private fun TaskCategoryGroup(
   label: String,
   tasks: List<TaskMetadata>,
   isUnread: (TaskMetadata) -> Boolean = { false },
+  highlightedTaskId: String? = null,
+  forceExpanded: Boolean = false,
   onTaskClick: (TaskMetadata) -> Unit = {},
   onRetryTask: (String) -> Unit = {},
 ) {
-  var expanded by remember { mutableStateOf(tasks.size <= 3) }
+  var expanded by remember { mutableStateOf(forceExpanded || tasks.size <= 3) }
+  // Re-expand when a deep-link highlight lands inside this group so the
+  // user can immediately see the row that pulled them here.
+  if (forceExpanded && !expanded) expanded = true
   val unreadCount = tasks.count(isUnread)
   K1Card(soft = true, onClick = if (!expanded) ({ expanded = true }) else null) {
     Row(
@@ -531,6 +552,7 @@ private fun TaskCategoryGroup(
         RunningTaskRow(
           t = t,
           isUnread = isUnread(t),
+          isHighlighted = t.id == highlightedTaskId,
           onClick = { onTaskClick(t) },
           onRetry = { onRetryTask(t.id) },
         )
@@ -553,11 +575,15 @@ private fun TaskCategoryGroup(
 private fun RunningTaskRow(
   t: TaskMetadata,
   isUnread: Boolean,
+  isHighlighted: Boolean = false,
   onClick: () -> Unit,
   onRetry: () -> Unit,
 ) {
   Row(
-    Modifier.fillMaxWidth().k1Clickable(onClick = onClick).padding(vertical = 10.dp),
+    Modifier.fillMaxWidth()
+      .then(if (isHighlighted) Modifier.background(KlikWarn.copy(alpha = 0.18f)) else Modifier)
+      .k1Clickable(onClick = onClick)
+      .padding(vertical = 10.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     val infinite = rememberInfiniteTransition(label = "runningPulse")
