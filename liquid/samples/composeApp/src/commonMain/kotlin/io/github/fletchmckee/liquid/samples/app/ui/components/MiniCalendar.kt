@@ -243,14 +243,20 @@ private fun K1DateCell(
     else -> Color.Transparent
   }
 
-  Box(
-    modifier = Modifier.size(36.dp),
-    contentAlignment = Alignment.TopCenter,
+  // Stack the number box on top and the meeting dots underneath in a
+  // Column so they never overlap. We always reserve the dot row's height
+  // (4dp) so the row doesn't shift vertically between days that have
+  // meetings and days that don't.
+  Column(
+    modifier = Modifier
+      .size(width = 36.dp, height = 40.dp)
+      .k1Clickable(enabled = isCurrentMonth, onClick = onClick),
+    horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     Box(
       modifier = Modifier
         .padding(top = 2.dp)
-        .size(30.dp)
+        .size(28.dp)
         .clip(shape)
         .background(bg, shape)
         .then(
@@ -259,8 +265,7 @@ private fun K1DateCell(
           } else {
             Modifier
           },
-        )
-        .k1Clickable(enabled = isCurrentMonth, onClick = onClick),
+        ),
       contentAlignment = Alignment.Center,
     ) {
       Text(
@@ -272,11 +277,9 @@ private fun K1DateCell(
         textAlign = TextAlign.Center,
       )
     }
-
-    if (meetingCount > 0 && isCurrentMonth) {
-      Box(
-        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp),
-      ) {
+    Spacer(Modifier.height(2.dp))
+    Box(modifier = Modifier.height(4.dp), contentAlignment = Alignment.Center) {
+      if (meetingCount > 0 && isCurrentMonth) {
         K1MeetingDots(count = meetingCount.coerceAtMost(3))
       }
     }

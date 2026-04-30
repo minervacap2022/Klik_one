@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +62,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikDotOrg
 import io.github.fletchmckee.liquid.samples.app.theme.KlikDotProject
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
+import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
@@ -102,10 +104,23 @@ fun NetworkScreen(
 ) {
   val uiState by viewModel.state.collectAsState()
   var segment by remember { mutableStateOf("people") }
+  var searchActive by remember { mutableStateOf(false) }
+  var searchQuery by remember { mutableStateOf("") }
 
-  val people = uiState.people
-  val projects = uiState.projects
-  val orgs = uiState.organizations
+  // Search filter — case-insensitive match against display name +
+  // canonical name + aliases for each entity type. Empty query passes
+  // everything through unchanged.
+  fun matches(name: String, canonical: String, aliases: List<String>): Boolean {
+    if (searchQuery.isBlank()) return true
+    val q = searchQuery.trim()
+    if (name.contains(q, ignoreCase = true)) return true
+    if (canonical.contains(q, ignoreCase = true)) return true
+    return aliases.any { it.contains(q, ignoreCase = true) }
+  }
+
+  val people = uiState.people.filter { matches(it.name, it.canonicalName, it.aliases) }
+  val projects = uiState.projects.filter { matches(it.name, it.canonicalName, it.aliases) }
+  val orgs = uiState.organizations.filter { matches(it.name, it.canonicalName, it.aliases) }
   // No silent fallback to `people.take(5)` — that masked an empty backend
   // response with arbitrary contacts. Section is gated below; if the backend
   // hasn't computed top voices, the strip just doesn't render.
@@ -147,7 +162,55 @@ fun NetworkScreen(
         .verticalScroll(rememberScrollState())
         .padding(top = 52.dp, bottom = 120.dp),
     ) {
-      K1Header(title = "Network", trailing = { SearchIcon() })
+      if (searchActive) {
+        Row(
+          Modifier
+            .padding(horizontal = 20.dp)
+            .padding(top = 4.dp, bottom = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Box(
+            Modifier
+              .weight(1f)
+              .clip(K1R.soft)
+              .background(KlikPaperChip)
+              .padding(horizontal = 12.dp, vertical = 10.dp),
+          ) {
+            BasicTextField(
+              value = searchQuery,
+              onValueChange = { searchQuery = it },
+              singleLine = true,
+              textStyle = K1Type.bodyMd.copy(color = KlikInkPrimary),
+              modifier = Modifier.fillMaxWidth(),
+              decorationBox = { inner ->
+                if (searchQuery.isEmpty()) {
+                  Text(
+                    "Search people, projects, orgs…",
+                    style = K1Type.bodyMd.copy(color = KlikInkMuted),
+                  )
+                }
+                inner()
+              },
+            )
+          }
+          Spacer(Modifier.width(12.dp))
+          Text(
+            "Cancel",
+            style = K1Type.bodySm.copy(color = KlikInkSecondary),
+            modifier = Modifier.k1Clickable {
+              searchActive = false
+              searchQuery = ""
+            },
+          )
+        }
+      } else {
+        K1Header(
+          title = "Network",
+          trailing = {
+            Box(Modifier.k1Clickable { searchActive = true }) { SearchIcon() }
+          },
+        )
+      }
       Spacer(Modifier.height(K1Sp.md))
 
       // Growth · user level + XP progress + streak
