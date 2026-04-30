@@ -301,6 +301,18 @@ object AppModule {
         }
       }
 
+      // 10b. Recent XP transaction history (Network/Growth screen XP rail)
+      val xpHistoryDeferred = async {
+        try {
+          val resp = fetcher.fetchXpHistory(limit = 20)
+          io.github.fletchmckee.liquid.samples.app.model.xpHistoryState.value = resp.items
+          KlikLogger.i("AppModule", "XP history loaded: ${resp.items.size} grants")
+        } catch (e: Exception) {
+          KlikLogger.w("AppModule", "Failed to fetch XP history: ${e.message}")
+          // Non-fatal — UI handles empty list gracefully.
+        }
+      }
+
       // Await all parallel fetches to complete
       meetingsDeferred.await()
       briefingDeferred.await()
@@ -312,6 +324,7 @@ object AppModule {
       chatDeferred.await()
       goalsDeferred.await()
       levelDeferred.await()
+      xpHistoryDeferred.await()
     }
 
     if (failures.isNotEmpty()) {

@@ -83,6 +83,7 @@ fun NetworkScreen(
   worklifeData: WorklifeData? = null,
   goalsData: GoalListResponse? = null,
   userLevelData: UserLevelData? = null,
+  xpHistoryItems: List<io.github.fletchmckee.liquid.samples.app.data.source.remote.XpHistoryItem> = emptyList(),
   onArchiveProject: (String) -> Unit = {},
   onArchivePerson: (String) -> Unit = {},
   onArchiveOrganization: (String) -> Unit = {},
@@ -210,6 +211,32 @@ fun NetworkScreen(
                 start = Offset(9.dp.toPx(), 7.dp.toPx()),
                 end = Offset(4.dp.toPx(), 11.dp.toPx()),
               )
+            }
+          }
+        }
+        // Recent XP rail — newest grants under the level card. Hidden when
+        // the backend has nothing to show so the layout doesn't shift.
+        if (xpHistoryItems.isNotEmpty()) {
+          Spacer(Modifier.height(K1Sp.md))
+          Column(Modifier.padding(horizontal = 20.dp)) {
+            K1Eyebrow("Recent XP")
+            Spacer(Modifier.height(6.dp))
+            xpHistoryItems.take(5).forEach { grant ->
+              Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                val dateLabel = grant.createdAt
+                  ?.substringBefore('T')
+                  ?: "—"
+                Text(dateLabel, style = K1Type.metaSm, modifier = Modifier.width(96.dp))
+                val multiplierLabel = if (grant.multiplier > 1.0f) " × ${grant.multiplier}" else ""
+                Text(
+                  "+${grant.xpEarned} XP$multiplierLabel",
+                  style = K1Type.bodyMd,
+                  modifier = Modifier.weight(1f),
+                )
+              }
             }
           }
         }

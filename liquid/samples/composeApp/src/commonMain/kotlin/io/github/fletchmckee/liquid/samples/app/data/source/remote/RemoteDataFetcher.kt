@@ -621,6 +621,25 @@ object RemoteDataFetcher {
     return decodeJsonResponse<UserLevelData>(response, "user-level")
   }
 
+  /**
+   * Fetch the recent XP transaction history for the authenticated user.
+   * Backs the "recent XP" timeline rendered under the level dial on the
+   * Network/Growth screen — newest first, paginated.
+   */
+  suspend fun fetchXpHistory(limit: Int = 20, offset: Int = 0): XpHistoryResponse {
+    val userId = CurrentUser.userId
+      ?: throw IllegalStateException("Cannot fetch XP history: no user logged in")
+
+    val url = "${ApiConfig.GOAL_BASE_URL}${ApiConfig.Endpoints.XP_HISTORY}/$userId/xp/history?limit=$limit&offset=$offset"
+
+    KlikLogger.d("RemoteDataFetcher", "Fetching XP history from: $url")
+
+    val response = HttpClient.getUrl(url)
+      ?: throw IllegalStateException("Failed to fetch XP history from backend. URL: $url")
+
+    return decodeJsonResponse<XpHistoryResponse>(response, "xp-history")
+  }
+
   // ==================== Notifications ====================
 
   /**
@@ -2203,6 +2222,26 @@ data class UserLevelData(
   @SerialName("streak_days") val streakDays: Int,
   @SerialName("last_completion_date") val lastCompletionDate: String? = null,
   @SerialName("level_title") val levelTitle: String = "",
+)
+
+@Serializable
+data class XpHistoryResponse(
+  @SerialName("user_id") val userId: String,
+  val total: Int,
+  val limit: Int,
+  val offset: Int,
+  val items: List<XpHistoryItem> = emptyList(),
+)
+
+@Serializable
+data class XpHistoryItem(
+  val id: Int,
+  @SerialName("created_at") val createdAt: String? = null,
+  @SerialName("xp_earned") val xpEarned: Int,
+  @SerialName("base_xp") val baseXp: Int,
+  val multiplier: Float = 1.0f,
+  @SerialName("todo_id") val todoId: Int? = null,
+  @SerialName("session_id") val sessionId: String? = null,
 )
 
 // ==================== Growth Tree DTOs ====================

@@ -2430,6 +2430,7 @@ fun MainApp() {
                                 worklifeData = worklifeData,
                                 goalsData = goalsData,
                                 userLevelData = userLevelData,
+                                xpHistoryItems = io.github.fletchmckee.liquid.samples.app.model.xpHistoryItems,
                                 onArchiveProject = onArchiveProject,
                                 onArchivePerson = onArchivePerson,
                                 onArchiveOrganization = onArchiveOrganization,

@@ -622,6 +622,11 @@ val goalsData: io.github.fletchmckee.liquid.samples.app.data.source.remote.GoalL
 val userLevelState = mutableStateOf<io.github.fletchmckee.liquid.samples.app.data.source.remote.UserLevelData?>(null)
 val userLevelData: io.github.fletchmckee.liquid.samples.app.data.source.remote.UserLevelData? get() = userLevelState.value
 
+// Recent XP awards — newest first. Backs the "Recent XP" rail under the level
+// dial on the Network/Growth screen. Refreshed on app launch + Growth pull-to-refresh.
+val xpHistoryState = mutableStateOf<List<io.github.fletchmckee.liquid.samples.app.data.source.remote.XpHistoryItem>>(emptyList())
+val xpHistoryItems: List<io.github.fletchmckee.liquid.samples.app.data.source.remote.XpHistoryItem> get() = xpHistoryState.value
+
 // Calendar helper functions (using Domain entities)
 fun getMeetingsForDate(meetings: List<Meeting>, date: LocalDate): List<Meeting> = meetings.filter { it.date == date }
 
