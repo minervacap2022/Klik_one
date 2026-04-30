@@ -3325,6 +3325,16 @@ fun MainApp() {
       // Klik One 4-tab bottom nav on main K1 tab routes. Hidden while the
       // AskKlik sheet is open so it can render edge-to-edge.
       if (isKlikOneTab && !showAskKlik) {
+        // Moves badge counts unseen tasks across all three Move buckets
+        // (review, sensitive, daily). Tapping a card in MovesScreen calls
+        // markTaskSeen, which decrements this until the user has touched
+        // every outstanding item.
+        val seenIds by io.github.fletchmckee.liquid.samples.app.model.seenTaskIdsState
+        val unreadMovesCount = (
+          reviewMetadata +
+            kkExecSensitiveTodosState.value +
+            kkExecDailyTodosState.value
+          ).distinctBy { it.id }.count { it.id !in seenIds }
         io.github.fletchmckee.liquid.samples.app.ui.klikone.K1BottomNav(
           items = listOf(
             io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
@@ -3336,7 +3346,7 @@ fun MainApp() {
               route = "function",
               label = "Moves",
               iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconMoves(active = currentRoute == "function") },
-              badgeCount = reviewBadgeCount,
+              badgeCount = unreadMovesCount,
             ),
             io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
               route = "growth",
