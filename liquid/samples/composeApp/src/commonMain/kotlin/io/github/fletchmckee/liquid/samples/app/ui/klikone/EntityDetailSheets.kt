@@ -348,11 +348,17 @@ fun TaskDetailScreen(
             null
           }
         K1Card(soft = true) {
+          // Local resolution can miss when the loaded entity list is a subset
+          // of what the backend references — pass the raw ref to navigation
+          // so the destination screen can re-resolve against its own state.
+          fun rawRefClick(type: EntityType, ref: String): () -> Unit = {
+            onEntityClick(EntityNavigationData(type, ref))
+          }
           task.relatedProject.takeIf { it.isNotBlank() }?.let { ref ->
             val r = resolveProject(ref)
             RelatedLine(
               "Project", r?.second ?: ref, KlikDotProject,
-              onClick = r?.third,
+              onClick = r?.third ?: rawRefClick(EntityType.PROJECT, ref),
               onLongClick = r?.let { renameLongPress(EntityType.PROJECT, it.first, it.second) },
             )
           }
@@ -360,7 +366,7 @@ fun TaskDetailScreen(
             val r = resolveProject(ref)
             RelatedLine(
               "Project", r?.second ?: ref, KlikDotProject,
-              onClick = r?.third,
+              onClick = r?.third ?: rawRefClick(EntityType.PROJECT, ref),
               onLongClick = r?.let { renameLongPress(EntityType.PROJECT, it.first, it.second) },
             )
           }
@@ -368,7 +374,7 @@ fun TaskDetailScreen(
             val r = resolvePerson(ref)
             RelatedLine(
               "Person", r?.second ?: ref, KlikDotPerson,
-              onClick = r?.third,
+              onClick = r?.third ?: rawRefClick(EntityType.PERSON, ref),
               onLongClick = r?.let { renameLongPress(EntityType.PERSON, it.first, it.second) },
             )
           }
@@ -376,7 +382,7 @@ fun TaskDetailScreen(
             val r = resolveOrg(ref)
             RelatedLine(
               "Org", r?.second ?: ref, KlikDotOrg,
-              onClick = r?.third,
+              onClick = r?.third ?: rawRefClick(EntityType.ORGANIZATION, ref),
               onLongClick = r?.let { renameLongPress(EntityType.ORGANIZATION, it.first, it.second) },
             )
           }
