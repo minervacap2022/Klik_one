@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,21 +55,16 @@ fun ImportFromAgentSheet(
     if (ui.code == null && !ui.isLoading) viewModel.generateCode()
   }
 
-  // Scrim a bit lighter than the modal default so the rounded-corner cut
-  // outs at the sheet's top don't read as solid dark triangles peeking
-  // through. Also reserve the OS status bar so the sheet's curve never
-  // intersects the system clock / battery icons.
   Box(
     Modifier
       .fillMaxSize()
-      .background(Color.Black.copy(alpha = 0.30f))
+      .background(Color.Black.copy(alpha = 0.45f))
       .k1Clickable(onClick = onDismiss),
     contentAlignment = Alignment.BottomCenter,
   ) {
     Column(
       Modifier
         .fillMaxWidth()
-        .statusBarsPadding()
         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
         .background(KlikPaperCard)
         .k1Clickable(enabled = false) {}
@@ -149,8 +143,13 @@ fun ImportFromAgentSheet(
       K1Eyebrow("How to use it")
       Spacer(Modifier.height(K1Sp.s))
       ImportStep("1", "Open your AI agent (Claude Code, OpenClaw, Hermes…).")
-      ImportStep("2", "Tell it: \"import my memory to klik\".")
-      ImportStep("3", "Paste this 6-digit code when prompted.")
+      ImportStep(
+        "2",
+        "Tell it: \"Install the klik-import skill from " +
+          "https://github.com/minervacap2022/klik-import-skill and use it to " +
+          "import my memory and scheduled tasks to Klik. My import code is: " +
+          (ui.code?.let { formatImportCode(it) } ?: "XXX XXX") + "\"",
+      )
 
       Spacer(Modifier.height(K1Sp.xl))
 
