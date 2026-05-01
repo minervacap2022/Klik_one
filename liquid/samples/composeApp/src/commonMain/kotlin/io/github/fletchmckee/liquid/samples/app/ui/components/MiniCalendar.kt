@@ -111,18 +111,18 @@ private fun K1CalendarHeader(
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(
+      text = "${monthNames[month - 1]} $year",
+      style = K1Type.h3.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
+    )
+    Spacer(Modifier.size(12.dp))
+    Text(
       text = monthShort[prevIdx].uppercase(),
       style = K1Type.eyebrow.copy(color = KlikInkMuted),
       modifier = Modifier
         .k1Clickable(onClick = onPreviousMonth)
         .padding(horizontal = 8.dp, vertical = 6.dp),
     )
-    Spacer(Modifier.size(6.dp))
-    Text(
-      text = "${monthNames[month - 1]} $year",
-      style = K1Type.h3.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
-    )
-    Spacer(Modifier.size(6.dp))
+    Spacer(Modifier.size(2.dp))
     Text(
       text = monthShort[nextIdx].uppercase(),
       style = K1Type.eyebrow.copy(color = KlikInkMuted),
