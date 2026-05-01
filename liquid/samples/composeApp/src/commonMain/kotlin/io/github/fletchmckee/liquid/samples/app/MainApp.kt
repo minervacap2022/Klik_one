@@ -2036,11 +2036,45 @@ fun MainApp() {
               "main" -> {
                   // Shared entity navigation: routes any EntityNavigationData to the correct detail screen
                   val navigateToEntity: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = { nav ->
+                      // Resolve a reference (which may be an id, canonicalName, name, or
+                      // alias) into a concrete entity id. Returns null only when the
+                      // reference can't be resolved against any loaded entity of that
+                      // type — caller can then short-circuit to avoid dead navigation.
+                      fun resolvePersonId(ref: String): String? = peopleState.value.firstOrNull {
+                          it.id == ref ||
+                              it.canonicalName.equals(ref, true) ||
+                              it.name.equals(ref, true) ||
+                              it.aliases.any { a -> a.equals(ref, true) }
+                      }?.id
+                      fun resolveProjectId(ref: String): String? = projectsState.value.firstOrNull {
+                          it.id == ref ||
+                              it.canonicalName.equals(ref, true) ||
+                              it.name.equals(ref, true) ||
+                              it.aliases.any { a -> a.equals(ref, true) }
+                      }?.id
+                      fun resolveOrgId(ref: String): String? = organizationsState.value.firstOrNull {
+                          it.id == ref ||
+                              it.canonicalName.equals(ref, true) ||
+                              it.name.equals(ref, true) ||
+                              it.aliases.any { a -> a.equals(ref, true) }
+                      }?.id
                       when (nav.entityType) {
                           EntityType.TASK -> { taskDetailId = nav.entityId; currentRoute = "task_detail" }
-                          EntityType.PERSON -> { personDetailId = nav.entityId; currentRoute = "person_detail" }
-                          EntityType.PROJECT -> { projectDetailId = nav.entityId; currentRoute = "project_detail" }
-                          EntityType.ORGANIZATION -> { orgDetailId = nav.entityId; currentRoute = "org_detail" }
+                          EntityType.PERSON -> {
+                              val resolved = resolvePersonId(nav.entityId) ?: nav.entityId
+                              personDetailId = resolved
+                              currentRoute = "person_detail"
+                          }
+                          EntityType.PROJECT -> {
+                              val resolved = resolveProjectId(nav.entityId) ?: nav.entityId
+                              projectDetailId = resolved
+                              currentRoute = "project_detail"
+                          }
+                          EntityType.ORGANIZATION -> {
+                              val resolved = resolveOrgId(nav.entityId) ?: nav.entityId
+                              orgDetailId = resolved
+                              currentRoute = "org_detail"
+                          }
                           EntityType.MEETING -> {
                               val target = meetings.find { it.id == nav.entityId }
                               if (target != null) {
