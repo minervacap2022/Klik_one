@@ -181,18 +181,6 @@ object AppModule {
         }
       }
 
-      // 2. Daily Briefing
-      val briefingDeferred = async {
-        try {
-          val briefing = fetcher.fetchDailyBriefing()
-          calendarDataSource.setBriefing(briefing)
-          KlikLogger.i("AppModule", "Daily briefing loaded: ${briefing != null}")
-        } catch (e: Exception) {
-          KlikLogger.e("AppModule", "Failed to fetch daily briefing: ${e.message}", e)
-          failures.add("briefing")
-        }
-      }
-
       // 3. Tasks
       val tasksDeferred = async {
         try {
@@ -315,7 +303,6 @@ object AppModule {
 
       // Await all parallel fetches to complete
       meetingsDeferred.await()
-      briefingDeferred.await()
       tasksDeferred.await()
       peopleDeferred.await()
       organizationsDeferred.await()
