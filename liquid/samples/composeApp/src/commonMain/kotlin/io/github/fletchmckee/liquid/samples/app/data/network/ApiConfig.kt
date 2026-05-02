@@ -38,7 +38,6 @@ object ApiConfig {
   object Endpoints {
     // Calendar
     const val MEETINGS = "/meetings"
-    const val DAILY_BRIEFING = "/calendar/briefing"
 
     // Insights (KLIK Insights API - runs on port 8336)
     // Base URL already has /api/insights, so endpoint is just /v1/insights
@@ -83,6 +82,7 @@ object ApiConfig {
     // Growth
     const val SCENARIOS = "/scenarios"
     const val GROWTH_HISTORY = "/growth/history"
+    const val ACHIEVEMENTS = "/achievements"
 
     // Growth Tree (uses TREE_BASE_URL - port 8415)
     // Base URL already has /api/v1/growth, so endpoint is just /tree
