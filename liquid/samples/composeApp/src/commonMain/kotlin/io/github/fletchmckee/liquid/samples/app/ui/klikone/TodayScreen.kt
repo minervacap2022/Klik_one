@@ -34,7 +34,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.fletchmckee.liquid.samples.app.domain.entity.DailyBriefing
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Insights
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.domain.entity.MeetingSource
@@ -78,7 +77,6 @@ fun TodayScreen(
   isRefreshing: Boolean = false,
   isLlmDataLoading: Boolean = false,
   meetings: List<Meeting> = emptyList(),
-  dailyBriefing: DailyBriefing? = null,
   insights: Insights? = null,
   speakerMap: Map<String, String> = emptyMap(),
   onRefreshMeetings: () -> Unit = {},
@@ -327,40 +325,27 @@ fun TodayScreen(
       // the day's read precedes the meeting list — entity mentions are
       // underlined and route to detail via onEntityClick.
       val hasInsights = !insights?.summary.isNullOrBlank()
-      val hasBriefFallback = !dailyBriefing?.summary.isNullOrBlank() && !hasInsights
-      val showInsightsSection = hasInsights || hasBriefFallback || isLlmDataLoading || isLoading
-      if (showInsightsSection) {
+      if (hasInsights || isLlmDataLoading || isLoading) {
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader("Insights")
           Spacer(Modifier.height(K1Sp.s))
-          when {
-            hasInsights -> {
-              val ins = insights!!
-              K1ExpandableCard(soft = true) { expanded ->
-                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-                  text = ins.summary,
-                  tasks = tasks,
-                  meetings = meetings,
-                  projects = projects,
-                  people = people,
-                  organizations = organizations,
-                  onEntityClick = onEntityClick,
-                  style = K1Type.bodySm,
-                  maxLines = if (expanded) Int.MAX_VALUE else 3,
-                )
-              }
+          if (hasInsights) {
+            val ins = insights!!
+            K1ExpandableCard(soft = true) { expanded ->
+              io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                text = ins.summary,
+                tasks = tasks,
+                meetings = meetings,
+                projects = projects,
+                people = people,
+                organizations = organizations,
+                onEntityClick = onEntityClick,
+                style = K1Type.bodySm,
+                maxLines = if (expanded) Int.MAX_VALUE else 3,
+              )
             }
-
-            hasBriefFallback -> {
-              K1Card(soft = true) {
-                Text(
-                  dailyBriefing!!.summary,
-                  style = K1Type.bodySm.copy(color = KlikInkSecondary),
-                )
-              }
-            }
-
-            else -> K1SkeletonCard(lines = 3)
+          } else {
+            K1SkeletonCard(lines = 3)
           }
         }
         Spacer(Modifier.height(K1Sp.xxl))

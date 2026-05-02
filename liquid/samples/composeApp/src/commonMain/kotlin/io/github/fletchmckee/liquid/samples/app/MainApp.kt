@@ -188,7 +188,6 @@ import io.github.fletchmckee.liquid.samples.app.model.unarchivePerson as modelUn
 import io.github.fletchmckee.liquid.samples.app.model.archiveOrganization as modelArchiveOrganization
 import io.github.fletchmckee.liquid.samples.app.model.unarchiveOrganization as modelUnarchiveOrganization
 import io.github.fletchmckee.liquid.samples.app.model.initializeArchivePinState
-import io.github.fletchmckee.liquid.samples.app.domain.entity.DailyBriefing
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Insights
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.NotificationDto
@@ -807,9 +806,6 @@ fun MainApp() {
   // Meetings loaded from repository
   var meetings by remember { mutableStateOf<List<Meeting>>(emptyList()) }
 
-  // Daily briefing loaded from repository
-  var dailyBriefing by remember { mutableStateOf<DailyBriefing?>(null) }
-
   // Insights loaded from KLIK Insights API (user-specific)
   // Initialized from LlmDataCache so data survives composition recreation
   var insights by remember { mutableStateOf(LlmDataCache.insights) }
@@ -1250,12 +1246,6 @@ fun MainApp() {
       if (peopleResult is Result.Success) {
         speakerMap = peopleResult.data.filter { it.canonicalName.isNotBlank() }.associate { it.id to it.canonicalName }
         KlikLogger.i("MainApp", "speakerMap initialized with ${speakerMap.size} entries")
-      }
-
-      // Load daily briefing from repository
-      val briefingResult = AppModule.getDailyBriefingUseCase()
-      if (briefingResult is Result.Success) {
-        dailyBriefing = briefingResult.data
       }
 
       // CRITICAL: Mark loading flags done NOW, before slow LLM calls.
@@ -2206,7 +2196,6 @@ fun MainApp() {
                                 isRefreshing = isMeetingsRefreshing,
                                 isLlmDataLoading = isLlmDataLoading,
                                 meetings = meetings + linkAppleToKlikSessions(appleCalendarMeetings, meetings),
-                                dailyBriefing = dailyBriefing,
                                 insights = insights,
                                 speakerMap = speakerMap,
                                 onRefreshMeetings = onRefreshMeetings,
