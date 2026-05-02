@@ -77,6 +77,8 @@ fun YouScreen(
   onNavigateToAccountSecurity: () -> Unit = {},
   onNavigateToNotificationSettings: () -> Unit = {},
   onNavigateToXpLogs: () -> Unit = {},
+  onNavigateToPreferences: () -> Unit = {},
+  onNavigateToAchievements: () -> Unit = {},
 ) {
   val ui by viewModel.state.collectAsState()
   val user = ui.user
@@ -372,6 +374,10 @@ fun YouScreen(
           .background(KlikPaperCard)
           .padding(vertical = 4.dp),
       ) {
+        SettingsRow("Achievements", onClick = onNavigateToAchievements)
+        Divider()
+        SettingsRow("Preferences", onClick = onNavigateToPreferences)
+        Divider()
         SettingsRow("Archived sessions", onClick = onNavigateToArchived)
         Divider()
         SettingsRow("Notifications", onClick = onNavigateToNotificationSettings)

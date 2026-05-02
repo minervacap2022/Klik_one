@@ -2568,6 +2568,20 @@ fun MainApp() {
                                     lastMainRoute = currentRoute
                                     currentRoute = "xp_logs"
                                 },
+                                onNavigateToPreferences = {
+                                    lastMainRoute = currentRoute
+                                    currentRoute = "preferences"
+                                },
+                                onNavigateToAchievements = {
+                                    lastMainRoute = currentRoute
+                                    currentRoute = "achievements"
+                                },
+                            )
+                            "preferences" -> io.github.fletchmckee.liquid.samples.app.ui.klikone.PreferencesScreen(
+                                onBack = { currentRoute = lastMainRoute },
+                            )
+                            "achievements" -> io.github.fletchmckee.liquid.samples.app.ui.klikone.AchievementsScreen(
+                                onBack = { currentRoute = lastMainRoute },
                             )
                             "xp_logs" -> io.github.fletchmckee.liquid.samples.app.ui.klikone.XpLogsScreen(
                                 items = io.github.fletchmckee.liquid.samples.app.model.xpHistoryItems,
