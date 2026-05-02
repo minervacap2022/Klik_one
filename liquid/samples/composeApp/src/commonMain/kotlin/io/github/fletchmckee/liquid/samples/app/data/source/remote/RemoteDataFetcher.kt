@@ -5,8 +5,9 @@ package io.github.fletchmckee.liquid.samples.app.data.source.remote
 import io.github.fletchmckee.liquid.samples.app.data.network.ApiConfig
 import io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser
 import io.github.fletchmckee.liquid.samples.app.data.network.HttpClient
+import io.github.fletchmckee.liquid.samples.app.data.network.dto.AchievementsListDto
+import io.github.fletchmckee.liquid.samples.app.data.network.dto.RemoteUserPreferencesDto
 import io.github.fletchmckee.liquid.samples.app.domain.entity.ChatMessage
-import io.github.fletchmckee.liquid.samples.app.domain.entity.DailyBriefing
 import io.github.fletchmckee.liquid.samples.app.domain.entity.DimensionScore
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Insights
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
@@ -148,14 +149,6 @@ object RemoteDataFetcher {
     KlikLogger.d("RemoteDataFetcher", "Date distribution: $distributionSummary")
 
     return meetings
-  }
-
-  suspend fun fetchDailyBriefing(): DailyBriefing {
-    val response = HttpClient.get(ApiConfig.Endpoints.DAILY_BRIEFING)
-      ?: throw IllegalStateException("Failed to fetch daily briefing from backend.")
-
-    val dto = decodeJsonResponse<DailyBriefingDto>(response, "daily-briefing")
-    return dto.toDomain()
   }
 
   /**
@@ -954,6 +947,33 @@ object RemoteDataFetcher {
       ?: throw IllegalStateException("Failed to get notification preferences. URL: $url")
     return decodeJsonResponse<NotificationPreferencesDto>(response, "notification-preferences")
   }
+
+  // ==================== User Preferences (cross-device sync) ====================
+
+  /** Read the server-side preferences row. Backend merges defaults if no row yet. */
+  suspend fun fetchUserPreferences(): RemoteUserPreferencesDto {
+    val response = HttpClient.get(ApiConfig.Endpoints.USER_PREFERENCES)
+      ?: throw IllegalStateException("Failed to fetch user preferences from backend.")
+    return decodeJsonResponse<RemoteUserPreferencesDto>(response, "user_preferences")
+  }
+
+  /** Upsert the full preferences row. Returns the server's view after persist. */
+  suspend fun updateUserPreferences(prefs: RemoteUserPreferencesDto): RemoteUserPreferencesDto {
+    val url = "${ApiConfig.BASE_URL}${ApiConfig.Endpoints.USER_PREFERENCES}"
+    val body = json.encodeToString(RemoteUserPreferencesDto.serializer(), prefs)
+    val response = HttpClient.putUrl(url, body)
+      ?: throw IllegalStateException("Failed to update user preferences.")
+    return decodeJsonResponse<RemoteUserPreferencesDto>(response, "user_preferences_updated")
+  }
+
+  // ==================== Achievements (computed server-side) ====================
+
+  /** Fetch the achievements catalog with locked/unlocked + progress for current user. */
+  suspend fun fetchAchievementsList(): AchievementsListDto {
+    val response = HttpClient.get(ApiConfig.Endpoints.ACHIEVEMENTS)
+      ?: throw IllegalStateException("Failed to fetch achievements from backend.")
+    return decodeJsonResponse<AchievementsListDto>(response, "achievements")
+  }
 }
 
 // ==================== Response DTOs ====================
@@ -1391,22 +1411,6 @@ data class ChatMessageDto(
     text = text,
     isUser = isUser,
     timestamp = timestamp,
-  )
-}
-
-@Serializable
-data class DailyBriefingDto(
-  val summary: String = "",
-  val meetingCount: Int = 0,
-  val focusAreas: List<String> = emptyList(),
-  val topPriority: String? = null,
-) {
-  fun toDomain(): DailyBriefing = DailyBriefing(
-    summary = summary,
-    meetingCount = meetingCount,
-    focusAreas = focusAreas,
-    topPriority = topPriority,
-    generatedAt = Clock.System.now().toEpochMilliseconds(),
   )
 }
 
