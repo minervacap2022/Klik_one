@@ -454,14 +454,6 @@ fun YouScreen(
     )
   }
 
-  // Delete account confirmation modal
-  if (ui.showDeleteAccountConfirmation) {
-    DeleteAccountDialog(
-      isDeleting = ui.isDeletingAccount,
-      onCancel = { /* ProfileViewModel exposes this; fallback: no-op */ },
-      onConfirm = { /* wired via viewModel.confirmDeleteAccount() when wiring is added */ },
-    )
-  }
 }
 
 @Composable
@@ -576,53 +568,6 @@ private fun EditProfileDialog(
         ) {
           Text(
             if (isSaving) "Saving…" else "Save",
-            style = K1Type.bodyMd.copy(
-              color = KlikPaperCard,
-              fontWeight = FontWeight.Medium,
-            ),
-          )
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun DeleteAccountDialog(
-  isDeleting: Boolean,
-  onCancel: () -> Unit,
-  onConfirm: () -> Unit,
-) {
-  Box(
-    Modifier.fillMaxSize()
-      .background(Color.Black.copy(alpha = 0.45f))
-      .k1Clickable(onClick = onCancel),
-    contentAlignment = Alignment.Center,
-  ) {
-    Column(
-      Modifier.padding(horizontal = 24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
-        .background(KlikPaperCard).k1Clickable(enabled = false) {}.padding(24.dp),
-    ) {
-      Text("Delete account", style = K1Type.h3)
-      Spacer(Modifier.height(K1Sp.s))
-      Text(
-        "This permanently removes your sessions, moves, people, and Klik memory. You can't undo this.",
-        style = K1Type.bodySm.copy(color = KlikInkSecondary),
-      )
-      Spacer(Modifier.height(K1Sp.xl))
-      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(
-          Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
-            .k1Clickable(onClick = onCancel).padding(vertical = 14.dp),
-          contentAlignment = Alignment.Center,
-        ) { Text("Cancel", style = K1Type.bodyMd) }
-        Box(
-          Modifier.weight(1f).clip(K1R.pill).background(KlikAlert)
-            .k1Clickable(enabled = !isDeleting, onClick = onConfirm).padding(vertical = 14.dp),
-          contentAlignment = Alignment.Center,
-        ) {
-          Text(
-            if (isDeleting) "Deleting…" else "Delete",
             style = K1Type.bodyMd.copy(
               color = KlikPaperCard,
               fontWeight = FontWeight.Medium,

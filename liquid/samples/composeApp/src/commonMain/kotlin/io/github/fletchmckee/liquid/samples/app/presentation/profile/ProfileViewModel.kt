@@ -53,8 +53,6 @@ data class ProfileUiState(
     val editName: String = "",
     val editEmail: String = "",
     val isSavingProfile: Boolean = false,
-    val showDeleteAccountConfirmation: Boolean = false,
-    val isDeletingAccount: Boolean = false,
     val emailVerificationSent: Boolean = false,
     val error: String? = null
 )
@@ -519,33 +517,6 @@ class ProfileViewModel(
                 }
                 is Result.Error -> {
                     sendEvent(ProfileEvent.ShowError(result.message ?: "Failed to send verification email"))
-                }
-                is Result.Loading -> {}
-            }
-        }
-    }
-
-    // ==================== Account Deletion Methods ====================
-
-    fun showDeleteAccountConfirmation() {
-        updateState { copy(showDeleteAccountConfirmation = true) }
-    }
-
-    fun dismissDeleteAccountConfirmation() {
-        updateState { copy(showDeleteAccountConfirmation = false) }
-    }
-
-    fun confirmDeleteAccount(password: String) {
-        launch {
-            updateState { copy(isDeletingAccount = true) }
-            when (val result = authRepository.deleteAccount(password)) {
-                is Result.Success -> {
-                    updateState { copy(isDeletingAccount = false, showDeleteAccountConfirmation = false) }
-                    sendEvent(ProfileEvent.LoggedOut)
-                }
-                is Result.Error -> {
-                    updateState { copy(isDeletingAccount = false) }
-                    sendEvent(ProfileEvent.ShowError(result.message ?: "Failed to delete account"))
                 }
                 is Result.Loading -> {}
             }
