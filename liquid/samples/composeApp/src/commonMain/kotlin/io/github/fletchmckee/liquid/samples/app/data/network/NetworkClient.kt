@@ -81,56 +81,6 @@ interface NetworkClient {
 }
 
 /**
- * Stub implementation that returns errors - used when network is not available.
- * Replace with KtorNetworkClient when Ktor dependencies are enabled.
- */
-class StubNetworkClient : NetworkClient {
-  override suspend fun <T> get(
-    endpoint: String,
-    params: Map<String, String>,
-    deserializer: (String) -> T,
-  ): ApiResponse<T> = ApiResponse.Error(
-    code = 503,
-    message = "Network client not configured. StubNetworkClient cannot make requests.",
-  )
-
-  override suspend fun <T> post(
-    endpoint: String,
-    body: String,
-    deserializer: (String) -> T,
-  ): ApiResponse<T> = ApiResponse.Error(
-    code = 503,
-    message = "Network client not configured. StubNetworkClient cannot make requests.",
-  )
-
-  override suspend fun <T> put(
-    endpoint: String,
-    body: String,
-    deserializer: (String) -> T,
-  ): ApiResponse<T> = ApiResponse.Error(
-    code = 503,
-    message = "Network client not configured. StubNetworkClient cannot make requests.",
-  )
-
-  override suspend fun <T> patch(
-    endpoint: String,
-    body: String,
-    deserializer: (String) -> T,
-  ): ApiResponse<T> = ApiResponse.Error(
-    code = 503,
-    message = "Network client not configured. StubNetworkClient cannot make requests.",
-  )
-
-  override suspend fun <T> delete(
-    endpoint: String,
-    deserializer: (String) -> T,
-  ): ApiResponse<T> = ApiResponse.Error(
-    code = 503,
-    message = "Network client not configured. StubNetworkClient cannot make requests.",
-  )
-}
-
-/**
  * Network exception types
  */
 sealed class NetworkException(message: String) : Exception(message) {
