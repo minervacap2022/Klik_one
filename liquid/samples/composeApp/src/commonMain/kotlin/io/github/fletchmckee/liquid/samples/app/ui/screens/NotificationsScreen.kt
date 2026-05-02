@@ -173,7 +173,7 @@ private fun K1NotificationCard(
     verticalAlignment = Alignment.Top,
   ) {
     // Eyebrow disc — the K1 "initial" glyph instead of Material icons.
-    val eyebrow = eventTypeEyebrow(notification.eventType)
+    val glyph = eventTypeEyebrow(notification.eventType)
     Box(
       Modifier
         .size(32.dp)
@@ -183,7 +183,7 @@ private fun K1NotificationCard(
       contentAlignment = Alignment.Center,
     ) {
       Text(
-        eyebrow.first,
+        glyph,
         style = K1Type.metaSm.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
       )
     }
@@ -195,7 +195,7 @@ private fun K1NotificationCard(
         verticalAlignment = Alignment.Top,
       ) {
         Text(
-          text = notification.title ?: eyebrow.second,
+          text = notification.title.orEmpty(),
           style = K1Type.bodyMd.copy(
             color = KlikInkPrimary,
             fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.Medium,
@@ -234,13 +234,13 @@ private fun K1NotificationCard(
   }
 }
 
-/** (initial, fallback title) for each event type — pure text, no Material icons. */
-private fun eventTypeEyebrow(eventType: String): Pair<String, String> = when (eventType) {
-  "meeting_generated" -> "M" to "Meeting"
-  "sensitive_task_created" -> "!" to "Sensitive task"
-  "daily_task_completed" -> "✓" to "Task completed"
-  "daily_task_cannot_do" -> "✕" to "Task blocked"
-  else -> "·" to eventType.replace("_", " ").replaceFirstChar { it.uppercase() }
+/** Single-glyph eyebrow per event type — pure text, no Material icons. */
+private fun eventTypeEyebrow(eventType: String): String = when (eventType) {
+  "meeting_generated" -> "M"
+  "sensitive_task_created" -> "!"
+  "daily_task_completed" -> "✓"
+  "daily_task_cannot_do" -> "✕"
+  else -> "·"
 }
 
 private fun formatNotificationTime(createdAt: String): String {
