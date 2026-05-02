@@ -18,13 +18,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import io.github.fletchmckee.liquid.samples.app.core.rememberViewModel
 import io.github.fletchmckee.liquid.samples.app.presentation.importcode.ImportCodeViewModel
 import io.github.fletchmckee.liquid.samples.app.presentation.importcode.formatCountdown
@@ -143,13 +149,44 @@ fun ImportFromAgentSheet(
       K1Eyebrow("How to use it")
       Spacer(Modifier.height(K1Sp.s))
       ImportStep("1", "Open your AI agent (Claude Code, OpenClaw, Hermes…).")
-      ImportStep(
-        "2",
-        "Tell it: \"Install the klik-import skill from " +
+      val codeText = ui.code?.let { formatImportCode(it) } ?: "XXX XXX"
+      val agentPrompt =
+        "Install the klik-import skill from " +
           "https://github.com/minervacap2022/klik-import-skill and use it to " +
-          "import my memory and scheduled tasks to Klik. My import code is: " +
-          (ui.code?.let { formatImportCode(it) } ?: "XXX XXX") + "\"",
-      )
+          "import my memory and scheduled tasks to Klik. My import code is: $codeText"
+      ImportStep("2", "Tell it (tap to copy):")
+      Spacer(Modifier.height(6.dp))
+      val clipboard = LocalClipboardManager.current
+      var copied by remember { mutableStateOf(false) }
+      LaunchedEffect(copied) {
+        if (copied) { delay(1500); copied = false }
+      }
+      Box(
+        Modifier
+          .fillMaxWidth()
+          .clip(K1R.card)
+          .background(KlikPaperChip)
+          .k1Clickable(enabled = ui.code != null) {
+            clipboard.setText(AnnotatedString(agentPrompt))
+            copied = true
+          }
+          .padding(horizontal = 14.dp, vertical = 12.dp),
+      ) {
+        Column {
+          Text(
+            "\"$agentPrompt\"",
+            style = K1Type.bodySm.copy(color = KlikInkSecondary),
+          )
+          Spacer(Modifier.height(8.dp))
+          Text(
+            if (copied) "Copied ✓" else "Tap to copy",
+            style = K1Type.metaSm.copy(
+              color = if (copied) KlikInkPrimary else KlikInkTertiary,
+              fontWeight = FontWeight.Medium,
+            ),
+          )
+        }
+      }
 
       Spacer(Modifier.height(K1Sp.xl))
 
