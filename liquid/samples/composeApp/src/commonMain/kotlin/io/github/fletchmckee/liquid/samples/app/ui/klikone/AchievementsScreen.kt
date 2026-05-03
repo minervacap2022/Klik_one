@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.data.network.dto.AchievementBadgeDto
@@ -70,15 +73,23 @@ fun AchievementsScreen(onBack: () -> Unit) {
       Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      Row(
-        Modifier.k1Clickable(onClick = onBack).padding(end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text("‹", style = K1Type.h2.copy(color = KlikInkPrimary))
-      }
-      Spacer(Modifier.size(4.dp))
-      Text("Achievements", style = K1Type.h2)
+      Box(
+        Modifier.size(32.dp).k1Clickable(onClick = onBack),
+        contentAlignment = Alignment.Center,
+      ) { K1BackChevronGlyph() }
+      Spacer(Modifier.weight(1f))
     }
+
+    Column(Modifier.padding(horizontal = 20.dp)) {
+      K1Eyebrow("Growth")
+      Spacer(Modifier.height(6.dp))
+      Text("Achievements", style = K1Type.h2)
+      Spacer(Modifier.height(4.dp))
+      val totalLine = data?.let { "${it.totalEarned} of ${it.totalPossible} badges earned." }
+        ?: "Loading…"
+      Text(totalLine, style = K1Type.bodySm.copy(color = KlikInkSecondary))
+    }
+    Spacer(Modifier.height(K1Sp.xl))
 
     val ui = data
     when {
@@ -104,19 +115,6 @@ fun AchievementsScreen(onBack: () -> Unit) {
 @Composable
 private fun AchievementsContent(ui: AchievementsListDto) {
   Column(Modifier.padding(horizontal = 20.dp)) {
-    K1Card(soft = true) {
-      Text(
-        "${ui.totalEarned} / ${ui.totalPossible}",
-        style = K1Type.h3.copy(color = KlikInkPrimary),
-      )
-      Spacer(Modifier.height(4.dp))
-      Text(
-        if (ui.totalEarned == 0) "Earn your first badge by recording a session."
-        else "Earned across ${ui.totalPossible} possible badges.",
-        style = K1Type.bodySm.copy(color = KlikInkSecondary),
-      )
-    }
-    Spacer(Modifier.height(K1Sp.xxl))
     K1SectionHeader("Earned", count = ui.totalEarned, dotColor = KlikCommitmentAccent)
     Spacer(Modifier.height(K1Sp.s))
     val earned = ui.achievements.filter { it.earned }
@@ -139,6 +137,27 @@ private fun AchievementsContent(ui: AchievementsListDto) {
       }
       Spacer(Modifier.height(K1Sp.xxl))
     }
+  }
+}
+
+@Composable
+private fun K1BackChevronGlyph() {
+  Canvas(Modifier.size(16.dp)) {
+    val w = 1.3.dp.toPx()
+    drawLine(
+      color = KlikInkPrimary,
+      strokeWidth = w,
+      cap = StrokeCap.Round,
+      start = Offset(10.dp.toPx(), 3.5.dp.toPx()),
+      end = Offset(5.5.dp.toPx(), 8.dp.toPx()),
+    )
+    drawLine(
+      color = KlikInkPrimary,
+      strokeWidth = w,
+      cap = StrokeCap.Round,
+      start = Offset(5.5.dp.toPx(), 8.dp.toPx()),
+      end = Offset(10.dp.toPx(), 12.5.dp.toPx()),
+    )
   }
 }
 
