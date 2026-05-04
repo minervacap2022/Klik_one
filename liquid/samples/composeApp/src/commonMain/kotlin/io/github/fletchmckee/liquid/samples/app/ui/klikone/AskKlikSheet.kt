@@ -285,7 +285,7 @@ private fun KlikBubble(message: ChatMessage, onSourceClick: (ChatSource) -> Unit
         Text(
           if (date.isNullOrBlank()) "$prefix ${src.title}" else "$prefix ${src.title} · $date",
           style = K1Type.meta,
-          modifier = Modifier.clickable { onSourceClick(src) },
+          modifier = Modifier.k1Clickable { onSourceClick(src) },
         )
       }
     }

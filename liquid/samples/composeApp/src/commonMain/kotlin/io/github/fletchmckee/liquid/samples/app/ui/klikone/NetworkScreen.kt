@@ -601,7 +601,7 @@ private fun KlikItButton(onClick: () -> Unit) {
 @Composable
 private fun PersonRow(p: Person, onEntityClick: (EntityNavigationData) -> Unit) {
   Column(
-    Modifier.clickable {
+    Modifier.k1Clickable {
       onEntityClick(EntityNavigationData(EntityType.PERSON, p.id))
     },
   ) {
@@ -692,7 +692,7 @@ private fun OrgsPanel(orgs: List<Organization>, onEntityClick: (EntityNavigation
       Row(
         Modifier
           .fillMaxWidth()
-          .clickable {
+          .k1Clickable {
             onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, org.id))
           }
           .padding(vertical = 12.dp),
