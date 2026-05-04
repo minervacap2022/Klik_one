@@ -5,6 +5,7 @@ package io.github.fletchmckee.liquid.samples.app.data.repository
 import io.github.fletchmckee.liquid.samples.app.core.Result
 import io.github.fletchmckee.liquid.samples.app.data.network.ApiConfig
 import io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser
+import io.github.fletchmckee.liquid.samples.app.data.network.HttpClient
 import io.github.fletchmckee.liquid.samples.app.data.network.NativeHttpClient
 import io.github.fletchmckee.liquid.samples.app.data.storage.AuthStorageKeys
 import io.github.fletchmckee.liquid.samples.app.data.storage.SecureStorage
@@ -16,33 +17,33 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.SignupCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.model.clearArchivePinState
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 /**
  * Implementation of AuthRepository.
- * Uses SecureStorage (Keychain on iOS) for persistent auth state.
+ *
+ * Owns auth state (StateFlow + persisted Keychain mirror), token-refresh callback wiring,
+ * and the user-facing endpoints (password reset, email verify, account delete, profile,
+ * avatar). The unauthenticated wire-format DTOs and login/register/Apple/refresh requests
+ * are delegated to [BackendAuthApi]; backend error parsing lives in [FastApiErrorParser].
+ *
+ * SecureStorage = iOS Keychain on iOS, EncryptedSharedPreferences on Android.
  */
 class AuthRepositoryImpl : AuthRepository {
 
-  // PRODUCTION: Auth endpoints (login/refresh) MUST use NativeHttpClient directly
-  // Reason: HttpClient singleton adds token refresh logic which would create infinite loop
-  // - Login: No token exists yet
-  // - Refresh: Called BY HttpClient when token expires - can't use HttpClient
-  private val authHttpClient: NativeHttpClient = NativeHttpClient()
+  // PRODUCTION: Auth endpoints (login/refresh) MUST use NativeHttpClient directly.
+  // The HttpClient singleton adds automatic 401-refresh, which would loop forever for
+  // /refresh and is meaningless for /login (no token yet).
+  private val nativeHttpClient: NativeHttpClient = NativeHttpClient()
   private val secureStorage: SecureStorage = SecureStorage()
 
   private val json: Json = Json {
@@ -51,28 +52,39 @@ class AuthRepositoryImpl : AuthRepository {
     coerceInputValues = true
   }
 
+  private val errorParser = FastApiErrorParser(json)
+  private val backendAuth = BackendAuthApi(nativeHttpClient, json, errorParser)
+
   companion object {
-    // Singleton state shared across ALL AuthRepositoryImpl instances.
-    // This avoids state divergence when AuthViewModel/AppModule each create their own AuthRepositoryImpl.
-    private var cachedAuthState: AuthState = AuthState()
+    // Singleton state shared across ALL AuthRepositoryImpl instances. This avoids state
+    // divergence when AuthViewModel/AppModule each construct their own AuthRepositoryImpl.
+    //
+    // sharedAuthStateFlow is the single source of truth — its `.value` replaces the earlier
+    // `cachedAuthState` mirror, which was redundant and risked drift on concurrent updates.
     private val sharedAuthStateFlow = MutableStateFlow(AuthState())
+
+    // @Volatile gives both JVM and Kotlin/Native a happens-before fence on the boolean
+    // reads/writes, so concurrent AuthRepositoryImpl() construction can't observe a torn
+    // value of either flag.
+    @Volatile
     private var hasLoadedFromStorage = false
-    private var hasRegisteredCallback = false // PRODUCTION: Prevent duplicate callback registration
+
+    @Volatile
+    private var hasRegisteredCallback = false
   }
 
   init {
-    // Load from secure storage on first initialization
+    // Load from secure storage on first initialization. Two parallel constructors may both
+    // observe `hasLoadedFromStorage == false` — that's fine; both load the same data and
+    // both set the flag, idempotent.
     if (!hasLoadedFromStorage) {
       loadFromSecureStorage()
       hasLoadedFromStorage = true
     }
-    // Restore cached state on initialization (shared)
-    sharedAuthStateFlow.value = cachedAuthState
-    // Sync CurrentUser with restored state
-    if (cachedAuthState.isLoggedIn) {
-      CurrentUser.setUser(cachedAuthState.userId, cachedAuthState.accessToken)
+    val currentState = sharedAuthStateFlow.value
+    if (currentState.isLoggedIn) {
+      CurrentUser.setUser(currentState.userId, currentState.accessToken)
     }
-    // PRODUCTION: Register token refresh callback ONCE globally
     if (!hasRegisteredCallback) {
       registerTokenRefreshCallback()
       hasRegisteredCallback = true
@@ -80,25 +92,22 @@ class AuthRepositoryImpl : AuthRepository {
   }
 
   /**
-   * Register token refresh callback with global HttpClient.
-   * This enables automatic token refresh when 401 responses are received.
+   * Register token refresh callback with the global HttpClient so 401 responses
+   * trigger automatic token refresh + retry.
    */
   private fun registerTokenRefreshCallback() {
-    io.github.fletchmckee.liquid.samples.app.data.network.HttpClient.setTokenRefreshCallback {
+    HttpClient.setTokenRefreshCallback {
       try {
         KlikLogger.i("AuthRepository", "Token refresh callback invoked")
-        val result = refreshToken()
-        when (result) {
+        when (val result = refreshToken()) {
           is Result.Success -> {
             KlikLogger.i("AuthRepository", "Token refresh callback SUCCESS")
             true
           }
-
           is Result.Error -> {
             KlikLogger.e("AuthRepository", "Token refresh callback FAILED: ${result.exception.message}", result.exception)
             false
           }
-
           is Result.Loading -> {
             KlikLogger.w("AuthRepository", "Token refresh callback returned Loading (unexpected)")
             false
@@ -116,7 +125,7 @@ class AuthRepositoryImpl : AuthRepository {
   private fun loadFromSecureStorage() {
     val isLoggedIn = secureStorage.getString(AuthStorageKeys.IS_LOGGED_IN) == "true"
     if (isLoggedIn) {
-      cachedAuthState = AuthState(
+      val state = AuthState(
         isLoggedIn = true,
         userId = secureStorage.getString(AuthStorageKeys.USER_ID),
         accessToken = secureStorage.getString(AuthStorageKeys.ACCESS_TOKEN),
@@ -124,7 +133,8 @@ class AuthRepositoryImpl : AuthRepository {
         userName = secureStorage.getString(AuthStorageKeys.USER_NAME),
         userEmail = secureStorage.getString(AuthStorageKeys.USER_EMAIL),
       )
-      KlikLogger.i("AuthRepository", "Loaded auth state from secure storage: userId=${cachedAuthState.userId}")
+      sharedAuthStateFlow.value = state
+      KlikLogger.i("AuthRepository", "Loaded auth state from secure storage: userId=${state.userId}")
     }
   }
 
@@ -148,69 +158,45 @@ class AuthRepositoryImpl : AuthRepository {
   }
 
   override suspend fun login(credentials: LoginCredentials): Result<AuthResponse> = try {
-    val response = backendLogin(credentials)
-
-    if (response.success) {
-      val newState = AuthState(
-        isLoggedIn = true,
-        userId = response.userId,
-        accessToken = response.accessToken,
-        refreshToken = response.refreshToken,
-        userName = response.userName,
-        userEmail = response.userEmail,
-      )
-      saveAuthState(newState)
-      Result.Success(response)
-    } else {
-      Result.Error(Exception(response.message ?: "Login failed"))
-    }
+    val response = backendAuth.login(credentials)
+    saveAuthFromResponse(response)
+    Result.Success(response)
   } catch (e: Exception) {
     KlikLogger.e("AuthRepository", "Login failed: ${e.message}", e)
     Result.Error(e)
   }
 
   override suspend fun signup(credentials: SignupCredentials): Result<AuthResponse> = try {
-    val response = backendRegister(credentials)
-
-    if (response.success) {
-      val newState = AuthState(
-        isLoggedIn = true,
-        userId = response.userId,
-        accessToken = response.accessToken,
-        refreshToken = response.refreshToken,
-        userName = response.userName,
-        userEmail = response.userEmail,
-      )
-      saveAuthState(newState)
-      Result.Success(response)
-    } else {
-      Result.Error(Exception(response.message ?: "Signup failed"))
-    }
+    val response = backendAuth.register(credentials)
+    saveAuthFromResponse(response)
+    Result.Success(response)
   } catch (e: Exception) {
     KlikLogger.e("AuthRepository", "Signup failed: ${e.message}", e)
     Result.Error(e)
   }
 
   override suspend fun loginWithApple(credentials: AppleSignInCredentials): Result<AuthResponse> = try {
-    val response = backendAppleLogin(credentials)
-
-    if (response.success) {
-      val newState = AuthState(
-        isLoggedIn = true,
-        userId = response.userId,
-        accessToken = response.accessToken,
-        refreshToken = response.refreshToken,
-        userName = response.userName,
-        userEmail = response.userEmail,
-      )
-      saveAuthState(newState)
-      Result.Success(response)
-    } else {
-      Result.Error(Exception(response.message ?: "Apple Sign In failed"))
-    }
+    val response = backendAuth.appleLogin(credentials)
+    saveAuthFromResponse(response)
+    Result.Success(response)
   } catch (e: Exception) {
     KlikLogger.e("AuthRepository", "Apple Sign In failed: ${e.message}", e)
     Result.Error(e)
+  }
+
+  /**
+   * Materialize an [AuthResponse] from any of the backend auth endpoints into local state.
+   */
+  private suspend fun saveAuthFromResponse(response: AuthResponse) {
+    val newState = AuthState(
+      isLoggedIn = true,
+      userId = response.userId,
+      accessToken = response.accessToken,
+      refreshToken = response.refreshToken,
+      userName = response.userName,
+      userEmail = response.userEmail,
+    )
+    saveAuthState(newState)
   }
 
   override suspend fun logout(): Result<Unit> = try {
@@ -226,11 +212,8 @@ class AuthRepositoryImpl : AuthRepository {
   override fun observeAuthState(): Flow<AuthState> = sharedAuthStateFlow.asStateFlow()
 
   override suspend fun saveAuthState(state: AuthState) {
-    cachedAuthState = state
     sharedAuthStateFlow.value = state
-    // Persist to secure storage
     saveToSecureStorage(state)
-    // Sync with CurrentUser for API calls
     if (state.isLoggedIn) {
       CurrentUser.setUser(state.userId, state.accessToken)
     } else {
@@ -239,30 +222,31 @@ class AuthRepositoryImpl : AuthRepository {
   }
 
   override suspend fun clearAuthState() {
-    cachedAuthState = AuthState()
     sharedAuthStateFlow.value = AuthState()
-    // Clear secure storage
     clearSecureStorage()
-    // Clear CurrentUser on logout
     CurrentUser.clear()
-    // Clear token refresh callback
-    io.github.fletchmckee.liquid.samples.app.data.network.HttpClient.clearTokenRefreshCallback()
-    // Clear archive/pin state to prevent leaking across users
+    // Clear token refresh callback and reset the registration guard so the next
+    // AuthRepositoryImpl constructed after re-login re-registers it. Without this reset,
+    // login → logout → login leaves HttpClient with tokenRefreshCallback=null and
+    // refreshPermanentlyFailed=true, so the next access-token expiry silently logs the
+    // user out again.
+    HttpClient.clearTokenRefreshCallback()
+    hasRegisteredCallback = false
+    // Clear archive/pin state to prevent leaking across users.
     clearArchivePinState()
   }
 
   override suspend fun refreshToken(): Result<AuthResponse> {
     KlikLogger.i("AuthRepository", "refreshToken() called")
     val currentState = sharedAuthStateFlow.value
-    if (currentState.refreshToken == null) {
+    val refreshToken = currentState.refreshToken
+    if (refreshToken == null) {
       KlikLogger.e("AuthRepository", "No refresh token available in state")
       return Result.Error(Exception("No refresh token available"))
     }
 
-    KlikLogger.d("AuthRepository", "Using refresh token: [present]")
-
     return try {
-      val response = backendRefreshToken(currentState.refreshToken!!)
+      val response = backendAuth.refreshToken(refreshToken)
       KlikLogger.i("AuthRepository", "Backend returned new access token")
 
       val newState = currentState.copy(
@@ -270,19 +254,16 @@ class AuthRepositoryImpl : AuthRepository {
         refreshToken = response.refreshToken ?: currentState.refreshToken,
       )
       saveAuthState(newState)
-
-      // Update CurrentUser with new token
       CurrentUser.setUser(newState.userId, newState.accessToken)
       KlikLogger.i("AuthRepository", "CurrentUser updated with new token")
-
       Result.Success(response)
     } catch (e: kotlin.coroutines.cancellation.CancellationException) {
       throw e
     } catch (e: Exception) {
       KlikLogger.e("AuthRepository", "Token refresh EXCEPTION: ${e.message}", e)
 
-      // Terminal auth failure: refresh token is invalid/expired.
-      // Clear all auth state to stop retry loops and redirect to login.
+      // Terminal auth failure: refresh token is invalid/expired. Clear all auth state to
+      // stop retry loops and force the user back through login.
       val msg = e.message ?: ""
       if (msg.contains("Invalid or expired refresh token") ||
         msg.contains("refresh token", ignoreCase = true)
@@ -302,9 +283,7 @@ class AuthRepositoryImpl : AuthRepository {
 
   override suspend fun requestPasswordReset(email: String): Result<Unit> {
     return try {
-      val body = buildJsonObject {
-        put("email", email.trim())
-      }.toString()
+      val body = buildJsonObject { put("email", email.trim()) }.toString()
       val url = "${ApiConfig.AUTH_BASE_URL}/password/reset"
       val headers = mapOf(
         ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
@@ -312,14 +291,10 @@ class AuthRepositoryImpl : AuthRepository {
       )
 
       KlikLogger.d("AuthRepository", "Requesting password reset for $email via $url")
-      val responseText = authHttpClient.post(url, body, headers)
+      val responseText = nativeHttpClient.post(url, body, headers).body
+        ?: return Result.Error(Exception("No response from server"))
 
-      if (responseText == null) {
-        return Result.Error(Exception("No response from server"))
-      }
-
-      // Check for error responses
-      val detail = extractFastApiDetail(responseText)
+      val detail = errorParser.extract(responseText)
       if (detail != null && (responseText.contains("\"error\"") || responseText.contains("\"detail\""))) {
         val isError = responseText.contains("error", ignoreCase = true) &&
           !responseText.contains("\"success\"", ignoreCase = true)
@@ -342,17 +317,14 @@ class AuthRepositoryImpl : AuthRepository {
       val headers = mapOf(
         ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
         ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-        "Authorization" to "Bearer ${sharedAuthStateFlow.value.accessToken}",
+        ApiConfig.Headers.AUTHORIZATION to "Bearer ${sharedAuthStateFlow.value.accessToken}",
       )
 
       KlikLogger.d("AuthRepository", "Requesting email verification via $url")
-      val responseText = authHttpClient.post(url, "{}", headers)
+      val responseText = nativeHttpClient.post(url, "{}", headers).body
+        ?: return Result.Error(Exception("No response from server"))
 
-      if (responseText == null) {
-        return Result.Error(Exception("No response from server"))
-      }
-
-      val detail = extractFastApiDetail(responseText)
+      val detail = errorParser.extract(responseText)
       if (detail != null && responseText.contains("\"error\"")) {
         return Result.Error(Exception(detail))
       }
@@ -371,7 +343,7 @@ class AuthRepositoryImpl : AuthRepository {
       val headers = mapOf(
         ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
         ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-        "Authorization" to "Bearer ${sharedAuthStateFlow.value.accessToken}",
+        ApiConfig.Headers.AUTHORIZATION to "Bearer ${sharedAuthStateFlow.value.accessToken}",
       )
       val body = buildJsonObject {
         put("password", password)
@@ -379,18 +351,15 @@ class AuthRepositoryImpl : AuthRepository {
       }.toString()
 
       KlikLogger.d("AuthRepository", "Deleting account via $url")
-      val responseText = authHttpClient.delete(url, headers, body)
+      val responseText = nativeHttpClient.delete(url, headers, body).body
+        ?: return Result.Error(Exception("No response from server"))
 
-      if (responseText == null) {
-        return Result.Error(Exception("No response from server"))
-      }
-
-      val detail = extractFastApiDetail(responseText)
+      val detail = errorParser.extract(responseText)
       if (detail != null && responseText.contains("\"error\"")) {
         return Result.Error(Exception(detail))
       }
 
-      // Clear local state after account deletion
+      // Local cleanup happens after the backend confirms deletion.
       clearAuthState()
       KlikLogger.i("AuthRepository", "Account deleted successfully")
       Result.Success(Unit)
@@ -412,10 +381,10 @@ class AuthRepositoryImpl : AuthRepository {
       }.toString()
 
       KlikLogger.d("AuthRepository", "PATCH $url")
-      val responseText = io.github.fletchmckee.liquid.samples.app.data.network.HttpClient.patchUrl(url, body)
-      if (responseText == null) return Result.Error(Exception("No response from server"))
+      val responseText = HttpClient.patchUrl(url, body)
+        ?: return Result.Error(Exception("No response from server"))
 
-      val detail = extractFastApiDetail(responseText)
+      val detail = errorParser.extract(responseText)
       if (detail != null && responseText.contains("\"detail\"")) {
         return Result.Error(Exception(detail))
       }
@@ -433,14 +402,13 @@ class AuthRepositoryImpl : AuthRepository {
     return try {
       val url = "${ApiConfig.AUTH_BASE_URL}/profile/avatar"
       KlikLogger.d("AuthRepository", "POST (multipart) $url, ${image.bytes.size} bytes (${image.mimeType})")
-      val responseText = io.github.fletchmckee.liquid.samples.app.data.network.HttpClient.postMultipartUrl(
+      val responseText = HttpClient.postMultipartUrl(
         url = url,
         fileData = image.bytes,
         fileName = image.fileName,
         fieldName = "file",
         headers = mapOf("Content-Type" to image.mimeType),
-      )
-      if (responseText == null) return Result.Error(Exception("No response from server"))
+      ) ?: return Result.Error(Exception("No response from server"))
 
       val parsed = json.parseToJsonElement(responseText).jsonObject
       val detail = parsed["detail"]?.jsonPrimitive?.contentOrNull
@@ -453,270 +421,6 @@ class AuthRepositoryImpl : AuthRepository {
     } catch (e: Exception) {
       KlikLogger.e("AuthRepository", "uploadAvatar failed: ${e.message}", e)
       Result.Error(e)
-    }
-  }
-
-  // ============================
-  // Real backend auth (8833)
-  // ============================
-
-  @Serializable
-  private data class BackendLoginRequest(
-    val username_or_email: String,
-    val password: String,
-    val device_id: String,
-    val device_name: String? = null,
-    val device_type: String? = null,
-    val timezone: String,
-  )
-
-  @Serializable
-  private data class BackendRegisterRequest(
-    val username: String,
-    val email: String,
-    val password: String,
-    val device_id: String,
-    val device_name: String? = null,
-    val device_type: String? = null,
-    val age_confirmed_over_13: Boolean,
-    val timezone: String,
-  )
-
-  @Serializable
-  private data class BackendAppleLoginRequest(
-    val identity_token: String,
-    val authorization_code: String,
-    val user_id: String,
-    val email: String?,
-    val full_name: String?,
-    val is_real_email: Boolean,
-    val device_id: String,
-    val age_confirmed_over_13: Boolean,
-    val timezone: String,
-  )
-
-  @Serializable
-  private data class BackendTokenResponse(
-    val access_token: String,
-    val refresh_token: String,
-    val token_type: String = "bearer",
-    val user_id: String,
-    val username: String? = null,
-    val role: String? = null,
-  )
-
-  private suspend fun backendLogin(credentials: LoginCredentials): AuthResponse {
-    val request = BackendLoginRequest(
-      username_or_email = credentials.identifier.trim(),
-      password = credentials.password,
-      device_id = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceId(),
-      device_name = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceName(),
-      device_type = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceType(),
-      timezone = kotlinx.datetime.TimeZone.currentSystemDefault().id,
-    )
-    val body = json.encodeToString(request)
-    val url = "${ApiConfig.AUTH_BASE_URL}/login"
-    val headers = mapOf(
-      ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
-      ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-    )
-
-    val responseText = authHttpClient.post(url, body, headers)
-      ?: throw Exception("Empty response from auth server")
-
-    val token = try {
-      json.decodeFromString(BackendTokenResponse.serializer(), responseText)
-    } catch (parseError: Exception) {
-      val detail = extractFastApiDetail(responseText)
-      throw Exception(detail ?: "Login failed: ${parseError.message}")
-    }
-
-    return AuthResponse(
-      success = true,
-      userId = token.user_id,
-      accessToken = token.access_token,
-      refreshToken = token.refresh_token,
-      userName = token.username,
-      userEmail = if (credentials.isEmail) credentials.identifier.trim() else null,
-      message = "Login successful",
-    )
-  }
-
-  private suspend fun backendRegister(credentials: SignupCredentials): AuthResponse {
-    val username = credentials.email.substringBefore("@").ifBlank { credentials.name.trim() }
-    val request = BackendRegisterRequest(
-      username = username,
-      email = credentials.email.trim(),
-      password = credentials.password,
-      device_id = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceId(),
-      device_name = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceName(),
-      device_type = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceType(),
-      age_confirmed_over_13 = true,
-      timezone = kotlinx.datetime.TimeZone.currentSystemDefault().id,
-    )
-    val body = json.encodeToString(request)
-    val url = "${ApiConfig.AUTH_BASE_URL}/register"
-    val headers = mapOf(
-      ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
-      ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-    )
-
-    val responseText = authHttpClient.post(url, body, headers)
-      ?: throw Exception("Empty response from auth server")
-
-    val token = try {
-      json.decodeFromString(BackendTokenResponse.serializer(), responseText)
-    } catch (parseError: Exception) {
-      val detail = extractFastApiDetail(responseText)
-      throw Exception(detail ?: "Register failed: ${parseError.message}")
-    }
-
-    return AuthResponse(
-      success = true,
-      userId = token.user_id,
-      accessToken = token.access_token,
-      refreshToken = token.refresh_token,
-      userName = token.username ?: username,
-      userEmail = credentials.email.trim(),
-      message = "Account created successfully",
-    )
-  }
-
-  private suspend fun backendAppleLogin(credentials: AppleSignInCredentials): AuthResponse {
-    val request = BackendAppleLoginRequest(
-      identity_token = credentials.identityToken,
-      authorization_code = credentials.authorizationCode,
-      user_id = credentials.userId,
-      email = credentials.email,
-      full_name = credentials.fullName,
-      is_real_email = credentials.isRealEmail,
-      device_id = io.github.fletchmckee.liquid.samples.app.data.network.DeviceInfo.getDeviceId(),
-      age_confirmed_over_13 = true,
-      timezone = kotlinx.datetime.TimeZone.currentSystemDefault().id,
-    )
-    val body = json.encodeToString(request)
-    val url = "${ApiConfig.AUTH_BASE_URL}/apple/callback"
-    val headers = mapOf(
-      ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
-      ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-    )
-
-    KlikLogger.d("AuthRepository", "Apple Sign In: calling $url")
-
-    val responseText = authHttpClient.post(url, body, headers)
-      ?: throw Exception("Empty response from auth server")
-
-    val token = try {
-      json.decodeFromString(BackendTokenResponse.serializer(), responseText)
-    } catch (parseError: Exception) {
-      val detail = extractFastApiDetail(responseText)
-      throw Exception(detail ?: "Apple Sign In failed: ${parseError.message}")
-    }
-
-    return AuthResponse(
-      success = true,
-      userId = token.user_id,
-      accessToken = token.access_token,
-      refreshToken = token.refresh_token,
-      userName = token.username ?: credentials.fullName,
-      userEmail = credentials.email,
-      message = "Apple Sign In successful",
-    )
-  }
-
-  @Serializable
-  private data class BackendRefreshRequest(
-    val refresh_token: String,
-  )
-
-  /**
-   * Refresh token via backend /refresh endpoint.
-   * Backend MUST return the same format as login: access_token, refresh_token, user_id.
-   * NO FALLBACKS - if backend returns incomplete response, it FAILS.
-   */
-  private suspend fun backendRefreshToken(refreshToken: String): AuthResponse {
-    val request = BackendRefreshRequest(refresh_token = refreshToken)
-    val body = json.encodeToString(request)
-    val url = "${ApiConfig.AUTH_BASE_URL}/refresh"
-    val headers = mapOf(
-      ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
-      ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
-    )
-
-    KlikLogger.d("AuthRepository", "Refreshing token via $url")
-    // Retry on network failure (TLS errors) - same resilience as all other HTTP calls
-    var responseText: String? = null
-    for (attempt in 1..3) {
-      responseText = authHttpClient.post(url, body, headers)
-      if (responseText != null) break
-      if (attempt < 3) {
-        KlikLogger.w("AuthRepository", "Token refresh network error (attempt $attempt/3), retrying in ${attempt * 2}s...")
-        kotlinx.coroutines.delay(attempt * 2000L)
-      }
-    }
-    if (responseText == null) {
-      throw Exception("Empty response from auth server after 3 attempts - network connection failed")
-    }
-
-    val token = try {
-      json.decodeFromString(BackendTokenResponse.serializer(), responseText)
-    } catch (parseError: Exception) {
-      KlikLogger.e("AuthRepository", "BACKEND ERROR: /refresh returned invalid response. Expected: {access_token, refresh_token, user_id}. Got: $responseText. Parse error: ${parseError.message}", parseError)
-      val detail = extractFastApiDetail(responseText)
-      throw Exception(detail ?: "BACKEND BUG: /refresh must return access_token, refresh_token, user_id. Got: $responseText")
-    }
-
-    KlikLogger.i("AuthRepository", "Token refresh successful, userId=${token.user_id}")
-
-    return AuthResponse(
-      success = true,
-      userId = token.user_id,
-      accessToken = token.access_token,
-      refreshToken = token.refresh_token,
-      userName = token.username,
-      userEmail = null,
-      message = "Token refreshed successfully",
-    )
-  }
-
-  private fun extractFastApiDetail(responseText: String): String? {
-    // Handle plain text error responses (e.g., "Internal Server Error")
-    val trimmed = responseText.trim()
-    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-      // Not JSON - return as plain text if it's a recognizable error
-      return when {
-        trimmed.contains("Internal Server Error", ignoreCase = true) ->
-          "Server error. Please try again later."
-
-        trimmed.contains("Service Unavailable", ignoreCase = true) ->
-          "Service temporarily unavailable. Please try again later."
-
-        trimmed.contains("Bad Gateway", ignoreCase = true) ->
-          "Server connection error. Please try again later."
-
-        trimmed.contains("Gateway Timeout", ignoreCase = true) ->
-          "Server timeout. Please try again later."
-
-        trimmed.isNotEmpty() && trimmed.length < 200 -> trimmed
-
-        else -> null
-      }
-    }
-
-    // Try to parse as JSON
-    val element = try {
-      json.parseToJsonElement(responseText)
-    } catch (_: Exception) {
-      return null
-    }
-    val obj: JsonObject = element as? JsonObject ?: return null
-
-    val detail: JsonElement = obj["detail"] ?: return null
-    return when (detail) {
-      is JsonPrimitive -> if (detail.isString) detail.content else detail.toString()
-      is JsonObject -> detail.toString()
-      is JsonArray -> detail.toString()
-      else -> detail.toString()
     }
   }
 }

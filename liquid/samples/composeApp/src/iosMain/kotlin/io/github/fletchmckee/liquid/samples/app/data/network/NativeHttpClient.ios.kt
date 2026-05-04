@@ -17,7 +17,6 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorCancelled
 import platform.Foundation.NSURLRequest
 import platform.Foundation.NSURLRequestReloadIgnoringLocalAndRemoteCacheData
-import platform.Foundation.NSURLResponse
 import platform.Foundation.NSURLSession
 import platform.Foundation.NSURLSessionConfiguration
 import platform.Foundation.NSURLSessionDataTask
@@ -32,27 +31,39 @@ import platform.posix.memcpy
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal actual class NativeHttpClient actual constructor() {
 
+  // Held as a strong property so the NSURLSession's weak reference to its delegate
+  // doesn't drop our pinning logic prematurely.
+  private val pinningDelegate = PinningSessionDelegate()
+
   private val session: NSURLSession by lazy {
-    // PRODUCTION: Use custom session configuration to bypass URL cache
-    // This prevents stale HTML responses from being returned when nginx routes change
     val config = NSURLSessionConfiguration.defaultSessionConfiguration()
     config.setRequestCachePolicy(NSURLRequestReloadIgnoringLocalAndRemoteCacheData)
     config.setURLCache(null)
     config.setTimeoutIntervalForRequest(180.0) // 180 seconds per request (LLM endpoints like insights/encourage/worklife/chat call cloud Qwen and need >60s)
     config.setTimeoutIntervalForResource(300.0) // 300 seconds total per resource
-    // TODO: Add certificate pinning via CommonCrypto cinterop when available
-    NSURLSession.sessionWithConfiguration(config)
+    // PinningSessionDelegate enforces SHA-256 SPKI pinning for hiklik.ai;
+    // standard chain validation runs first via SecTrustEvaluateWithError.
+    NSURLSession.sessionWithConfiguration(
+      configuration = config,
+      delegate = pinningDelegate,
+      delegateQueue = null,
+    )
   }
 
-  actual suspend fun get(url: String, headers: Map<String, String>): String? = makeRequest(url, "GET", null, headers)
+  actual suspend fun get(url: String, headers: Map<String, String>): NativeHttpResponse =
+    makeRequest(url, "GET", null, headers)
 
-  actual suspend fun post(url: String, body: String, headers: Map<String, String>): String? = makeRequest(url, "POST", body, headers)
+  actual suspend fun post(url: String, body: String, headers: Map<String, String>): NativeHttpResponse =
+    makeRequest(url, "POST", body, headers)
 
-  actual suspend fun put(url: String, body: String, headers: Map<String, String>): String? = makeRequest(url, "PUT", body, headers)
+  actual suspend fun put(url: String, body: String, headers: Map<String, String>): NativeHttpResponse =
+    makeRequest(url, "PUT", body, headers)
 
-  actual suspend fun delete(url: String, headers: Map<String, String>, body: String?): String? = makeRequest(url, "DELETE", body, headers)
+  actual suspend fun delete(url: String, headers: Map<String, String>, body: String?): NativeHttpResponse =
+    makeRequest(url, "DELETE", body, headers)
 
-  actual suspend fun patch(url: String, body: String, headers: Map<String, String>): String? = makeRequest(url, "PATCH", body, headers)
+  actual suspend fun patch(url: String, body: String, headers: Map<String, String>): NativeHttpResponse =
+    makeRequest(url, "PATCH", body, headers)
 
   actual suspend fun postMultipart(
     url: String,
@@ -60,15 +71,15 @@ internal actual class NativeHttpClient actual constructor() {
     fileName: String,
     fieldName: String,
     headers: Map<String, String>,
-  ): String? = suspendCancellableCoroutine { continuation ->
+  ): NativeHttpResponse = suspendCancellableCoroutine { continuation ->
     val nsUrl = NSURL.URLWithString(url)
     if (nsUrl == null) {
       KlikLogger.e("HTTP", "Invalid URL: $url")
-      continuation.resume(null)
+      continuation.resume(NativeHttpResponse(0, null))
       return@suspendCancellableCoroutine
     }
 
-    val boundary = "Boundary-${platform.Foundation.NSUUID().UUIDString}"
+    val boundary = "Boundary-${NSUUID().UUIDString}"
     val request = NSMutableURLRequest.requestWithURL(nsUrl)
     request.setHTTPMethod("POST")
     request.setCachePolicy(NSURLRequestReloadIgnoringLocalAndRemoteCacheData)
@@ -78,7 +89,6 @@ internal actual class NativeHttpClient actual constructor() {
       request.setValue(value, forHTTPHeaderField = key)
     }
 
-    // Build multipart body
     val lineBreak = "\r\n"
     val headerPart = "--$boundary$lineBreak" +
       "Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$fileName\"$lineBreak" +
@@ -103,29 +113,33 @@ internal actual class NativeHttpClient actual constructor() {
     ) { data: NSData?, response: platform.Foundation.NSURLResponse?, error: NSError? ->
       if (error != null) {
         KlikLogger.e("HTTP", "Multipart error: ${error.localizedDescription}")
-        continuation.resume(null)
+        continuation.resume(NativeHttpResponse(0, null))
         return@dataTaskWithRequest
       }
 
       val httpResponse = response as? NSHTTPURLResponse
-      val statusCode = httpResponse?.statusCode ?: 0
+      val statusCode = httpResponse?.statusCode?.toInt() ?: 0
 
       if (statusCode !in 200..299) {
         KlikLogger.e("HTTP", "Multipart error status: $statusCode")
       }
 
-      if (data != null && data.length.toInt() > 0) {
+      val responseString: String? = if (data != null && data.length.toInt() > 0) {
         val bytes = ByteArray(data.length.toInt())
         bytes.usePinned { pinned ->
           memcpy(pinned.addressOf(0), data.bytes, data.length)
         }
-        val responseString = bytes.decodeToString()
+        bytes.decodeToString()
+      } else {
+        null
+      }
+
+      if (responseString != null) {
         KlikLogger.d("HTTP", "Multipart response ($statusCode): ${responseString.take(200)}...")
-        continuation.resume(responseString)
       } else {
         KlikLogger.w("HTTP", "Empty multipart response")
-        continuation.resume(null)
       }
+      continuation.resume(NativeHttpResponse(statusCode, responseString))
     }
 
     task.resume()
@@ -137,32 +151,27 @@ internal actual class NativeHttpClient actual constructor() {
     method: String,
     body: String?,
     headers: Map<String, String>,
-  ): String? = suspendCancellableCoroutine { continuation ->
+  ): NativeHttpResponse = suspendCancellableCoroutine { continuation ->
     val nsUrl = NSURL.URLWithString(urlString)
     if (nsUrl == null) {
       KlikLogger.e("HTTP", "Invalid URL: $urlString")
-      continuation.resume(null)
+      continuation.resume(NativeHttpResponse(0, null))
       return@suspendCancellableCoroutine
     }
 
     val request = NSMutableURLRequest.requestWithURL(nsUrl)
     request.setHTTPMethod(method)
-
-    // PRODUCTION: Disable caching at request level to ensure fresh responses
     request.setCachePolicy(NSURLRequestReloadIgnoringLocalAndRemoteCacheData)
 
-    // Add cache-control headers to bypass any intermediate caches (CDN, proxy)
     request.setValue("no-cache, no-store, must-revalidate", forHTTPHeaderField = "Cache-Control")
     request.setValue("no-cache", forHTTPHeaderField = "Pragma")
     request.setValue("0", forHTTPHeaderField = "Expires")
 
-    // Add custom headers
     headers.forEach { (key, value) ->
       request.setValue(value, forHTTPHeaderField = key)
     }
 
-    // Add body for POST and PUT
-    if (body != null && (method == "POST" || method == "PUT")) {
+    if (body != null && (method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE")) {
       val bodyData = body.encodeToByteArray()
       bodyData.usePinned { pinned ->
         val nsData = NSData.dataWithBytes(
@@ -178,39 +187,29 @@ internal actual class NativeHttpClient actual constructor() {
     ) { data: NSData?, response: platform.Foundation.NSURLResponse?, error: NSError? ->
       if (error != null) {
         if (error.code.toLong() == NSURLErrorCancelled) {
-          continuation.resume(null)
+          continuation.resume(NativeHttpResponse(0, null))
           return@dataTaskWithRequest
         }
         KlikLogger.e("HTTP", "Error: ${error.localizedDescription}")
-        continuation.resume(null)
+        continuation.resume(NativeHttpResponse(0, null))
         return@dataTaskWithRequest
       }
 
       val httpResponse = response as? NSHTTPURLResponse
-      val statusCode = httpResponse?.statusCode ?: 0
+      val statusCode = httpResponse?.statusCode?.toInt() ?: 0
 
-      if (statusCode in 500..599) {
-        KlikLogger.e("HTTP", "Server error $statusCode")
-        continuation.resume(null)
-        return@dataTaskWithRequest
-      }
-      if (statusCode !in 200..299) {
-        KlikLogger.e("HTTP", "Error status: $statusCode")
-        // Return body for 4xx so auth error detection works
-      }
-
-      if (data != null && data.length.toInt() > 0) {
+      val responseString: String? = if (data != null && data.length.toInt() > 0) {
         val bytes = ByteArray(data.length.toInt())
         bytes.usePinned { pinned ->
           memcpy(pinned.addressOf(0), data.bytes, data.length)
         }
-        val responseString = bytes.decodeToString()
-        KlikLogger.d("HTTP", "Response ($statusCode): ${responseString.take(200)}...")
-        continuation.resume(responseString)
+        bytes.decodeToString()
       } else {
-        KlikLogger.w("HTTP", "Empty response")
-        continuation.resume(null)
+        null
       }
+
+      KlikLogger.d("HTTP", "$method $urlString -> $statusCode (body: ${responseString?.take(200) ?: "<empty>"}...)")
+      continuation.resume(NativeHttpResponse(statusCode, responseString))
     }
 
     task.resume()
@@ -226,7 +225,6 @@ internal actual class NativeHttpClient actual constructor() {
  * Uses manual decoding since NSData base64 init is not directly accessible from Kotlin/Native.
  */
 actual fun decodeBase64Platform(base64: String): String = try {
-  // Manual base64 decoding for Kotlin/Native iOS
   val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   val cleanInput = base64.replace("=", "")
 

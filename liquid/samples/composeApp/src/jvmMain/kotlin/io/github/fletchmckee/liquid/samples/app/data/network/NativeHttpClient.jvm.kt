@@ -14,204 +14,141 @@ import kotlinx.coroutines.withContext
 
 internal actual class NativeHttpClient actual constructor() {
 
-  actual suspend fun get(url: String, headers: Map<String, String>): String? {
-    return withContext(Dispatchers.IO) {
+  private fun readBody(connection: HttpURLConnection, responseCode: Int): String? = try {
+    val stream = if (responseCode in 200..299) {
+      connection.inputStream
+    } else {
+      // errorStream is the canonical body source on non-2xx; inputStream is the
+      // documented fallback for servers that return an error code with the body
+      // on the success channel. The outer try/catch handles either throwing.
+      connection.errorStream ?: connection.inputStream
+    }
+    if (stream == null) {
+      null
+    } else {
+      BufferedReader(InputStreamReader(stream)).use { it.readText() }
+    }
+  } catch (e: Exception) {
+    KlikLogger.w("HTTP", "Failed to read body for status=$responseCode: ${e.message}")
+    null
+  }
+
+  actual suspend fun get(url: String, headers: Map<String, String>): NativeHttpResponse =
+    withContext(Dispatchers.IO) {
+      var connection: HttpURLConnection? = null
       try {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-
-        headers.forEach { (key, value) ->
-          connection.setRequestProperty(key, value)
+        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+          requestMethod = "GET"
+          headers.forEach { (key, value) -> setRequestProperty(key, value) }
         }
-
         val responseCode = connection.responseCode
         KlikLogger.d("HTTP", "GET $url -> $responseCode")
-
-        if (responseCode in 500..599) {
-          KlikLogger.e("HTTP", "Server error $responseCode for GET $url")
-          connection.disconnect()
-          return@withContext null
-        }
-
-        val inputStream = if (responseCode in 200..299) {
-          connection.inputStream
-        } else {
-          connection.errorStream
-        }
-
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val response = reader.readText()
-        reader.close()
-        connection.disconnect()
-
-        KlikLogger.d("HTTP", "Response: ${response.take(200)}...")
-        response
+        NativeHttpResponse(responseCode, readBody(connection, responseCode))
       } catch (e: Exception) {
         KlikLogger.e("HTTP", "Error: ${e.message}", e)
-        null
+        NativeHttpResponse(0, null)
+      } finally {
+        connection?.disconnect()
       }
     }
-  }
 
-  actual suspend fun post(url: String, body: String, headers: Map<String, String>): String? {
-    return withContext(Dispatchers.IO) {
+  actual suspend fun post(url: String, body: String, headers: Map<String, String>): NativeHttpResponse =
+    withContext(Dispatchers.IO) {
+      var connection: HttpURLConnection? = null
       try {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.requestMethod = "POST"
-        connection.doOutput = true
-
-        headers.forEach { (key, value) ->
-          connection.setRequestProperty(key, value)
+        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+          requestMethod = "POST"
+          doOutput = true
+          headers.forEach { (key, value) -> setRequestProperty(key, value) }
         }
-
-        val writer = OutputStreamWriter(connection.outputStream)
-        writer.write(body)
-        writer.flush()
-        writer.close()
-
+        OutputStreamWriter(connection.outputStream).use {
+          it.write(body)
+          it.flush()
+        }
         val responseCode = connection.responseCode
         KlikLogger.d("HTTP", "POST $url -> $responseCode")
-
-        if (responseCode in 500..599) {
-          KlikLogger.e("HTTP", "Server error $responseCode for POST $url")
-          connection.disconnect()
-          return@withContext null
-        }
-
-        val inputStream = if (responseCode in 200..299) {
-          connection.inputStream
-        } else {
-          connection.errorStream
-        }
-
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val response = reader.readText()
-        reader.close()
-        connection.disconnect()
-
-        response
+        NativeHttpResponse(responseCode, readBody(connection, responseCode))
       } catch (e: Exception) {
         KlikLogger.e("HTTP", "Error: ${e.message}", e)
-        null
+        NativeHttpResponse(0, null)
+      } finally {
+        connection?.disconnect()
       }
     }
-  }
 
-  actual suspend fun put(url: String, body: String, headers: Map<String, String>): String? {
-    return withContext(Dispatchers.IO) {
+  actual suspend fun put(url: String, body: String, headers: Map<String, String>): NativeHttpResponse =
+    withContext(Dispatchers.IO) {
+      var connection: HttpURLConnection? = null
       try {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.requestMethod = "PUT"
-        connection.doOutput = true
-
-        headers.forEach { (key, value) ->
-          connection.setRequestProperty(key, value)
+        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+          requestMethod = "PUT"
+          doOutput = true
+          headers.forEach { (key, value) -> setRequestProperty(key, value) }
         }
-
-        val writer = OutputStreamWriter(connection.outputStream)
-        writer.write(body)
-        writer.flush()
-        writer.close()
-
+        OutputStreamWriter(connection.outputStream).use {
+          it.write(body)
+          it.flush()
+        }
         val responseCode = connection.responseCode
         KlikLogger.d("HTTP", "PUT $url -> $responseCode")
-
-        if (responseCode in 500..599) {
-          KlikLogger.e("HTTP", "Server error $responseCode for PUT $url")
-          connection.disconnect()
-          return@withContext null
-        }
-
-        val inputStream = if (responseCode in 200..299) {
-          connection.inputStream
-        } else {
-          connection.errorStream
-        }
-
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val response = reader.readText()
-        reader.close()
-        connection.disconnect()
-
-        response
+        NativeHttpResponse(responseCode, readBody(connection, responseCode))
       } catch (e: Exception) {
         KlikLogger.e("HTTP", "Error: ${e.message}", e)
-        null
+        NativeHttpResponse(0, null)
+      } finally {
+        connection?.disconnect()
       }
     }
-  }
 
-  actual suspend fun patch(url: String, body: String, headers: Map<String, String>): String? {
-    return withContext(Dispatchers.IO) {
+  actual suspend fun patch(url: String, body: String, headers: Map<String, String>): NativeHttpResponse =
+    withContext(Dispatchers.IO) {
+      var connection: HttpURLConnection? = null
       try {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.requestMethod = "POST"
-        connection.setRequestProperty("X-HTTP-Method-Override", "PATCH")
-        connection.doOutput = true
-
-        headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
-
-        val writer = OutputStreamWriter(connection.outputStream)
-        writer.write(body); writer.flush(); writer.close()
-
+        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+          requestMethod = "POST"
+          setRequestProperty("X-HTTP-Method-Override", "PATCH")
+          doOutput = true
+          headers.forEach { (key, value) -> setRequestProperty(key, value) }
+        }
+        OutputStreamWriter(connection.outputStream).use {
+          it.write(body)
+          it.flush()
+        }
         val responseCode = connection.responseCode
         KlikLogger.d("HTTP", "PATCH $url -> $responseCode")
-        if (responseCode in 500..599) { connection.disconnect(); return@withContext null }
-        val inputStream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val response = reader.readText()
-        reader.close(); connection.disconnect()
-        response
+        NativeHttpResponse(responseCode, readBody(connection, responseCode))
       } catch (e: Exception) {
         KlikLogger.e("HTTP", "Error: ${e.message}", e)
-        null
+        NativeHttpResponse(0, null)
+      } finally {
+        connection?.disconnect()
       }
     }
-  }
 
-  actual suspend fun delete(url: String, headers: Map<String, String>, body: String?): String? {
-    return withContext(Dispatchers.IO) {
+  actual suspend fun delete(url: String, headers: Map<String, String>, body: String?): NativeHttpResponse =
+    withContext(Dispatchers.IO) {
+      var connection: HttpURLConnection? = null
       try {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.requestMethod = "DELETE"
-
-        headers.forEach { (key, value) ->
-          connection.setRequestProperty(key, value)
+        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+          requestMethod = "DELETE"
+          headers.forEach { (key, value) -> setRequestProperty(key, value) }
+          if (body != null) {
+            doOutput = true
+          }
         }
-
         if (body != null) {
-          connection.doOutput = true
           connection.outputStream.bufferedWriter().use { it.write(body) }
         }
-
         val responseCode = connection.responseCode
         KlikLogger.d("HTTP", "DELETE $url -> $responseCode")
-
-        if (responseCode in 500..599) {
-          KlikLogger.e("HTTP", "Server error $responseCode for DELETE $url")
-          connection.disconnect()
-          return@withContext null
-        }
-
-        val inputStream = if (responseCode in 200..299) {
-          connection.inputStream
-        } else {
-          connection.errorStream
-        }
-
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        val response = reader.readText()
-        reader.close()
-        connection.disconnect()
-
-        KlikLogger.d("HTTP", "Response: ${response.take(200)}...")
-        response
+        NativeHttpResponse(responseCode, readBody(connection, responseCode))
       } catch (e: Exception) {
         KlikLogger.e("HTTP", "Error: ${e.message}", e)
-        null
+        NativeHttpResponse(0, null)
+      } finally {
+        connection?.disconnect()
       }
     }
-  }
 
   actual suspend fun postMultipart(
     url: String,
@@ -219,40 +156,35 @@ internal actual class NativeHttpClient actual constructor() {
     fileName: String,
     fieldName: String,
     headers: Map<String, String>,
-  ): String? = withContext(Dispatchers.IO) {
+  ): NativeHttpResponse = withContext(Dispatchers.IO) {
+    var connection: HttpURLConnection? = null
     try {
       val boundary = "Boundary-${java.util.UUID.randomUUID()}"
-      val connection = URL(url).openConnection() as HttpURLConnection
-      connection.requestMethod = "POST"
-      connection.doOutput = true
-      connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-      headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
-
-      val outputStream = connection.outputStream
+      connection = (URL(url).openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"
+        doOutput = true
+        setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+        headers.forEach { (key, value) -> setRequestProperty(key, value) }
+      }
       val lineBreak = "\r\n"
-
       val headerPart = "--$boundary$lineBreak" +
         "Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$fileName\"$lineBreak" +
         "Content-Type: application/octet-stream$lineBreak$lineBreak"
-      outputStream.write(headerPart.toByteArray(Charsets.UTF_8))
-      outputStream.write(fileData)
-      outputStream.write("$lineBreak--$boundary--$lineBreak".toByteArray(Charsets.UTF_8))
-      outputStream.flush()
-      outputStream.close()
-
+      val footer = "$lineBreak--$boundary--$lineBreak"
+      connection.outputStream.use { os ->
+        os.write(headerPart.toByteArray(Charsets.UTF_8))
+        os.write(fileData)
+        os.write(footer.toByteArray(Charsets.UTF_8))
+        os.flush()
+      }
       val responseCode = connection.responseCode
       KlikLogger.d("HTTP", "POST (multipart) $url -> $responseCode")
-
-      val inputStream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
-      val reader = BufferedReader(InputStreamReader(inputStream))
-      val response = reader.readText()
-      reader.close()
-      connection.disconnect()
-
-      response
+      NativeHttpResponse(responseCode, readBody(connection, responseCode))
     } catch (e: Exception) {
       KlikLogger.e("HTTP", "Multipart error: ${e.message}", e)
-      null
+      NativeHttpResponse(0, null)
+    } finally {
+      connection?.disconnect()
     }
   }
 }

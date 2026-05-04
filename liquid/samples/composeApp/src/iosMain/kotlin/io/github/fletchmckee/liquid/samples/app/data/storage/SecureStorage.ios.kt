@@ -14,11 +14,14 @@ import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFMutableDictionaryRef
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFTypeRef
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFAllocatorDefault
 import platform.CoreFoundation.kCFBooleanTrue
+import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
+import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
@@ -33,6 +36,8 @@ import platform.Security.SecItemUpdate
 import platform.Security.errSecDuplicateItem
 import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
+import platform.Security.kSecAttrAccessible
+import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 import platform.Security.kSecAttrAccount
 import platform.Security.kSecAttrService
 import platform.Security.kSecClass
@@ -44,8 +49,26 @@ import platform.Security.kSecValueData
 
 /**
  * iOS implementation of SecureStorage using the iOS Keychain.
- * Stores sensitive data (auth tokens, credentials) encrypted at rest
- * via the Keychain Services API with kSecClassGenericPassword items.
+ *
+ * Stores sensitive data (auth tokens, credentials) encrypted at rest via the Keychain
+ * Services API with `kSecClassGenericPassword` items.
+ *
+ * Two correctness properties enforced here that earlier revisions missed:
+ *
+ * 1. **No CFTypeRef leaks.** Earlier revisions called `CFBridgingRetain(...)` on every
+ *    NSString/NSData going into a query dictionary, but the dictionary was created with
+ *    null retain/release callbacks — meaning the dict didn't release them, and `CFRelease(dict)`
+ *    leaked the bridged objects. Each `saveString` leaked ~3 retains. Now we use the standard
+ *    `kCFTypeDictionaryKeyCallBacks` / `kCFTypeDictionaryValueCallBacks`, which makes the
+ *    dictionary itself responsible for retaining/releasing values, and we hand off ownership
+ *    via `CFBridgingRetain` exactly once.
+ *
+ * 2. **`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.** Without an explicit accessibility
+ *    class, items default to `kSecAttrAccessibleWhenUnlocked` and migrate via iCloud Keychain
+ *    on device restore — meaning a restored device could carry forward another user's auth
+ *    token. The `*ThisDeviceOnly` suffix prevents that migration; `AfterFirstUnlock` keeps the
+ *    item available to background workers (e.g. notification handlers) that run before the
+ *    user manually unlocks the screen.
  */
 actual class SecureStorage actual constructor() {
 
@@ -58,85 +81,76 @@ actual class SecureStorage actual constructor() {
       return
     }
 
-    // Try to add first; if duplicate, update instead
-    val addQuery = buildAddQuery(key, valueData)
-    val addStatus = SecItemAdd(addQuery, null)
-    CFRelease(addQuery)
+    withMutableDict { addQuery ->
+      populateBaseAttributes(addQuery, key)
+      // Bridge with explicit ownership transfer — the dictionary's value-callbacks will
+      // CFRetain/CFRelease as needed; we balance the CFBridgingRetain by allowing the
+      // dictionary to drop its reference when CFRelease(dict) runs.
+      addCFBridgedValue(addQuery, kSecValueData, valueData)
+      addCFValue(addQuery, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
 
-    when (addStatus) {
-      errSecSuccess -> {
-        KlikLogger.d(TAG, "Saved key to Keychain: $key")
-      }
+      val addStatus = SecItemAdd(addQuery as CFDictionaryRef, null)
 
-      errSecDuplicateItem -> {
-        // Item already exists, update it
-        val searchQuery = buildSearchQuery(key)
-        val updateAttrs = buildUpdateAttributes(valueData)
-        val updateStatus = SecItemUpdate(searchQuery, updateAttrs)
-        CFRelease(searchQuery)
-        CFRelease(updateAttrs)
+      when (addStatus) {
+        errSecSuccess -> KlikLogger.d(TAG, "Saved key to Keychain: $key")
 
-        if (updateStatus == errSecSuccess) {
-          KlikLogger.d(TAG, "Updated key in Keychain: $key")
-        } else {
-          KlikLogger.e(TAG, "Failed to update Keychain key: $key, OSStatus: $updateStatus")
+        errSecDuplicateItem -> withMutableDict { searchQuery ->
+          populateBaseAttributes(searchQuery, key)
+          withMutableDict { updateAttrs ->
+            addCFBridgedValue(updateAttrs, kSecValueData, valueData)
+            addCFValue(updateAttrs, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
+            val updateStatus = SecItemUpdate(searchQuery as CFDictionaryRef, updateAttrs as CFDictionaryRef)
+            if (updateStatus == errSecSuccess) {
+              KlikLogger.d(TAG, "Updated key in Keychain: $key")
+            } else {
+              KlikLogger.e(TAG, "Failed to update Keychain key: $key, OSStatus: $updateStatus")
+            }
+          }
         }
-      }
 
-      else -> {
-        KlikLogger.e(TAG, "Failed to save to Keychain key: $key, OSStatus: $addStatus")
+        else -> KlikLogger.e(TAG, "Failed to save to Keychain key: $key, OSStatus: $addStatus")
       }
     }
   }
 
   actual fun getString(key: String): String? = memScoped {
-    val result = alloc<CFTypeRefVar>()
-    val query = buildRetrieveQuery(key)
-    val status = SecItemCopyMatching(query, result.ptr)
-    CFRelease(query)
-
-    when (status) {
-      errSecSuccess -> {
-        val cfData = result.value
-        if (cfData != null) {
-          val nsData = CFBridgingRelease(cfData) as? NSData
-          val stringValue = nsData?.let { stringFromData(it) }
-          if (stringValue != null) {
-            KlikLogger.d(TAG, "Retrieved key from Keychain: $key")
+    var result: String? = null
+    val resultVar = alloc<CFTypeRefVar>()
+    withMutableDict { query ->
+      populateBaseAttributes(query, key)
+      addCFValue(query, kSecReturnData, kCFBooleanTrue)
+      addCFValue(query, kSecMatchLimit, kSecMatchLimitOne)
+      val status = SecItemCopyMatching(query as CFDictionaryRef, resultVar.ptr)
+      when (status) {
+        errSecSuccess -> {
+          val cfData = resultVar.value
+          if (cfData != null) {
+            // CFBridgingRelease transfers ownership: the underlying CFData is released with
+            // the bridged NSData when its Kotlin reference goes out of scope.
+            val nsData = CFBridgingRelease(cfData) as? NSData
+            result = nsData?.let { stringFromData(it) }
+            if (result != null) {
+              KlikLogger.d(TAG, "Retrieved key from Keychain: $key")
+            }
           }
-          stringValue
-        } else {
-          null
         }
-      }
-
-      errSecItemNotFound -> {
-        null
-      }
-
-      else -> {
-        KlikLogger.e(TAG, "Failed to retrieve Keychain key: $key, OSStatus: $status")
-        null
+        errSecItemNotFound -> {
+          // Quiet: a missing key is the normal "not logged in" path.
+        }
+        else -> KlikLogger.e(TAG, "Failed to retrieve Keychain key: $key, OSStatus: $status")
       }
     }
+    result
   }
 
   actual fun remove(key: String) {
-    val query = buildSearchQuery(key)
-    val status = SecItemDelete(query)
-    CFRelease(query)
-
-    when (status) {
-      errSecSuccess -> {
-        KlikLogger.d(TAG, "Removed key from Keychain: $key")
-      }
-
-      errSecItemNotFound -> {
-        KlikLogger.d(TAG, "Key not found in Keychain (already removed): $key")
-      }
-
-      else -> {
-        KlikLogger.e(TAG, "Failed to remove Keychain key: $key, OSStatus: $status")
+    withMutableDict { query ->
+      populateBaseAttributes(query, key)
+      val status = SecItemDelete(query as CFDictionaryRef)
+      when (status) {
+        errSecSuccess -> KlikLogger.d(TAG, "Removed key from Keychain: $key")
+        errSecItemNotFound -> KlikLogger.d(TAG, "Key not found in Keychain (already removed): $key")
+        else -> KlikLogger.e(TAG, "Failed to remove Keychain key: $key, OSStatus: $status")
       }
     }
   }
@@ -159,68 +173,68 @@ actual class SecureStorage actual constructor() {
   // ==================== Private Helpers ====================
 
   /**
-   * Build a base search query dictionary with class, service, and account.
-   * Used for delete and as the search portion of update.
+   * Run [block] with a freshly-created CFMutableDictionaryRef using the standard
+   * type-aware key/value callbacks. The dictionary is released after [block] returns,
+   * regardless of how it returns. Values added via [addCFBridgedValue] / [addCFValue] are
+   * retained by the dictionary and released when the dictionary is released.
    */
-  private fun buildSearchQuery(key: String): CFDictionaryRef {
-    val dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 4, null, null)!!
-    CFDictionaryAddValue(dict, kSecClass, kSecClassGenericPassword)
-    CFDictionaryAddValue(dict, kSecAttrService, CFBridgingRetain(serviceName as NSString))
-    CFDictionaryAddValue(dict, kSecAttrAccount, CFBridgingRetain(key as NSString))
-    @Suppress("UNCHECKED_CAST")
-    return dict as CFDictionaryRef
+  private inline fun <T> withMutableDict(block: (CFMutableDictionaryRef) -> T): T {
+    val dict = CFDictionaryCreateMutable(
+      kCFAllocatorDefault,
+      6,
+      kCFTypeDictionaryKeyCallBacks.ptr,
+      kCFTypeDictionaryValueCallBacks.ptr,
+    )!!
+    try {
+      return block(dict)
+    } finally {
+      CFRelease(dict)
+    }
   }
 
   /**
-   * Build an add query with class, service, account, and value data.
+   * Populate the (class, service, account) tuple that identifies a Keychain item for
+   * service `io.klik.app` and account [key]. Uses [addCFBridgedValue] for the bridged
+   * NSString account so its retain count is balanced by the dictionary.
    */
-  private fun buildAddQuery(key: String, valueData: NSData): CFDictionaryRef {
-    val dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 4, null, null)!!
-    CFDictionaryAddValue(dict, kSecClass, kSecClassGenericPassword)
-    CFDictionaryAddValue(dict, kSecAttrService, CFBridgingRetain(serviceName as NSString))
-    CFDictionaryAddValue(dict, kSecAttrAccount, CFBridgingRetain(key as NSString))
-    CFDictionaryAddValue(dict, kSecValueData, CFBridgingRetain(valueData))
-    @Suppress("UNCHECKED_CAST")
-    return dict as CFDictionaryRef
+  private fun populateBaseAttributes(dict: CFMutableDictionaryRef, key: String) {
+    addCFValue(dict, kSecClass, kSecClassGenericPassword)
+    addCFBridgedValue(dict, kSecAttrService, serviceName as NSString)
+    addCFBridgedValue(dict, kSecAttrAccount, key as NSString)
   }
 
   /**
-   * Build an attributes dictionary for updating the value data.
+   * Add a non-bridged CFTypeRef value (e.g. one of the `kSec*` constants) to the dictionary.
+   * The dictionary's value-callbacks will retain it; nothing extra to release here.
    */
-  private fun buildUpdateAttributes(valueData: NSData): CFDictionaryRef {
-    val dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, null, null)!!
-    CFDictionaryAddValue(dict, kSecValueData, CFBridgingRetain(valueData))
-    @Suppress("UNCHECKED_CAST")
-    return dict as CFDictionaryRef
+  private fun addCFValue(dict: CFMutableDictionaryRef, key: CFTypeRef?, value: CFTypeRef?) {
+    CFDictionaryAddValue(dict, key, value)
   }
 
   /**
-   * Build a retrieve query that returns the stored data.
+   * Add a bridged Foundation value (NSString, NSData, etc.) to the dictionary.
+   *
+   * `CFBridgingRetain` returns a +1 CFTypeRef. The dictionary's value-callbacks retain
+   * it again (+2). When the dictionary is released, its retain is dropped (+1). We
+   * immediately release the bridged ref to balance, leaving the value at refcount 1
+   * owned solely by the dictionary, which releases it on `CFRelease(dict)`.
    */
-  private fun buildRetrieveQuery(key: String): CFDictionaryRef {
-    val dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 5, null, null)!!
-    CFDictionaryAddValue(dict, kSecClass, kSecClassGenericPassword)
-    CFDictionaryAddValue(dict, kSecAttrService, CFBridgingRetain(serviceName as NSString))
-    CFDictionaryAddValue(dict, kSecAttrAccount, CFBridgingRetain(key as NSString))
-    CFDictionaryAddValue(dict, kSecReturnData, kCFBooleanTrue)
-    CFDictionaryAddValue(dict, kSecMatchLimit, kSecMatchLimitOne)
-    @Suppress("UNCHECKED_CAST")
-    return dict as CFDictionaryRef
+  private fun addCFBridgedValue(dict: CFMutableDictionaryRef, key: CFTypeRef?, value: Any) {
+    val cfRef = CFBridgingRetain(value) ?: return
+    try {
+      CFDictionaryAddValue(dict, key, cfRef)
+    } finally {
+      CFRelease(cfRef)
+    }
   }
 
-  /**
-   * Encode a String to NSData using UTF-8.
-   */
   private fun dataFromString(value: String): NSData? {
-    @Suppress("CAST_NEVER_SUCCEEDS")
     val nsString = value as NSString
     return nsString.dataUsingEncoding(NSUTF8StringEncoding)
   }
 
-  /**
-   * Decode NSData back to a String using UTF-8.
-   */
-  private fun stringFromData(data: NSData): String? = NSString.create(data = data, encoding = NSUTF8StringEncoding) as? String
+  private fun stringFromData(data: NSData): String? =
+    NSString.create(data = data, encoding = NSUTF8StringEncoding) as? String
 
   companion object {
     private const val TAG = "SecureStorage"

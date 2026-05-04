@@ -141,20 +141,14 @@ object CurrentUser {
 
   /**
    * Get headers map for API requests.
-   * PRODUCTION: JWT-only authentication - backend extracts user_id from token claims.
+   *
+   * Returns ONLY the Authorization Bearer token — backend extracts user_id from the JWT
+   * "sub" claim. Callers (e.g. [HttpClient.executeWithRetry]) are responsible for adding
+   * Content-Type and Accept headers appropriate to the request body, which keeps multipart
+   * uploads and external-API calls free of unwanted application/json overrides.
    */
   fun getAuthHeaders(): Map<String, String> {
-    val headers = mutableMapOf<String, String>()
-
-    // ONLY send Authorization Bearer token
-    // Backend MUST extract user_id from JWT claims (sub field)
-    _accessToken?.let {
-      headers[ApiConfig.Headers.AUTHORIZATION] = "Bearer $it"
-    }
-
-    headers[ApiConfig.Headers.CONTENT_TYPE] = ApiConfig.ContentTypes.JSON
-    headers[ApiConfig.Headers.ACCEPT] = ApiConfig.ContentTypes.JSON
-
-    return headers
+    val token = _accessToken ?: return emptyMap()
+    return mapOf(ApiConfig.Headers.AUTHORIZATION to "Bearer $token")
   }
 }
