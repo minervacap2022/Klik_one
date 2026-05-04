@@ -50,8 +50,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
+import io.github.fletchmckee.liquid.samples.app.model.archiveTask
+import io.github.fletchmckee.liquid.samples.app.model.archivedTaskIdsState
 import io.github.fletchmckee.liquid.samples.app.model.markTaskSeen
+import io.github.fletchmckee.liquid.samples.app.model.pinnedTaskIdsState
 import io.github.fletchmckee.liquid.samples.app.model.seenTaskIdsState
+import io.github.fletchmckee.liquid.samples.app.model.toggleTaskPin
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
@@ -119,14 +123,27 @@ fun MovesScreen(
   // Newest first. ISO-8601 strings sort lexically; null/blank goes last.
   val recencyKey: (TaskMetadata) -> String = { it.createdAt?.takeIf { s -> s.isNotBlank() } ?: "" }
 
-  val needsOk = (featuredTasks + sensitiveTasks).sortedByDescending(recencyKey)
-  val doneIds = dailyTasks.filter(::isDone).map { it.id }.toSet()
-  val failedIds = dailyTasks.filter(::isFailed).map { it.id }.toSet()
-  val running = dailyTasks
+  // Pin/archive state — pinned items rise to the top of every bucket,
+  // archived items disappear from the active list entirely.
+  val archivedTaskIds by archivedTaskIdsState
+  val pinnedTaskIds by pinnedTaskIdsState
+  val pinComparator = compareByDescending<TaskMetadata> { pinnedTaskIds[it.id] ?: 0L }
+
+  val needsOk = (featuredTasks + sensitiveTasks)
+    .filter { it.id !in archivedTaskIds }
+    .sortedWith(pinComparator.thenByDescending(recencyKey))
+  val active = dailyTasks.filter { it.id !in archivedTaskIds }
+  val doneIds = active.filter(::isDone).map { it.id }.toSet()
+  val failedIds = active.filter(::isFailed).map { it.id }.toSet()
+  val running = active
     .filter { it.id !in doneIds && it.id !in failedIds }
-    .sortedByDescending(recencyKey)
-  val done = dailyTasks.filter { it.id in doneIds }.sortedByDescending(recencyKey)
-  val failed = dailyTasks.filter { it.id in failedIds }.sortedByDescending(recencyKey)
+    .sortedWith(pinComparator.thenByDescending(recencyKey))
+  val done = active
+    .filter { it.id in doneIds }
+    .sortedWith(pinComparator.thenByDescending(recencyKey))
+  val failed = active
+    .filter { it.id in failedIds }
+    .sortedWith(pinComparator.thenByDescending(recencyKey))
   val totalAll = needsOk.size + running.size + done.size + failed.size
 
   val seenIds by seenTaskIdsState
@@ -270,16 +287,25 @@ fun MovesScreen(
           )
           Spacer(Modifier.height(K1Sp.s))
           needsOk.forEach { t ->
-            NeedsOkCard(
-              t = t,
-              isUnread = unread(t),
-              onApprove = onApproveTask,
-              onArchive = onArchiveTaskOnBackend,
-              onOpen = {
-                markTaskSeen(t.id)
-                onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+            K1SwipeRow(
+              isPinned = t.id in pinnedTaskIds,
+              onPin = { toggleTaskPin(t.id) },
+              onArchive = {
+                archiveTask(t.id, t)
+                onArchiveTaskOnBackend(t.id)
               },
-            )
+            ) {
+              NeedsOkCard(
+                t = t,
+                isUnread = unread(t),
+                onApprove = onApproveTask,
+                onArchive = onArchiveTaskOnBackend,
+                onOpen = {
+                  markTaskSeen(t.id)
+                  onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+                },
+              )
+            }
             Spacer(Modifier.height(8.dp))
           }
         }
@@ -320,11 +346,17 @@ fun MovesScreen(
               },
               tasks = tasks,
               isUnread = ::unread,
+              pinnedIds = pinnedTaskIds,
               highlightedTaskId = highlightedTaskId,
               forceExpanded = highlightedTaskId != null && tasks.any { it.id == highlightedTaskId },
               onTaskClick = { t ->
                 markTaskSeen(t.id)
                 onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+              },
+              onPinTask = { id -> toggleTaskPin(id) },
+              onArchiveTask = { task ->
+                archiveTask(task.id, task)
+                onArchiveTaskOnBackend(task.id)
               },
               onRetryTask = onRetryTask,
             )
@@ -345,15 +377,24 @@ fun MovesScreen(
           )
           Spacer(Modifier.height(K1Sp.s))
           failed.forEach { t ->
-            FailedRow(
-              t = t,
-              isUnread = unread(t),
-              onRetry = { onRetryTask(t.id) },
-              onOpen = {
-                markTaskSeen(t.id)
-                onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+            K1SwipeRow(
+              isPinned = t.id in pinnedTaskIds,
+              onPin = { toggleTaskPin(t.id) },
+              onArchive = {
+                archiveTask(t.id, t)
+                onArchiveTaskOnBackend(t.id)
               },
-            )
+            ) {
+              FailedRow(
+                t = t,
+                isUnread = unread(t),
+                onRetry = { onRetryTask(t.id) },
+                onOpen = {
+                  markTaskSeen(t.id)
+                  onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+                },
+              )
+            }
             Spacer(Modifier.height(6.dp))
           }
         }
@@ -365,7 +406,16 @@ fun MovesScreen(
           K1SectionHeader("Done today", count = done.size)
           Spacer(Modifier.height(K1Sp.s))
           done.forEach { t ->
-            DoneRow(t = t, onRetry = { onRetryTask(t.id) })
+            K1SwipeRow(
+              isPinned = t.id in pinnedTaskIds,
+              onPin = { toggleTaskPin(t.id) },
+              onArchive = {
+                archiveTask(t.id, t)
+                onArchiveTaskOnBackend(t.id)
+              },
+            ) {
+              DoneRow(t = t, onRetry = { onRetryTask(t.id) })
+            }
           }
         }
         Spacer(Modifier.height(K1Sp.xxl))
@@ -515,9 +565,12 @@ private fun TaskCategoryGroup(
   label: String,
   tasks: List<TaskMetadata>,
   isUnread: (TaskMetadata) -> Boolean = { false },
+  pinnedIds: Map<String, Long> = emptyMap(),
   highlightedTaskId: String? = null,
   forceExpanded: Boolean = false,
   onTaskClick: (TaskMetadata) -> Unit = {},
+  onPinTask: (String) -> Unit = {},
+  onArchiveTask: (TaskMetadata) -> Unit = {},
   onRetryTask: (String) -> Unit = {},
 ) {
   var expanded by remember { mutableStateOf(forceExpanded || tasks.size <= 3) }
@@ -549,13 +602,19 @@ private fun TaskCategoryGroup(
       Spacer(Modifier.height(K1Sp.s))
       Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
       tasks.forEach { t ->
-        RunningTaskRow(
-          t = t,
-          isUnread = isUnread(t),
-          isHighlighted = t.id == highlightedTaskId,
-          onClick = { onTaskClick(t) },
-          onRetry = { onRetryTask(t.id) },
-        )
+        K1SwipeRow(
+          isPinned = t.id in pinnedIds,
+          onPin = { onPinTask(t.id) },
+          onArchive = { onArchiveTask(t) },
+        ) {
+          RunningTaskRow(
+            t = t,
+            isUnread = isUnread(t),
+            isHighlighted = t.id == highlightedTaskId,
+            onClick = { onTaskClick(t) },
+            onRetry = { onRetryTask(t.id) },
+          )
+        }
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
       }
     }

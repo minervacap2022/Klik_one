@@ -41,6 +41,14 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.Organization
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Person
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Project
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
+import io.github.fletchmckee.liquid.samples.app.model.archiveMeeting
+import io.github.fletchmckee.liquid.samples.app.model.archiveTask
+import io.github.fletchmckee.liquid.samples.app.model.archivedMeetingIdsState
+import io.github.fletchmckee.liquid.samples.app.model.archivedTaskIdsState
+import io.github.fletchmckee.liquid.samples.app.model.pinnedMeetingIdsState
+import io.github.fletchmckee.liquid.samples.app.model.pinnedTaskIdsState
+import io.github.fletchmckee.liquid.samples.app.model.toggleMeetingPin
+import io.github.fletchmckee.liquid.samples.app.model.toggleTaskPin
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
@@ -283,8 +291,14 @@ fun TodayScreen(
         Spacer(Modifier.height(K1Sp.lg))
       }
 
+      val archivedMeetingIds by archivedMeetingIdsState
+      val pinnedMeetingIds by pinnedMeetingIdsState
       val dayMeetings = run {
-        val raw = mergedMeetings.filter { it.date == selectedDate && !it.isArchived }
+        val raw = mergedMeetings.filter {
+          it.date == selectedDate &&
+            !it.isArchived &&
+            it.id !in archivedMeetingIds
+        }
         // Dedup: same title+time = same real event. Keep KLIK (recorded) over APPLE_CALENDAR.
         val grouped = raw.groupBy { "${it.title.trim().lowercase()}|${it.time}" }
         grouped.values.map { group ->
@@ -369,15 +383,27 @@ fun TodayScreen(
       // Past day: all under "Sessions". Future day: "Scheduled".
       when {
         isTodaySelected -> {
-          val processed = dayMeetings.filter { it.startTime <= nowTime }
-          val upcoming = dayMeetings.filter { it.startTime > nowTime }.sortedBy { it.time }
+          // Pinned-first ordering keeps user-promoted sessions at the top of
+          // their bucket without crossing the past/upcoming boundary.
+          val processed = dayMeetings
+            .filter { it.startTime <= nowTime }
+            .sortedByDescending { pinnedMeetingIds[it.id] ?: 0L }
+          val upcoming = dayMeetings
+            .filter { it.startTime > nowTime }
+            .sortedWith(
+              compareByDescending<Meeting> { pinnedMeetingIds[it.id] ?: 0L }.thenBy { it.time },
+            )
 
           if (processed.isNotEmpty()) {
             Column(Modifier.padding(horizontal = 20.dp)) {
               K1SectionHeader("Processed", count = processed.size, dotColor = KlikCommitmentAccent)
               Spacer(Modifier.height(K1Sp.s))
               processed.forEach { m ->
-                MeetingRow(m, onClick = { onMeetingClick(m) })
+                SwipeableMeetingRow(
+                  m = m,
+                  pinned = m.id in pinnedMeetingIds,
+                  onClick = { onMeetingClick(m) },
+                )
                 Spacer(Modifier.height(6.dp))
               }
             }
@@ -389,7 +415,11 @@ fun TodayScreen(
               K1SectionHeader("Up next", count = upcoming.size)
               Spacer(Modifier.height(K1Sp.s))
               upcoming.forEach { m ->
-                MeetingRow(m, onClick = { onMeetingClick(m) })
+                SwipeableMeetingRow(
+                  m = m,
+                  pinned = m.id in pinnedMeetingIds,
+                  onClick = { onMeetingClick(m) },
+                )
                 Spacer(Modifier.height(6.dp))
               }
             }
@@ -402,11 +432,16 @@ fun TodayScreen(
 
         isPastDaySelected -> {
           if (dayMeetings.isNotEmpty()) {
+            val ordered = dayMeetings.sortedByDescending { pinnedMeetingIds[it.id] ?: 0L }
             Column(Modifier.padding(horizontal = 20.dp)) {
-              K1SectionHeader("Sessions", count = dayMeetings.size, dotColor = KlikCommitmentAccent)
+              K1SectionHeader("Sessions", count = ordered.size, dotColor = KlikCommitmentAccent)
               Spacer(Modifier.height(K1Sp.s))
-              dayMeetings.forEach { m ->
-                MeetingRow(m, onClick = { onMeetingClick(m) })
+              ordered.forEach { m ->
+                SwipeableMeetingRow(
+                  m = m,
+                  pinned = m.id in pinnedMeetingIds,
+                  onClick = { onMeetingClick(m) },
+                )
                 Spacer(Modifier.height(6.dp))
               }
             }
@@ -416,11 +451,16 @@ fun TodayScreen(
 
         else -> {
           if (dayMeetings.isNotEmpty()) {
+            val ordered = dayMeetings.sortedByDescending { pinnedMeetingIds[it.id] ?: 0L }
             Column(Modifier.padding(horizontal = 20.dp)) {
-              K1SectionHeader("Scheduled", count = dayMeetings.size)
+              K1SectionHeader("Scheduled", count = ordered.size)
               Spacer(Modifier.height(K1Sp.s))
-              dayMeetings.forEach { m ->
-                MeetingRow(m, onClick = { onMeetingClick(m) })
+              ordered.forEach { m ->
+                SwipeableMeetingRow(
+                  m = m,
+                  pinned = m.id in pinnedMeetingIds,
+                  onClick = { onMeetingClick(m) },
+                )
                 Spacer(Modifier.height(6.dp))
               }
             }
@@ -430,13 +470,24 @@ fun TodayScreen(
       }
 
       // ── MOVES FOR YOU ─────────────────────────────────────────────────
-      val pending = tasks.filter { it.needsConfirmation }.take(3)
+      val archivedTaskIds by archivedTaskIdsState
+      val pinnedTaskIds by pinnedTaskIdsState
+      val pending = tasks
+        .filter { it.needsConfirmation && it.id !in archivedTaskIds }
+        .sortedByDescending { pinnedTaskIds[it.id] ?: 0L }
+        .take(3)
       if (pending.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader("Moves for you", count = pending.size, dotColor = KlikWarn)
           Spacer(Modifier.height(K1Sp.s))
           pending.forEach { t ->
-            MoveMiniCard(t)
+            K1SwipeRow(
+              isPinned = t.id in pinnedTaskIds,
+              onPin = { toggleTaskPin(t.id) },
+              onArchive = { archiveTask(t.id, t) },
+            ) {
+              MoveMiniCard(t)
+            }
             Spacer(Modifier.height(6.dp))
           }
         }
@@ -625,6 +676,24 @@ private fun MeetingRow(m: Meeting, onClick: () -> Unit = {}) {
         }
       }
     }
+  }
+}
+
+// SwipeableMeetingRow wires the global pin/archive helpers to a MeetingRow
+// so the editorial swipe gestures are consistent across Today's three
+// session buckets (processed, upcoming, sessions).
+@Composable
+private fun SwipeableMeetingRow(
+  m: Meeting,
+  pinned: Boolean,
+  onClick: () -> Unit,
+) {
+  K1SwipeRow(
+    isPinned = pinned,
+    onPin = { toggleMeetingPin(m.id) },
+    onArchive = { archiveMeeting(m.id, m) },
+  ) {
+    MeetingRow(m, onClick = onClick)
   }
 }
 

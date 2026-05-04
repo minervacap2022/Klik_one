@@ -3,18 +3,26 @@
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import io.github.fletchmckee.liquid.samples.app.platform.HapticService
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1251,5 +1259,237 @@ fun K1PullRefreshIndicator(
         drawPath(armPath, color = KlikInkPrimary)
       }
     }
+  }
+}
+
+// ─── Swipe-to-action row ─────────────────────────────────────────────────
+// Editorial swipe pattern. Drag right reveals a pin glyph + label, drag
+// left reveals an archive glyph + label. Crossing the activation threshold
+// fires a medium-impact haptic and the matching callback; the row then
+// springs back to rest. We deliberately avoid Material3's SwipeToDismissBox
+// — its anchored-state machine froze rows in EventsScreen — and instead
+// drive the offset with a single Animatable so a callback can never leave
+// the row stuck off-screen.
+//
+// The pinned chrome (KlikCommitmentBg + KlikInkPrimary) and the archived
+// chrome (KlikInkPrimary + KlikPaperCard) follow the same paper-and-ink
+// palette as K1Card / K1Chip, so the reveal reads as a continuation of the
+// row, not a Material widget.
+@Composable
+fun K1SwipeRow(
+  modifier: Modifier = Modifier,
+  isPinned: Boolean = false,
+  pinLabel: String = "Pin",
+  unpinLabel: String = "Unpin",
+  archiveLabel: String = "Archive",
+  onPin: (() -> Unit)? = null,
+  onArchive: (() -> Unit)? = null,
+  content: @Composable () -> Unit,
+) {
+  val density = LocalDensity.current
+  val activatePx = with(density) { 72.dp.toPx() }
+  val maxRevealPx = with(density) { 96.dp.toPx() }
+  val offsetX = remember { Animatable(0f) }
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+  Box(modifier.fillMaxWidth()) {
+    // Background reveal — pin (right pull) on the leading edge, archive
+    // (left pull) on the trailing edge. Only one is visible at a time
+    // because the offset's sign is mutually exclusive.
+    val o = offsetX.value
+    val showPin = o > 1f && onPin != null
+    val showArchive = o < -1f && onArchive != null
+    if (showPin || showArchive) {
+      Box(
+        Modifier
+          .matchParentSize()
+          .clip(K1R.soft)
+          .background(
+            when {
+              showPin -> if (isPinned) KlikPaperSoft else KlikCommitmentBg
+              else -> KlikInkPrimary
+            },
+          ),
+        contentAlignment = if (showPin) Alignment.CenterStart else Alignment.CenterEnd,
+      ) {
+        Row(
+          Modifier.padding(horizontal = K1Sp.lg),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          if (showPin) {
+            K1PinGlyph(color = KlikInkPrimary)
+            Spacer(Modifier.width(K1Sp.xs))
+            Text(
+              if (isPinned) unpinLabel else pinLabel,
+              style = K1Type.meta.copy(
+                color = KlikInkPrimary,
+                fontWeight = FontWeight.Medium,
+              ),
+            )
+          } else {
+            Text(
+              archiveLabel,
+              style = K1Type.meta.copy(
+                color = KlikPaperCard,
+                fontWeight = FontWeight.Medium,
+              ),
+            )
+            Spacer(Modifier.width(K1Sp.xs))
+            K1ArchiveGlyph(color = KlikPaperCard)
+          }
+        }
+      }
+    }
+
+    // Foreground row — translates with the drag.
+    Box(
+      Modifier
+        .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+        .pointerInput(onPin, onArchive) {
+          detectHorizontalDragGestures(
+            onDragStart = { /* no-op: we don't lock vertical scroll */ },
+            onDragEnd = {
+              val current = offsetX.value
+              val crossedRight = current >= activatePx && onPin != null
+              val crossedLeft = current <= -activatePx && onArchive != null
+              if (crossedRight) {
+                HapticService.mediumImpact()
+                onPin?.invoke()
+              } else if (crossedLeft) {
+                HapticService.mediumImpact()
+                onArchive?.invoke()
+              }
+              scope.launch {
+                offsetX.animateTo(
+                  targetValue = 0f,
+                  animationSpec = spring(dampingRatio = 0.85f, stiffness = 380f),
+                )
+              }
+            },
+            onDragCancel = {
+              scope.launch {
+                offsetX.animateTo(
+                  targetValue = 0f,
+                  animationSpec = spring(dampingRatio = 0.85f, stiffness = 380f),
+                )
+              }
+            },
+            onHorizontalDrag = { change, dragAmount ->
+              val raw = offsetX.value + dragAmount
+              // Clamp to the configured reveal width and disallow direction
+              // for which there is no callback, so the row can't be dragged
+              // into a blank state.
+              val clamped = when {
+                raw > 0f && onPin == null -> 0f
+                raw < 0f && onArchive == null -> 0f
+                else -> raw.coerceIn(-maxRevealPx, maxRevealPx)
+              }
+              if (clamped != offsetX.value) {
+                scope.launch { offsetX.snapTo(clamped) }
+                change.consume()
+              }
+            },
+          )
+        },
+    ) {
+      content()
+    }
+  }
+}
+
+// ─── Swipe-action glyphs ─────────────────────────────────────────────────
+// Editorial line glyphs that ride the swipe reveal. Both render at 14 dp so
+// they sit centred against meta-sized text.
+
+@Composable
+private fun K1PinGlyph(color: Color) {
+  Canvas(Modifier.size(14.dp)) {
+    val w = 1.2.dp.toPx()
+    val cx = size.width / 2f
+    val headTop = 2.dp.toPx()
+    val headBottom = 7.dp.toPx()
+    val needleEnd = 12.dp.toPx()
+    // Pin head
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(cx - 3.dp.toPx(), headTop),
+      end = androidx.compose.ui.geometry.Offset(cx + 3.dp.toPx(), headTop),
+    )
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(cx - 3.dp.toPx(), headTop),
+      end = androidx.compose.ui.geometry.Offset(cx - 1.dp.toPx(), headBottom),
+    )
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(cx + 3.dp.toPx(), headTop),
+      end = androidx.compose.ui.geometry.Offset(cx + 1.dp.toPx(), headBottom),
+    )
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(cx - 1.dp.toPx(), headBottom),
+      end = androidx.compose.ui.geometry.Offset(cx + 1.dp.toPx(), headBottom),
+    )
+    // Needle
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(cx, headBottom),
+      end = androidx.compose.ui.geometry.Offset(cx, needleEnd),
+    )
+  }
+}
+
+@Composable
+private fun K1ArchiveGlyph(color: Color) {
+  Canvas(Modifier.size(14.dp)) {
+    val w = 1.2.dp.toPx()
+    // Lid
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(2.dp.toPx(), 4.dp.toPx()),
+      end = androidx.compose.ui.geometry.Offset(12.dp.toPx(), 4.dp.toPx()),
+    )
+    // Box outline
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 4.dp.toPx()),
+      end = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 12.dp.toPx()),
+    )
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(11.dp.toPx(), 4.dp.toPx()),
+      end = androidx.compose.ui.geometry.Offset(11.dp.toPx(), 12.dp.toPx()),
+    )
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(3.dp.toPx(), 12.dp.toPx()),
+      end = androidx.compose.ui.geometry.Offset(11.dp.toPx(), 12.dp.toPx()),
+    )
+    // Tab notch
+    drawLine(
+      color = color,
+      strokeWidth = w,
+      cap = androidx.compose.ui.graphics.StrokeCap.Round,
+      start = androidx.compose.ui.geometry.Offset(5.5.dp.toPx(), 7.5.dp.toPx()),
+      end = androidx.compose.ui.geometry.Offset(8.5.dp.toPx(), 7.5.dp.toPx()),
+    )
   }
 }
