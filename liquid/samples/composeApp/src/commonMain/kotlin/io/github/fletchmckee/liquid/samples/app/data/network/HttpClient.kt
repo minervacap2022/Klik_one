@@ -318,6 +318,15 @@ object HttpClient {
         return null
       }
 
+      // Non-2xx responses (other than the auth-retry path above) carry an error envelope,
+      // not a valid resource body. Returning the body here would feed the error JSON into
+      // callers' `decodeFromString<DomainDto>(...)` and crash with MissingFieldException
+      // (e.g. UserDto missing `id`/`planType`, BugReportResponse missing `success`/`message`).
+      if (response.status !in 200..299) {
+        KlikLogger.e("HttpClient", "$method $url returned non-2xx status ${response.status}")
+        return null
+      }
+
       return response.body
     }
   }

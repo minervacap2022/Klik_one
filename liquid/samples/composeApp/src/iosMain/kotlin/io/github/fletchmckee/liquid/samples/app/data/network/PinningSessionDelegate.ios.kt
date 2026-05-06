@@ -12,6 +12,8 @@ import platform.CoreFoundation.CFDataGetBytePtr
 import platform.CoreFoundation.CFDataGetLength
 import platform.CoreFoundation.CFDataRef
 import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.CFRetain
+import platform.CoreFoundation.CFStringRef
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSNumber
 import platform.Foundation.NSString
@@ -134,8 +136,8 @@ private fun computeSpkiBytes(cert: SecCertificateRef): ByteArray? {
     @Suppress("UNCHECKED_CAST")
     val attrs = CFBridgingRelease(attrsCf) as? Map<Any?, Any?> ?: return null
 
-    val keyTypeKey = (kSecAttrKeyType as NSString) as String
-    val keySizeKey = (kSecAttrKeySizeInBits as NSString) as String
+    val keyTypeKey = cfStringConstToString(kSecAttrKeyType) ?: return null
+    val keySizeKey = cfStringConstToString(kSecAttrKeySizeInBits) ?: return null
     val keyType = attrs[keyTypeKey] as? String
     val keySizeBits = (attrs[keySizeKey] as? NSNumber)?.intValue
 
@@ -166,6 +168,17 @@ private fun cfDataToByteArray(data: CFDataRef): ByteArray {
   return ptr.readBytes(length)
 }
 
+// Bridge a Security framework CFStringRef constant (e.g. `kSecAttrKeyType`) to a Kotlin String.
+// `as NSString` does not work on these — they're CFStringRef pointers, toll-free bridged in
+// Objective-C but not auto-bridged in Kotlin/Native. We CFRetain to balance the release inside
+// CFBridgingRelease so the global constant stays intact.
+@OptIn(BetaInteropApi::class)
+private fun cfStringConstToString(cf: CFStringRef?): String? {
+  if (cf == null) return null
+  val retained = CFRetain(cf)
+  return (CFBridgingRelease(retained) as? NSString)?.toString()
+}
+
 /**
  * ASN.1 SubjectPublicKeyInfo headers for the (algorithm, key size) pairs we expect from
  * Google Trust Services and other common CAs. Constants from RFC 5480 / 8017,
@@ -174,8 +187,8 @@ private fun cfDataToByteArray(data: CFDataRef): ByteArray {
 @OptIn(BetaInteropApi::class)
 private fun asn1HeaderFor(keyType: String?, keySizeBits: Int?): ByteArray? {
   if (keyType == null || keySizeBits == null) return null
-  val rsaTag = (kSecAttrKeyTypeRSA as NSString) as String
-  val ecTag = (kSecAttrKeyTypeECSECPrimeRandom as NSString) as String
+  val rsaTag = cfStringConstToString(kSecAttrKeyTypeRSA) ?: return null
+  val ecTag = cfStringConstToString(kSecAttrKeyTypeECSECPrimeRandom) ?: return null
   return when {
     keyType == rsaTag && keySizeBits == 2048 -> RSA_2048_SPKI_HEADER
     keyType == rsaTag && keySizeBits == 3072 -> RSA_3072_SPKI_HEADER
