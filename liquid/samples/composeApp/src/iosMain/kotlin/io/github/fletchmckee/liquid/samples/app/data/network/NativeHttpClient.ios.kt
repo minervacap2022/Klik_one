@@ -174,7 +174,7 @@ internal actual class NativeHttpClient actual constructor() {
           continuation.cancel()
           return@dataTaskWithRequest
         }
-        continuation.cancel(NetworkRequestException("$method $urlString failed: ${error.localizedDescription}"))
+        continuation.resumeWithException(NetworkRequestException("$method $urlString failed: ${error.localizedDescription}"))
         return@dataTaskWithRequest
       }
 

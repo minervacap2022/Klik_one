@@ -1353,6 +1353,7 @@ fun MainApp() {
       initError = errorMessage
       isEventsLoading = false // Stop loading on error too
       isGrowthLoading = false // Stop growth loading on error too
+      isLlmDataLoading = false // isLlmDataLoading starts true; must clear on init failure or it hangs forever
     }
   }
 

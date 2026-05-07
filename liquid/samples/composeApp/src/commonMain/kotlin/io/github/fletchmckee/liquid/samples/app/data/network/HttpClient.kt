@@ -72,6 +72,11 @@ object HttpClient {
   private var lastRefreshTimeSeconds = 0L
   private const val RECENT_REFRESH_WINDOW_SECONDS = 5L
 
+  // Timestamp of the last refresh attempt (success or failure). Used to prevent rapid
+  // sequential retries when multiple queued waiters run back-to-back after a failed refresh.
+  private var lastRefreshAttemptSeconds = 0L
+  private const val FAILED_REFRESH_COOLDOWN_SECONDS = 10L
+
   // Network retry policy.
   internal const val NETWORK_RETRY_MAX = 3
   internal const val NETWORK_RETRY_BASE_DELAY_MS = 1000L
@@ -85,6 +90,8 @@ object HttpClient {
   fun clearTokenRefreshCallback() {
     tokenRefreshCallback = null
     refreshPermanentlyFailed = true
+    lastRefreshAttemptSeconds = 0L
+    lastRefreshSucceeded = false
     KlikLogger.i("HttpClient", "Token refresh callback cleared (refresh permanently disabled)")
   }
 
@@ -136,12 +143,22 @@ object HttpClient {
         KlikLogger.i("HttpClient", "Token was just refreshed ${nowSeconds - lastRefreshTimeSeconds}s ago, reusing result")
         return@withLock true
       }
+      // If the last refresh attempt FAILED recently, don't let queued waiters pile on immediately.
+      // This prevents the double-retry storm when multiple concurrent callers all see an expiring
+      // token, queue on the mutex, and then each fires a fresh (doomed) refresh in sequence.
+      if (!lastRefreshSucceeded && lastRefreshAttemptSeconds > 0 &&
+        (nowSeconds - lastRefreshAttemptSeconds) < FAILED_REFRESH_COOLDOWN_SECONDS
+      ) {
+        KlikLogger.w("HttpClient", "Token refresh cooling down (last attempt ${nowSeconds - lastRefreshAttemptSeconds}s ago), skipping")
+        return@withLock false
+      }
       val callback = tokenRefreshCallback
       if (callback == null) {
         KlikLogger.w("HttpClient", "No token refresh callback registered")
         return@withLock false
       }
       lastRefreshSucceeded = false
+      lastRefreshAttemptSeconds = nowSeconds
       try {
         withContext(NonCancellable) {
           val result = callback()
@@ -373,7 +390,17 @@ internal suspend fun retryNetworkRaw(
     if (attempt > 1) {
       KlikLogger.i("HTTP", "$method $url retry $attempt/$maxAttempts")
     }
-    val response = call()
+    // Transport exceptions (proxy failure, TLS reset, DNS timeout) are caught here so they
+    // go through the same retry budget as status-0 responses. Without this, a proxy 503 that
+    // surfaces as a thrown NetworkRequestException bypasses all retry logic entirely.
+    val response = try {
+      call()
+    } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      KlikLogger.w("HTTP", "$method $url transport error (attempt $attempt): ${e.message}")
+      NativeHttpResponse(0, null)
+    }
     val transient = response.status == 0 || response.status in 500..599
     if (!transient) {
       return response
