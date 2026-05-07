@@ -419,8 +419,9 @@ fun MainApp() {
   var isTopBarOverlapped by remember { mutableStateOf(false) }  // Track when content overlaps top bar
   var topStatusDockHeight by remember { mutableStateOf(0) }  // Track TopStatusDock bottom edge position in pixels (Y + height)
 
-  // Fixed Session recording state
-  var isFixedSessionRecording by remember { mutableStateOf(false) }
+  // Fixed Session recording state — derived from the streamer's own StateFlow so it
+  // survives Compose composition teardown/rebuild (e.g. after an auth reset on cold start).
+  val isFixedSessionRecording by FixedSessionAudioStreamer.isStreaming.collectAsState()
   val isFixedSessionPaused by FixedSessionAudioStreamer.isPaused.collectAsState()
   // Feeds the K1 post-session processing banner with REAL orchestrator state.
   // Polls KK_orchestrator's /api/v1/pipeline/session/{sid}/status (exposed
@@ -1895,7 +1896,6 @@ fun MainApp() {
                   try {
                       val response = RemoteDataFetcher.startFixedSession()
                       fixedSessionId = response.sessionId
-                      isFixedSessionRecording = true
                       recordingStartedAtMillis = Clock.System.now().toEpochMilliseconds()
                       KlikLogger.i("MainApp", "Fixed session started: ${response.sessionId}")
                       showRecordingStartedBanner = true
@@ -1905,12 +1905,10 @@ fun MainApp() {
                       if (!streamStarted) {
                           KlikLogger.e("MainApp", "Failed to start audio streaming, stopping session")
                           RemoteDataFetcher.stopFixedSession()
-                          isFixedSessionRecording = false
                           fixedSessionId = null
                       }
                   } catch (e: Exception) {
                       KlikLogger.e("MainApp", "Failed to start fixed session: ${e.message}", e)
-                      isFixedSessionRecording = false
                       fixedSessionId = null
                   }
               }
@@ -1930,7 +1928,6 @@ fun MainApp() {
           }
       }
       val stopFixedSessionAction: () -> Unit = {
-          isFixedSessionRecording = false
           fixedSessionId = null
           recordingStartedAtMillis = null
           // Surface the post-session processing pipeline on Today. Stage /
@@ -3367,7 +3364,6 @@ fun MainApp() {
                     try {
                         val response = RemoteDataFetcher.startFixedSession()
                         fixedSessionId = response.sessionId
-                        isFixedSessionRecording = true
                         recordingStartedAtMillis = Clock.System.now().toEpochMilliseconds()
                         KlikLogger.i("MainApp", "Fixed session started: ${response.sessionId}")
 
@@ -3381,12 +3377,10 @@ fun MainApp() {
                         if (!streamStarted) {
                             KlikLogger.e("MainApp", "Failed to start audio streaming, stopping session")
                             RemoteDataFetcher.stopFixedSession()
-                            isFixedSessionRecording = false
                             fixedSessionId = null
                         }
                     } catch (e: Exception) {
                         KlikLogger.e("MainApp", "Failed to start fixed session: ${e.message}", e)
-                        isFixedSessionRecording = false
                         fixedSessionId = null
                     }
                 }
@@ -3408,9 +3402,6 @@ fun MainApp() {
             }
         },
         onStopFixedSession = {
-            // Update UI state immediately so the recording indicator clears
-            // regardless of how the network call goes.
-            isFixedSessionRecording = false
             fixedSessionId = null
             recordingStartedAtMillis = null
             if (currentRoute == "live_recording") currentRoute = lastMainRoute
