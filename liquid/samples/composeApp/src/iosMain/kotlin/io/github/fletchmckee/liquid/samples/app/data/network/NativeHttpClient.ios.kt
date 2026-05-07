@@ -4,6 +4,7 @@ package io.github.fletchmckee.liquid.samples.app.data.network
 
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
