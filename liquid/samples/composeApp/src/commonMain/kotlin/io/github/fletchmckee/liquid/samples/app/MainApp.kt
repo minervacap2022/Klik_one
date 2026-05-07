@@ -191,6 +191,7 @@ import io.github.fletchmckee.liquid.samples.app.model.initializeArchivePinState
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Insights
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.NotificationDto
+import io.github.fletchmckee.liquid.samples.app.data.source.remote.KKExecRetryLimitException
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.RemoteDataFetcher
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.EncourageData
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.WorklifeData
@@ -364,7 +365,10 @@ private fun parseSingleTimeMinutes(s: String): Int? = try {
     if (isPM && hour != 12) hour += 12
     if (!isPM && hour == 12) hour = 0
     hour * 60 + minute
-} catch (_: Exception) { null }
+} catch (e: Exception) {
+    KlikLogger.w("MainApp", "Failed to parse time '$s': ${e.message}", e)
+    null
+}
 
 // Module-level init guard: prevents duplicate API calls when composition is disposed and recreated.
 // Tracks when each init block STARTED — skips re-entry within the debounce window.
@@ -732,6 +736,10 @@ fun MainApp() {
       val serverCompleted = try {
         io.github.fletchmckee.liquid.samples.app.data.network.OnboardingStateClient
           .fetch().onboardingComplete
+      } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
+        // Composition disposed mid-fetch — normal Compose lifecycle, not an error.
+        // Re-throw so the LaunchedEffect coroutine cleans up correctly.
+        throw ce
       } catch (t: Throwable) {
         KlikLogger.e("MainApp", "Onboarding state fetch failed: ${t.message}", t)
         // No fallback fabrication — fall back to local cache only when server
@@ -752,6 +760,9 @@ fun MainApp() {
             io.github.fletchmckee.liquid.samples.app.data.network.OnboardingStateClient
               .patch(onboardingCompleted = true)
             KlikLogger.i("MainApp", "Backfilled onboarding completion to server for $uid")
+          } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
+            // Composition disposed mid-PATCH — normal Compose lifecycle, rethrow.
+            throw ce
           } catch (t: Throwable) {
             KlikLogger.e("MainApp", "Onboarding backfill failed: ${t.message}", t)
           }
@@ -1588,22 +1599,17 @@ fun MainApp() {
       val orgs = fetcher.fetchOrganizations()
       io.github.fletchmckee.liquid.samples.app.model.organizationsState.value = orgs
 
-      // Reload insights, encourage, and worklife data
+      // Reload insights, encourage, and worklife data — fetchers throw on failure,
+      // so the assignments are unconditional.
       val fetchedInsights = fetcher.fetchInsights()
-      if (fetchedInsights != null) {
-        LlmDataCache.insights = fetchedInsights
-        insights = fetchedInsights
-      }
+      LlmDataCache.insights = fetchedInsights
+      insights = fetchedInsights
       val fetchedEncourage = fetcher.fetchEncourage()
-      if (fetchedEncourage != null) {
-        LlmDataCache.encourageData = fetchedEncourage
-        encourageData = fetchedEncourage
-      }
+      LlmDataCache.encourageData = fetchedEncourage
+      encourageData = fetchedEncourage
       val fetchedWorklife = fetcher.fetchWorklife()
-      if (fetchedWorklife != null) {
-        LlmDataCache.worklifeData = fetchedWorklife
-        worklifeData = fetchedWorklife
-      }
+      LlmDataCache.worklifeData = fetchedWorklife
+      worklifeData = fetchedWorklife
 
       // Reload goals
       val goals = fetcher.fetchGoals(status = "active", limit = 10)
@@ -2383,15 +2389,13 @@ fun MainApp() {
                                             RemoteDataFetcher.retryKKExecTodo(task.kkExecTodoId!!)
                                             KlikLogger.i("MainApp", "KK_exec todo ${task.kkExecTodoId} retry started")
                                             onRefreshTasks()
+                                        } catch (e: KKExecRetryLimitException) {
+                                            executingTodoIdsState.value = executingTodoIdsState.value - taskId
+                                            KlikLogger.w("MainApp", "Retry limit exceeded for task $taskId — upgrade required")
+                                            currentRoute = "pricing"
                                         } catch (e: Exception) {
                                             executingTodoIdsState.value = executingTodoIdsState.value - taskId
-                                            val message = e.message ?: ""
-                                            if (message.contains("403") || message.contains("Retry limit exceeded")) {
-                                                KlikLogger.w("MainApp", "Retry limit exceeded for task $taskId — upgrade required")
-                                                currentRoute = "pricing"
-                                            } else {
-                                                KlikLogger.e("MainApp", "Failed to retry task $taskId: ${e.message}", e)
-                                            }
+                                            KlikLogger.e("MainApp", "Failed to retry task $taskId: ${e.message}", e)
                                         }
                                     }
                                 },

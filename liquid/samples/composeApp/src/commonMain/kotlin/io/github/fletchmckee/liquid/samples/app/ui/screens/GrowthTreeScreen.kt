@@ -539,7 +539,7 @@ private fun BloomCanvasBlock(
         val path = Path().apply {
           moveTo(rootXP, (rootY + 13f).dp.toPx())
           val midY = ((rootY + priY) / 2f + 14f).dp.toPx()
-          quadraticBezierTo(rootXP, midY, targetX, (priY - 8f).dp.toPx())
+          quadraticTo(rootXP, midY, targetX, (priY - 8f).dp.toPx())
         }
         drawPath(
           path = path,
@@ -559,7 +559,7 @@ private fun BloomCanvasBlock(
             moveTo(pxStart, pyStart)
             val ctlX = ((priX + t.second) / 2f).dp.toPx()
             val ctlY = ((priY + t.third) / 2f - 6f).dp.toPx()
-            quadraticBezierTo(ctlX, ctlY, lx, ly)
+            quadraticTo(ctlX, ctlY, lx, ly)
           }
           drawPath(
             path = path,

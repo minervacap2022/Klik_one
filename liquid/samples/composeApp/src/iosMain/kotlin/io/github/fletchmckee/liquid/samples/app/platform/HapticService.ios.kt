@@ -9,52 +9,32 @@ import platform.UIKit.UINotificationFeedbackType
 
 actual object HapticService {
   actual fun lightImpact() {
-    try {
-      val generator = UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleLight)
-      generator.prepare()
-      generator.impactOccurred()
-    } catch (_: Exception) {
-      // Haptics unavailable (simulator) — ignore
-    }
+    val generator = UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleLight)
+    generator.prepare()
+    generator.impactOccurred()
   }
 
   actual fun mediumImpact() {
-    try {
-      val generator = UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleMedium)
-      generator.prepare()
-      generator.impactOccurred()
-    } catch (_: Exception) {
-      // Haptics unavailable (simulator) — ignore
-    }
+    val generator = UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleMedium)
+    generator.prepare()
+    generator.impactOccurred()
   }
 
   actual fun heavyImpact() {
-    try {
-      val generator = UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleHeavy)
-      generator.prepare()
-      generator.impactOccurred()
-    } catch (_: Exception) {
-      // Haptics unavailable (simulator) — ignore
-    }
+    val generator = UIImpactFeedbackGenerator(style = UIImpactFeedbackStyle.UIImpactFeedbackStyleHeavy)
+    generator.prepare()
+    generator.impactOccurred()
   }
 
   actual fun success() {
-    try {
-      val generator = UINotificationFeedbackGenerator()
-      generator.prepare()
-      generator.notificationOccurred(UINotificationFeedbackType.UINotificationFeedbackTypeSuccess)
-    } catch (_: Exception) {
-      // Haptics unavailable (simulator) — ignore
-    }
+    val generator = UINotificationFeedbackGenerator()
+    generator.prepare()
+    generator.notificationOccurred(UINotificationFeedbackType.UINotificationFeedbackTypeSuccess)
   }
 
   actual fun error() {
-    try {
-      val generator = UINotificationFeedbackGenerator()
-      generator.prepare()
-      generator.notificationOccurred(UINotificationFeedbackType.UINotificationFeedbackTypeError)
-    } catch (_: Exception) {
-      // Haptics unavailable (simulator) — ignore
-    }
+    val generator = UINotificationFeedbackGenerator()
+    generator.prepare()
+    generator.notificationOccurred(UINotificationFeedbackType.UINotificationFeedbackTypeError)
   }
 }

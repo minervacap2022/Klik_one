@@ -396,10 +396,17 @@ object RemoteDataFetcher {
 
     KlikLogger.d("RemoteDataFetcher", "Retrying KK_exec todo $todoId")
 
-    val response = HttpClient.postUrl(url, "{}")
-      ?: throw IllegalStateException("Failed to retry KK_exec todo. URL: $url")
+    val response = HttpClient.postUrlResponse(url, "{}")
+    val responseBody = response.body
+      ?: throw IllegalStateException("Failed to retry KK_exec todo. URL: $url status=${response.status}")
+    if (response.status == 403) {
+      throw KKExecRetryLimitException(responseBody)
+    }
+    if (response.status !in 200..299) {
+      throw IllegalStateException("Failed to retry KK_exec todo. URL: $url status=${response.status}")
+    }
 
-    return decodeJsonResponse<KKExecRetryResult>(response, "exec-retry")
+    return decodeJsonResponse<KKExecRetryResult>(responseBody, "exec-retry")
   }
 
   suspend fun fetchTaskSummary(): TaskSummary {
@@ -1693,7 +1700,8 @@ data class KKExecTaskResultDto(
           // Explore agent output is JSON with a "summary" field
           val parsed = try {
             Json.parseToJsonElement(output).jsonObject
-          } catch (_: Exception) {
+          } catch (e: Exception) {
+            KlikLogger.w("RemoteDataFetcher", "Failed to parse explore agent summary: ${e.message}", e)
             null
           }
           if (parsed != null) {
@@ -1702,8 +1710,8 @@ data class KKExecTaskResultDto(
           return output
         }
       }
-    } catch (_: Exception) {
-      // Malformed agent_outputs, fall through
+    } catch (e: Exception) {
+      KlikLogger.w("RemoteDataFetcher", "Failed to extract outcome summary: ${e.message}", e)
     }
     return null
   }
@@ -1719,15 +1727,16 @@ data class KKExecTaskResultDto(
         val output = obj["output"]?.jsonPrimitive?.content ?: continue
         val parsed = try {
           Json.parseToJsonElement(output).jsonObject
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+          KlikLogger.w("RemoteDataFetcher", "Failed to parse explore agent source links: ${e.message}", e)
           null
         }
           ?: continue
         val sources = parsed["sources"]?.jsonArray ?: continue
         return sources.mapNotNull { (it as? JsonPrimitive)?.content }
       }
-    } catch (_: Exception) {
-      // Malformed, fall through
+    } catch (e: Exception) {
+      KlikLogger.w("RemoteDataFetcher", "Failed to extract outcome links: ${e.message}", e)
     }
     return emptyList()
   }
@@ -1907,6 +1916,8 @@ data class KKExecBulkReviewItemResult(
 )
 
 // ==================== KK_exec Retry DTOs ====================
+
+class KKExecRetryLimitException(message: String) : IllegalStateException(message)
 
 /**
  * Response from POST /{session_id}/todo/{todo_id}/retry.

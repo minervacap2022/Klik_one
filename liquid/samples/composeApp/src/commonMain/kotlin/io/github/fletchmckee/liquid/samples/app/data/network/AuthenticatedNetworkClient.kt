@@ -146,9 +146,18 @@ object CurrentUser {
    * "sub" claim. Callers (e.g. [HttpClient.executeWithRetry]) are responsible for adding
    * Content-Type and Accept headers appropriate to the request body, which keeps multipart
    * uploads and external-API calls free of unwanted application/json overrides.
+   *
+   * Throws when called with no access token. Previously returned an empty map, which
+   * silently produced "missing Authorization" 422s when auth was cleared mid-flight
+   * (e.g. terminal refresh failure during init). Failing loudly forces callers to gate
+   * on auth state instead of letting unauthenticated requests escape to production.
    */
   fun getAuthHeaders(): Map<String, String> {
-    val token = _accessToken ?: return emptyMap()
+    val token = _accessToken ?: throw IllegalStateException(
+      "CurrentUser.getAuthHeaders() called with no access token — caller issued an " +
+        "authenticated request after auth was cleared. Gate the call on CurrentUser.isLoggedIn " +
+        "or wait for re-login.",
+    )
     return mapOf(ApiConfig.Headers.AUTHORIZATION to "Bearer $token")
   }
 }

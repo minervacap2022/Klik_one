@@ -143,31 +143,17 @@ class ChatRepositoryImpl : ChatRepository {
 
       KlikLogger.d("AskKlik", "POST $url with chat_session_id: $currentSessionId, user_id: ${CurrentUser.userId}")
 
-      // Use HttpClient.postUrl which handles automatic token refresh on 401
-      val responseText = HttpClient.postUrl(url, requestBody)
+      val apiResponse = HttpClient.postUrlResponse(url, requestBody)
+      val responseText = apiResponse.body
 
       if (responseText != null) {
-        // Check if response is an error (contains "detail" field)
-        if (responseText.contains("\"detail\"")) {
-          // Parse error response
-          val errorDetail = try {
-            val errorJson = json.parseToJsonElement(responseText)
-            errorJson.jsonObject["detail"]?.jsonPrimitive?.content ?: responseText
-          } catch (e: Exception) {
-            responseText
-          }
-          KlikLogger.e("AskKlik", "API Error: $errorDetail")
-
-          // Create error message to show user
-          val errorMessage = when {
-            errorDetail.contains("401") || errorDetail.contains("无效的令牌") ->
-              "Server AI service temporarily unavailable. Please try again later."
-
-            errorDetail.contains("403") ->
-              "Access denied. Please check your credentials."
-
-            else ->
-              "Chat service error. Please try again."
+        if (apiResponse.status !in 200..299) {
+          val errorDetail = parseErrorDetail(responseText)
+          KlikLogger.e("AskKlik", "API Error status=${apiResponse.status}: $errorDetail")
+          val errorMessage = when (apiResponse.status) {
+            401 -> "Server AI service temporarily unavailable. Please try again later."
+            403 -> "Access denied. Please check your credentials."
+            else -> "Chat service error. Please try again."
           }
           return Result.Error(Exception(errorDetail), errorMessage)
         }
@@ -192,6 +178,14 @@ class ChatRepositoryImpl : ChatRepository {
       KlikLogger.e("AskKlik", "Error: ${e.message}", e)
       Result.Error(e, "Failed to send message: ${e.message}")
     }
+  }
+
+  private fun parseErrorDetail(responseText: String): String = try {
+    val errorJson = json.parseToJsonElement(responseText)
+    errorJson.jsonObject["detail"]?.jsonPrimitive?.content ?: responseText
+  } catch (e: Exception) {
+    KlikLogger.w("AskKlik", "Failed to parse API error detail: ${e.message}", e)
+    responseText
   }
 
   override fun streamResponse(message: String): Flow<Result<String>> = flow {

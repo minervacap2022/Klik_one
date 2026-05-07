@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.data.repository
 
+import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -42,7 +43,8 @@ internal class FastApiErrorParser(private val json: Json) {
 
     val element = try {
       json.parseToJsonElement(responseText)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+      KlikLogger.w("FastApiErrorParser", "Failed to parse FastAPI error body: ${e.message}", e)
       return null
     }
     val obj: JsonObject = element as? JsonObject ?: return null

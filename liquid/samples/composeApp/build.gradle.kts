@@ -22,6 +22,9 @@ kotlin {
     freeCompilerArgs.addAll(
       "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
       "-opt-in=kotlin.time.ExperimentalTime",
+      // Stable feature in K2 — silence the "expect/actual classes are in Beta" noise
+      // (KT-61573). We rely on expect/actual classes for ~16 platform services.
+      "-Xexpect-actual-classes",
     )
   }
 
@@ -39,6 +42,10 @@ kotlin {
     iosTarget.binaries.framework(buildTypes = setOf(NativeBuildType.DEBUG)) {
       baseName = "ComposeApp"
       isStatic = false
+      // Explicit bundle ID — Kotlin/Native otherwise warns "Cannot infer a bundle ID
+      // from packages of source files and exported dependencies, use the bundle name instead"
+      // and falls back to the framework name.
+      binaryOption("bundleId", "io.github.fletchmckee.liquid.samples.app.composeApp")
     }
 
     // Configure RELEASE framework for App Store submissions
@@ -46,6 +53,7 @@ kotlin {
     iosTarget.binaries.framework(buildTypes = setOf(NativeBuildType.RELEASE)) {
       baseName = "ComposeApp"
       isStatic = false
+      binaryOption("bundleId", "io.github.fletchmckee.liquid.samples.app.composeApp")
     }
 
     // Disabled - incompatible with Xcode 26 beta SDK

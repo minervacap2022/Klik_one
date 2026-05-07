@@ -355,7 +355,11 @@ actual object FixedSessionAudioStreamer {
     suspend fun ensureConnection(): AudioStreamClient {
       if (client.isOpen) return client
       KlikLogger.w(TAG, "WS reconnecting…")
-      try { client.stop() } catch (_: Throwable) {}
+      try {
+        client.stop()
+      } catch (e: Throwable) {
+        KlikLogger.e(TAG, "WS stop during reconnect failed: ${e.message}", e)
+      }
       val fresh = AudioStreamClient(
         baseUrl = ApiConfig.BASE_URL,
         userId = userId,
@@ -402,7 +406,10 @@ actual object FixedSessionAudioStreamer {
 
       val next = try {
         channel.receiveCatching().getOrNull()
-      } catch (_: Throwable) {
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+      } catch (e: Throwable) {
+        KlikLogger.e(TAG, "Audio upload channel receive failed: ${e.message}", e)
         null
       }
       if (next == null) {

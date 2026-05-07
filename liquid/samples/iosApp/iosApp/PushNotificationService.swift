@@ -48,19 +48,19 @@ final class PushNotificationService: NSObject {
         
         UNUserNotificationCenter.current().requestAuthorization(
             options: [.alert, .sound, .badge]
-        ) { [weak self] granted, error in
+        ) { granted, error in
             if let error = error {
                 print("[PushNotificationService] Authorization error: \(error.localizedDescription)")
                 return
             }
-            
+
             guard granted else {
                 print("[PushNotificationService] Notification permission denied")
                 return
             }
-            
+
             print("[PushNotificationService] Notification permission granted")
-            
+
             DispatchQueue.main.async {
                 UIApplication.shared.registerForRemoteNotifications()
             }

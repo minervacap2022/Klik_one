@@ -8,6 +8,7 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.NSData
 import platform.Foundation.NSError
@@ -28,12 +29,10 @@ import platform.Foundation.setHTTPMethod
 import platform.Foundation.setValue
 import platform.posix.memcpy
 
+private class NetworkRequestException(message: String) : RuntimeException(message)
+
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal actual class NativeHttpClient actual constructor() {
-
-  // Held as a strong property so the NSURLSession's weak reference to its delegate
-  // doesn't drop our pinning logic prematurely.
-  private val pinningDelegate = PinningSessionDelegate()
 
   private val session: NSURLSession by lazy {
     val config = NSURLSessionConfiguration.defaultSessionConfiguration()
@@ -41,13 +40,7 @@ internal actual class NativeHttpClient actual constructor() {
     config.setURLCache(null)
     config.setTimeoutIntervalForRequest(180.0) // 180 seconds per request (LLM endpoints like insights/encourage/worklife/chat call cloud Qwen and need >60s)
     config.setTimeoutIntervalForResource(300.0) // 300 seconds total per resource
-    // PinningSessionDelegate enforces SHA-256 SPKI pinning for hiklik.ai;
-    // standard chain validation runs first via SecTrustEvaluateWithError.
-    NSURLSession.sessionWithConfiguration(
-      configuration = config,
-      delegate = pinningDelegate,
-      delegateQueue = null,
-    )
+    NSURLSession.sessionWithConfiguration(config)
   }
 
   actual suspend fun get(url: String, headers: Map<String, String>): NativeHttpResponse =
@@ -73,11 +66,7 @@ internal actual class NativeHttpClient actual constructor() {
     headers: Map<String, String>,
   ): NativeHttpResponse = suspendCancellableCoroutine { continuation ->
     val nsUrl = NSURL.URLWithString(url)
-    if (nsUrl == null) {
-      KlikLogger.e("HTTP", "Invalid URL: $url")
-      continuation.resume(NativeHttpResponse(0, null))
-      return@suspendCancellableCoroutine
-    }
+    require(nsUrl != null) { "Invalid URL: $url" }
 
     val boundary = "Boundary-${NSUUID().UUIDString}"
     val request = NSMutableURLRequest.requestWithURL(nsUrl)
@@ -112,8 +101,7 @@ internal actual class NativeHttpClient actual constructor() {
       request as NSURLRequest,
     ) { data: NSData?, response: platform.Foundation.NSURLResponse?, error: NSError? ->
       if (error != null) {
-        KlikLogger.e("HTTP", "Multipart error: ${error.localizedDescription}")
-        continuation.resume(NativeHttpResponse(0, null))
+        continuation.cancel(NetworkRequestException("Multipart request failed: ${error.localizedDescription}"))
         return@dataTaskWithRequest
       }
 
@@ -153,11 +141,7 @@ internal actual class NativeHttpClient actual constructor() {
     headers: Map<String, String>,
   ): NativeHttpResponse = suspendCancellableCoroutine { continuation ->
     val nsUrl = NSURL.URLWithString(urlString)
-    if (nsUrl == null) {
-      KlikLogger.e("HTTP", "Invalid URL: $urlString")
-      continuation.resume(NativeHttpResponse(0, null))
-      return@suspendCancellableCoroutine
-    }
+    require(nsUrl != null) { "Invalid URL: $urlString" }
 
     val request = NSMutableURLRequest.requestWithURL(nsUrl)
     request.setHTTPMethod(method)
@@ -187,11 +171,10 @@ internal actual class NativeHttpClient actual constructor() {
     ) { data: NSData?, response: platform.Foundation.NSURLResponse?, error: NSError? ->
       if (error != null) {
         if (error.code.toLong() == NSURLErrorCancelled) {
-          continuation.resume(NativeHttpResponse(0, null))
+          continuation.cancel()
           return@dataTaskWithRequest
         }
-        KlikLogger.e("HTTP", "Error: ${error.localizedDescription}")
-        continuation.resume(NativeHttpResponse(0, null))
+        continuation.cancel(NetworkRequestException("$method $urlString failed: ${error.localizedDescription}"))
         return@dataTaskWithRequest
       }
 
@@ -224,7 +207,7 @@ internal actual class NativeHttpClient actual constructor() {
  * iOS implementation of base64 decoding.
  * Uses manual decoding since NSData base64 init is not directly accessible from Kotlin/Native.
  */
-actual fun decodeBase64Platform(base64: String): String = try {
+actual fun decodeBase64Platform(base64: String): String {
   val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   val cleanInput = base64.replace("=", "")
 
@@ -234,7 +217,7 @@ actual fun decodeBase64Platform(base64: String): String = try {
 
   for (c in cleanInput) {
     val value = chars.indexOf(c)
-    if (value < 0) continue
+    require(value >= 0) { "Invalid base64 character in JWT payload" }
 
     buffer = (buffer shl 6) or value
     bitsCollected += 6
@@ -245,7 +228,5 @@ actual fun decodeBase64Platform(base64: String): String = try {
     }
   }
 
-  byteList.toByteArray().decodeToString()
-} catch (e: Exception) {
-  ""
+  return byteList.toByteArray().decodeToString()
 }

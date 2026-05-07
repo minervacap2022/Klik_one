@@ -120,34 +120,29 @@ object AppModule {
     KlikLogger.i("AppModule", "User-Id: ${io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId}")
 
     val userId = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.userId
+    val accessToken = io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser.accessToken
     require(!userId.isNullOrBlank()) {
       "Missing User-Id. Please log in (or use your userId like user_xxx in the auth screen)."
+    }
+    // Auth precondition: every authenticated fetch below requires a Bearer token. Fail loudly
+    // here so we don't fan out N parallel calls that each return 422 "missing Authorization".
+    // Was the root cause of the post-refresh-failure 422 cascade.
+    require(!accessToken.isNullOrBlank()) {
+      "Missing access token. Auth was cleared (likely terminal refresh failure) — caller must " +
+        "wait for re-login before calling AppModule.initialize()."
     }
 
     // Load data from real backend API
     val fetcher = io.github.fletchmckee.liquid.samples.app.data.source.remote.RemoteDataFetcher
 
-    // 0. Load current user profile from backend (with retry for transient failures)
+    // 0. Load current user profile from backend.
+    // No application-level retry: HttpClient.executeWithRetry already retries transient
+    // network failures (status 0, 5xx) up to NETWORK_RETRY_MAX times. Auth/validation
+    // errors (401, 403, 422) are terminal — retrying produces the 422 cascade we just fixed.
     KlikLogger.d("AppModule", "Fetching current user profile from backend")
-    var lastProfileError: Exception? = null
-    for (attempt in 1..3) {
-      try {
-        val currentUser = fetcher.fetchCurrentUser()
-        userDataSource.updateUser(currentUser)
-        KlikLogger.i("AppModule", "Loaded user profile: ${currentUser.name} (${currentUser.email})")
-        lastProfileError = null
-        break
-      } catch (e: Exception) {
-        KlikLogger.e("AppModule", "Failed to fetch user profile (attempt $attempt/3): ${e.message}", e)
-        lastProfileError = e
-        if (attempt < 3) {
-          kotlinx.coroutines.delay(1000L * attempt)
-        }
-      }
-    }
-    if (lastProfileError != null) {
-      throw Exception("User profile failed after 3 attempts: ${lastProfileError.message}", lastProfileError)
-    }
+    val currentUser = fetcher.fetchCurrentUser()
+    userDataSource.updateUser(currentUser)
+    KlikLogger.i("AppModule", "Loaded user profile: ${currentUser.name} (${currentUser.email})")
 
     // 0b. Register push token with backend
     val pushService = io.github.fletchmckee.liquid.samples.app.platform.PushNotificationService()

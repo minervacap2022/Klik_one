@@ -175,7 +175,9 @@ internal class AudioStreamClient(
     isOpen = false
     try {
       task?.cancelWithCloseCode(1000L, reason = null)
-    } catch (_: Throwable) {}
+    } catch (e: Throwable) {
+      KlikLogger.e(tag, "WS close failed: ${e.message}", e)
+    }
     task = null
     readerJob?.cancel()
     readerJob = null

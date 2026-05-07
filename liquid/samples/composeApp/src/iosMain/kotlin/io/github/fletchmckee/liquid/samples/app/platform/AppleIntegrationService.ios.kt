@@ -261,13 +261,9 @@ actual object AppleIntegrationService {
         val saveError = errorPtr.value
 
         if (success && saveError == null) {
+          // calendarItemIdentifier is non-nullable on EKCalendarItem — EventKit guarantees
+          // an identifier exists on a saved reminder. The previous null check was dead code.
           val reminderId = ekReminder.calendarItemIdentifier
-          if (reminderId == null) {
-            val error = "Reminder saved but identifier not returned by EventKit"
-            KlikLogger.e("AppleIntegrationService", error)
-            onResult(AppleSaveResult.Error(error))
-            return@memScoped
-          }
           KlikLogger.i("AppleIntegrationService", "Reminder saved successfully: reminderId=$reminderId, title=${reminder.title}")
           onResult(AppleSaveResult.Success(reminderId))
         } else {

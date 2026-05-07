@@ -193,5 +193,5 @@ private class AppleSignInDelegate(
 /**
  * Extension to convert NSData to UTF-8 String.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
 private fun NSData.toUtf8String(): String? = NSString.create(data = this, encoding = NSUTF8StringEncoding)?.toString()

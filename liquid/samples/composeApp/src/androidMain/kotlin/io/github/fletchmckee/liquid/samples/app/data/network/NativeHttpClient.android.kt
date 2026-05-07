@@ -9,84 +9,8 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.security.MessageDigest
-import java.security.cert.CertificateException
-import java.security.cert.X509Certificate
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLSocketFactory
-import javax.net.ssl.TrustManager
-import javax.net.ssl.TrustManagerFactory
-import javax.net.ssl.X509TrustManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-/**
- * TLS certificate pinning trust manager for hiklik.ai.
- *
- * Wraps the platform default trust manager and adds SPKI (Subject Public Key Info)
- * pin validation after standard chain verification succeeds. If the server's
- * certificate chain does not contain any certificate whose SHA-256 SPKI hash
- * matches [CertificatePins.HIKLIK_PINS], the connection is rejected.
- */
-private object PinningTrustManager : X509TrustManager {
-
-  private val defaultTrustManager: X509TrustManager by lazy {
-    val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
-    tmf.init(null as java.security.KeyStore?)
-    tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
-  }
-
-  override fun getAcceptedIssuers(): Array<X509Certificate> = defaultTrustManager.acceptedIssuers
-
-  override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) {
-    defaultTrustManager.checkClientTrusted(chain, authType)
-  }
-
-  override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) {
-    // First, run standard platform trust evaluation (CA chain, expiry, etc.)
-    defaultTrustManager.checkServerTrusted(chain, authType)
-
-    // Then enforce SPKI pinning
-    val sha256 = MessageDigest.getInstance("SHA-256")
-    for (cert in chain) {
-      val spkiHash = sha256.digest(cert.publicKey.encoded)
-      val base64Hash = Base64.encodeToString(spkiHash, Base64.NO_WRAP)
-      val pin = "sha256/$base64Hash"
-      if (pin in CertificatePins.HIKLIK_PINS) {
-        KlikLogger.d("CertPin", "Pin matched for certificate: ${cert.subjectDN}")
-        return
-      }
-    }
-
-    throw CertificateException(
-      "Certificate pinning failed for hiklik.ai: none of the ${chain.size} " +
-        "certificates in the chain matched any known pin",
-    )
-  }
-}
-
-/**
- * Lazily-initialized SSLSocketFactory that enforces certificate pinning via [PinningTrustManager].
- */
-private val pinningSslSocketFactory: SSLSocketFactory by lazy {
-  val sslContext = SSLContext.getInstance("TLS")
-  sslContext.init(null, arrayOf<TrustManager>(PinningTrustManager), null)
-  sslContext.socketFactory
-}
-
-/**
- * Apply certificate pinning to an [HttpURLConnection] if the URL targets hiklik.ai.
- * For non-hiklik.ai hosts, the connection is left unchanged (uses system defaults).
- */
-private fun HttpURLConnection.applyCertificatePinning() {
-  if (this is HttpsURLConnection) {
-    val host = url.host
-    if (host == CertificatePins.PINNED_HOSTNAME) {
-      sslSocketFactory = pinningSslSocketFactory
-    }
-  }
-}
 
 internal actual class NativeHttpClient actual constructor() {
 
@@ -118,7 +42,6 @@ internal actual class NativeHttpClient actual constructor() {
       var connection: HttpURLConnection? = null
       try {
         connection = (URL(url).openConnection() as HttpURLConnection).apply {
-          applyCertificatePinning()
           requestMethod = "GET"
           headers.forEach { (key, value) -> setRequestProperty(key, value) }
         }
@@ -138,7 +61,6 @@ internal actual class NativeHttpClient actual constructor() {
       var connection: HttpURLConnection? = null
       try {
         connection = (URL(url).openConnection() as HttpURLConnection).apply {
-          applyCertificatePinning()
           requestMethod = "POST"
           doOutput = true
           headers.forEach { (key, value) -> setRequestProperty(key, value) }
@@ -163,7 +85,6 @@ internal actual class NativeHttpClient actual constructor() {
       var connection: HttpURLConnection? = null
       try {
         connection = (URL(url).openConnection() as HttpURLConnection).apply {
-          applyCertificatePinning()
           requestMethod = "PUT"
           doOutput = true
           headers.forEach { (key, value) -> setRequestProperty(key, value) }
@@ -189,7 +110,6 @@ internal actual class NativeHttpClient actual constructor() {
       try {
         // HttpURLConnection rejects PATCH directly; tunnel via X-HTTP-Method-Override.
         connection = (URL(url).openConnection() as HttpURLConnection).apply {
-          applyCertificatePinning()
           requestMethod = "POST"
           setRequestProperty("X-HTTP-Method-Override", "PATCH")
           doOutput = true
@@ -215,7 +135,6 @@ internal actual class NativeHttpClient actual constructor() {
       var connection: HttpURLConnection? = null
       try {
         connection = (URL(url).openConnection() as HttpURLConnection).apply {
-          applyCertificatePinning()
           requestMethod = "DELETE"
           headers.forEach { (key, value) -> setRequestProperty(key, value) }
           if (body != null) {
@@ -247,7 +166,6 @@ internal actual class NativeHttpClient actual constructor() {
     try {
       val boundary = "Boundary-${java.util.UUID.randomUUID()}"
       connection = (URL(url).openConnection() as HttpURLConnection).apply {
-        applyCertificatePinning()
         requestMethod = "POST"
         doOutput = true
         setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
@@ -279,9 +197,7 @@ internal actual class NativeHttpClient actual constructor() {
 /**
  * Android implementation of base64 decoding using android.util.Base64.
  */
-actual fun decodeBase64Platform(base64: String): String = try {
+actual fun decodeBase64Platform(base64: String): String {
   val bytes = Base64.decode(base64, Base64.DEFAULT)
-  String(bytes, Charsets.UTF_8)
-} catch (e: Exception) {
-  ""
+  return String(bytes, Charsets.UTF_8)
 }

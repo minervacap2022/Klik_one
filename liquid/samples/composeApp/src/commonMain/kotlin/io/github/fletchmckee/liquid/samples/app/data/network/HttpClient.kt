@@ -21,8 +21,8 @@ internal data class NativeHttpResponse(val status: Int, val body: String?)
 /**
  * Internal platform-specific HTTP client implementation.
  * Uses expect/actual pattern to provide native implementations:
- * - iOS: NSURLSession (with SHA-256 SPKI pinning for hiklik.ai)
- * - Android: HttpURLConnection (with SHA-256 SPKI pinning for hiklik.ai)
+ * - iOS: NSURLSession
+ * - Android: HttpURLConnection
  * - JVM: HttpURLConnection
  *
  * NOTE: This is an internal implementation detail.
@@ -95,9 +95,10 @@ object HttpClient {
     val token = CurrentUser.accessToken ?: return false
     return try {
       val parts = token.split(".")
-      if (parts.size != 3) return false
+      require(parts.size == 3) { "Access token is not a JWT" }
       val payload = decodeBase64(parts[1])
-      val expSeconds = EXP_REGEX.find(payload)?.groupValues?.get(1)?.toLongOrNull() ?: return false
+      val expSeconds = EXP_REGEX.find(payload)?.groupValues?.get(1)?.toLongOrNull()
+        ?: error("Access token missing numeric exp claim")
       val nowSeconds = kotlinx.datetime.Clock.System.now().epochSeconds
       val secondsUntilExpiry = expSeconds - nowSeconds
       val expiringSoon = secondsUntilExpiry < PROACTIVE_REFRESH_THRESHOLD_SECONDS
@@ -118,30 +119,7 @@ object HttpClient {
       3 -> "$standardBase64="
       else -> standardBase64
     }
-    return try {
-      decodeBase64Platform(padded)
-    } catch (e: Exception) {
-      KlikLogger.w("HttpClient", "Base64 decode failed: ${e.message}", e)
-      ""
-    }
-  }
-
-  /**
-   * Body-substring fallback for auth errors.
-   *
-   * Used when status code is non-401 but the response carries a known auth-error message —
-   * for instance, some upstream proxies wrap 401s as 200 + HTML error page. Only the first 2KB
-   * is scanned to avoid false positives on large data payloads.
-   */
-  private fun bodyLooksLikeAuthError(responseText: String?): Boolean {
-    if (responseText == null) return false
-    val normalized = responseText.take(2000).lowercase()
-    return normalized.contains("invalid or expired access token") ||
-      normalized.contains("expired access token") ||
-      normalized.contains("not authenticated") ||
-      normalized.contains("missing authorization") ||
-      normalized.contains("invalid authorization") ||
-      normalized.contains("token has been revoked")
+    return decodeBase64Platform(padded)
   }
 
   // Tracks whether the last refresh attempt succeeded (used by concurrent waiters).
@@ -199,6 +177,7 @@ object HttpClient {
   suspend fun post(endpoint: String, body: String): String? = executeWithRetry("POST", "${ApiConfig.BASE_URL}$endpoint", emptyMap(), body)
   suspend fun getUrl(url: String, headers: Map<String, String> = emptyMap()): String? = executeWithRetry("GET", url, headers)
   suspend fun postUrl(url: String, body: String, headers: Map<String, String> = emptyMap()): String? = executeWithRetry("POST", url, headers, body)
+  internal suspend fun postUrlResponse(url: String, body: String, headers: Map<String, String> = emptyMap()): NativeHttpResponse = executeWithRetryResponse("POST", url, headers, body)
   suspend fun putUrl(url: String, body: String, headers: Map<String, String> = emptyMap()): String? = executeWithRetry("PUT", url, headers, body)
   suspend fun deleteUrl(url: String, headers: Map<String, String> = emptyMap(), body: String? = null): String? = executeWithRetry("DELETE", url, headers, body)
   suspend fun patchUrl(url: String, body: String, headers: Map<String, String> = emptyMap()): String? = executeWithRetry("PATCH", url, headers, body)
@@ -249,7 +228,50 @@ object HttpClient {
     "PUT" -> nativeClient.put(url, body ?: "", headers)
     "PATCH" -> nativeClient.patch(url, body ?: "", headers)
     "DELETE" -> nativeClient.delete(url, headers, body)
-    else -> NativeHttpResponse(0, null)
+    else -> error("Unsupported HTTP method: $method")
+  }
+
+  private suspend fun executeWithRetryResponse(
+    method: String,
+    url: String,
+    extraHeaders: Map<String, String>,
+    body: String? = null,
+  ): NativeHttpResponse {
+    ensureValidToken()
+
+    val contentHeaders = if (body != null) {
+      mapOf(
+        ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
+        ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
+      )
+    } else {
+      mapOf(ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON)
+    }
+    val baseHeaders = extraHeaders + contentHeaders
+
+    var didRefresh = false
+    while (true) {
+      val response = retryNetworkRaw(method, url) {
+        val allHeaders = baseHeaders + CurrentUser.getAuthHeaders()
+        dispatch(method, url, allHeaders, body)
+      }
+      if (response.status == 401 || response.status == 403) {
+        if (didRefresh || refreshPermanentlyFailed) {
+          KlikLogger.e("HttpClient", "Auth error on $method $url after refresh path status=${response.status}")
+          return response
+        }
+        KlikLogger.e("HttpClient", "Auth error (status=${response.status}) on $method $url, refreshing token")
+        if (tryRefreshToken()) {
+          didRefresh = true
+          KlikLogger.d("HTTP", "Retrying $method $url after token refresh")
+          continue
+        }
+      }
+      if (response.status !in 200..299) {
+        KlikLogger.e("HttpClient", "$method $url returned non-2xx status ${response.status}")
+      }
+      return response
+    }
   }
 
   /**
@@ -258,9 +280,9 @@ object HttpClient {
    *
    * Behavior:
    * - status == 0 or status in 500..599: transient — retried up to NETWORK_RETRY_MAX times
-   * - status == 401 or 403 (or 200 with auth-error body fallback): refresh token, retry once;
-   *   the retried request itself goes through the full network-retry budget so a TLS hiccup
-   *   on the post-refresh attempt doesn't masquerade as a hard auth failure
+   * - status == 401 or 403: refresh token, retry once; the retried request itself goes
+   *   through the full network-retry budget so a TLS hiccup on the post-refresh attempt
+   *   doesn't masquerade as a hard auth failure
    * - everything else: return body verbatim
    *
    * Returns the response body, or null if all retries failed or refresh permanently failed.
@@ -299,9 +321,7 @@ object HttpClient {
         return null
       }
 
-      val isAuthError = response.status == 401 ||
-        response.status == 403 ||
-        (response.status in 200..299 && bodyLooksLikeAuthError(response.body))
+      val isAuthError = response.status == 401 || response.status == 403
 
       if (isAuthError && !didRefresh) {
         if (refreshPermanentlyFailed) {

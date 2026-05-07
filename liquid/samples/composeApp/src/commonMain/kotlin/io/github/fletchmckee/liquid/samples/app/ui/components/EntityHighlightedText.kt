@@ -2,18 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.components
 
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
@@ -85,7 +87,9 @@ fun EntityHighlightedText(
     )
   }
 
-  // Build annotated string with clickable entity mentions (memoized)
+  // Build annotated string with clickable entity mentions (memoized).
+  // Uses LinkAnnotation.Clickable (the modern replacement for the deprecated
+  // ClickableText + StringAnnotation pair) so Text composable handles dispatch.
   val annotatedString = remember(mentions, text, color) {
     buildAnnotatedString {
       var currentIndex = 0
@@ -98,23 +102,22 @@ fun EntityHighlightedText(
           }
         }
 
-        // Add entity mention with highlighting and click annotation
-        pushStringAnnotation(
-          tag = "ENTITY",
-          annotation = "${mention.entityType.name}:${mention.entityId}",
+        val entityStyle = SpanStyle(
+          color = getEntityColor(mention.entityType),
+          fontWeight = FontWeight.Medium,
+          textDecoration = TextDecoration.Underline,
         )
-
-        withStyle(
-          style = SpanStyle(
-            color = getEntityColor(mention.entityType),
-            fontWeight = FontWeight.Medium,
-            textDecoration = TextDecoration.Underline,
+        withLink(
+          LinkAnnotation.Clickable(
+            tag = "ENTITY",
+            styles = TextLinkStyles(style = entityStyle),
+            linkInteractionListener = {
+              onEntityClick(EntityNavigationData(mention.entityType, mention.entityId))
+            },
           ),
         ) {
           append(mention.text)
         }
-
-        pop()
 
         currentIndex = mention.endIndex
       }
@@ -128,22 +131,8 @@ fun EntityHighlightedText(
     }
   }
 
-  ClickableText(
+  Text(
     text = annotatedString,
-    onClick = { offset ->
-      annotatedString.getStringAnnotations(
-        tag = "ENTITY",
-        start = offset,
-        end = offset,
-      ).firstOrNull()?.let { annotation ->
-        val parts = annotation.item.split(":")
-        if (parts.size == 2) {
-          val entityType = EntityType.valueOf(parts[0])
-          val entityId = parts[1]
-          onEntityClick(EntityNavigationData(entityType, entityId))
-        }
-      }
-    },
     modifier = modifier,
     style = style.copy(
       color = if (color != Color.Unspecified) color else style.color,

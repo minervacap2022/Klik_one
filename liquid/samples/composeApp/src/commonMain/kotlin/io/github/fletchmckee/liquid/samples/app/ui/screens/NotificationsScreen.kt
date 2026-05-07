@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.NotificationDto
+import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
@@ -269,7 +270,8 @@ private fun formatNotificationTime(createdAt: String): String {
     } else {
       datePart
     }
-  } catch (_: Exception) {
+  } catch (e: Exception) {
+    KlikLogger.w("NotificationsScreen", "Failed to format notification date '$createdAt': ${e.message}", e)
     createdAt.substringBefore("T")
   }
 }

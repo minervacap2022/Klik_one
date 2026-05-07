@@ -30,6 +30,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
 import io.github.fletchmckee.liquid.samples.app.theme.KlikRunning
+import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -65,7 +66,8 @@ object K1DimensionResolver {
       } else {
         json.parseToJsonElement(d.details).jsonObject
       }
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+      KlikLogger.w("K1DimensionRow", "Failed to parse dimension details: ${e.message}", e)
       null
     }
 

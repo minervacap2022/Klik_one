@@ -128,8 +128,8 @@ object RemoteLogShipper {
         flush()
       } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
-      } catch (_: Throwable) {
-        // Never let the loop die. Swallow everything except cancellation.
+      } catch (e: Throwable) {
+        KlikLogger.e("RemoteLogShipper", "$LOGS_URL_MARKER flush loop failed: ${e.message}", e)
       }
     }
   }
@@ -153,7 +153,8 @@ object RemoteLogShipper {
     val payload = IngestRequest(entries = entriesJson, client = clientContext)
     val body = try {
       json.encodeToString(IngestRequest.serializer(), payload)
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+      KlikLogger.e("RemoteLogShipper", "$LOGS_URL_MARKER failed to encode log payload: ${e.message}", e)
       return
     }
 
@@ -163,9 +164,14 @@ object RemoteLogShipper {
         ApiConfig.Headers.CONTENT_TYPE to ApiConfig.ContentTypes.JSON,
         ApiConfig.Headers.ACCEPT to ApiConfig.ContentTypes.JSON,
       )
-      nativeClient.post(url, body, headers)
-    } catch (_: Throwable) {
-      // Drop on failure. Next flush cycle will try again with fresh entries.
+      val response = nativeClient.post(url, body, headers)
+      if (response.status !in 200..299) {
+        KlikLogger.e("RemoteLogShipper", "$LOGS_URL_MARKER ingest failed with status ${response.status}")
+      }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
+    } catch (e: Throwable) {
+      KlikLogger.e("RemoteLogShipper", "$LOGS_URL_MARKER ingest request failed: ${e.message}", e)
     }
   }
 

@@ -97,14 +97,12 @@ object KlikLogger {
     buffer.add(entry)
     sink.emit(level, tag, message, throwable)
 
-    // Notify external tap (e.g., RemoteLogShipper). Swallow exceptions so a
-    // broken listener can never disrupt the logging pipeline.
     val tap = onEntry
     if (tap != null) {
       try {
         tap(entry)
-      } catch (_: Throwable) {
-        // Intentionally ignored.
+      } catch (e: Throwable) {
+        sink.emit(LogLevel.ERROR, "KlikLogger", "Log tap failed: ${e.message}", e)
       }
     }
   }
