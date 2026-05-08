@@ -45,7 +45,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -334,6 +339,56 @@ private fun evalCubic(t: Float, p0: Float, cp1: Float, cp2: Float, p1: Float): F
   return u * u * u * p0 + 3f * u * u * t * cp1 + 3f * u * t * t * cp2 + t * t * t * p1
 }
 
+private fun evalCubicDeriv(t: Float, p0: Float, cp1: Float, cp2: Float, p1: Float): Float {
+  val u = 1f - t
+  return 3f * (u * u * (cp1 - p0) + 2f * u * t * (cp2 - cp1) + t * t * (p1 - cp2))
+}
+
+private data class LeafInfo(val node: GrowthTreeNode, val x: Float, val y: Float, val t: Float)
+
+// Leaf: elongated organic shape with a vein, oriented outward from branch tangent.
+private fun DrawScope.drawLeaf(
+  cx: Float, cy: Float,
+  tangentAngle: Float,
+  side: Float,          // +1f or -1f — which side of the branch
+  halfLen: Float, halfW: Float,
+  color: Color,
+) {
+  val angle = tangentAngle - side * (PI.toFloat() / 2.1f)
+  val cosA = cos(angle); val sinA = sin(angle)
+  fun r(x: Float, y: Float) = Offset(cx + x * cosA - y * sinA, cy + x * sinA + y * cosA)
+
+  val tip  = r(halfLen, 0f)
+  val base = r(-halfLen * 0.38f, 0f)
+  val rC1  = r(halfLen * 0.46f,  halfW)
+  val rC2  = r(-halfLen * 0.06f, halfW * 0.72f)
+  val lC1  = r(halfLen * 0.46f, -halfW)
+  val lC2  = r(-halfLen * 0.06f, -halfW * 0.72f)
+
+  val path = Path().apply {
+    moveTo(tip.x, tip.y)
+    cubicTo(rC1.x, rC1.y, rC2.x, rC2.y, base.x, base.y)
+    cubicTo(lC2.x, lC2.y, lC1.x, lC1.y, tip.x, tip.y)
+    close()
+  }
+  drawPath(path, color.copy(alpha = 0.38f))
+  drawPath(path, color.copy(alpha = 0.88f), style = Stroke(width = 0.55.dp.toPx(), cap = StrokeCap.Round))
+  drawLine(color.copy(alpha = 0.50f), base, tip, strokeWidth = 0.4.dp.toPx(), cap = StrokeCap.Round)
+}
+
+// Fruit: round berry with a short stem — for achievements/milestones on trunk.
+private fun DrawScope.drawFruit(cx: Float, cy: Float, radius: Float, color: Color) {
+  drawLine(
+    color = color.copy(alpha = 0.60f),
+    strokeWidth = 0.8.dp.toPx(),
+    cap = StrokeCap.Round,
+    start = Offset(cx, cy - radius * 0.82f),
+    end = Offset(cx + radius * 0.72f, cy - radius * 2.0f),
+  )
+  drawCircle(color.copy(alpha = 0.88f), radius, Offset(cx, cy))
+  drawCircle(Color.White.copy(alpha = 0.22f), radius * 0.36f, Offset(cx - radius * 0.28f, cy - radius * 0.28f))
+}
+
 // ==================== VIEW: Tree ====================
 //
 // You are at the bottom (root). Three branches curve upward:
@@ -411,17 +466,17 @@ private fun TreeCanvasBlock(
     val eCp1X = rootX + 6f; val eCp1Y = trunkTopY - 70f
     val eCp2X = eTipX - 44f; val eCp2Y = eTipY + 110f
 
-    // Distribute N leaves along a bezier: oldest at t=low (near trunk), newest at t=high (tip)
+    // Distribute N leaves along a bezier: oldest near trunk (low t), newest near tip (high t)
     fun leafPositions(
       nodes: List<GrowthTreeNode>,
       cp1x: Float, cp1y: Float,
       cp2x: Float, cp2y: Float,
       tipX: Float, tipY: Float,
-    ): List<Triple<GrowthTreeNode, Float, Float>> {
+    ): List<LeafInfo> {
       if (nodes.isEmpty()) return emptyList()
       return nodes.mapIndexed { i, node ->
         val t = (i + 1f) / (nodes.size + 1f)
-        Triple(node, evalCubic(t, rootX, cp1x, cp2x, tipX), evalCubic(t, trunkTopY, cp1y, cp2y, tipY))
+        LeafInfo(node, evalCubic(t, rootX, cp1x, cp2x, tipX), evalCubic(t, trunkTopY, cp1y, cp2y, tipY), t)
       }
     }
 
@@ -454,37 +509,48 @@ private fun TreeCanvasBlock(
       branch(oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY)
       branch(eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY)
 
-      // Leaf dots
-      for (leaf in pLeaves) drawCircle(KlikInkPrimary, 3.5.dp.toPx(), Offset(leaf.second.dp.toPx(), leaf.third.dp.toPx()))
-      for (leaf in oLeaves) drawCircle(KlikDecisionAccent, 3.5.dp.toPx(), Offset(leaf.second.dp.toPx(), leaf.third.dp.toPx()))
-      for (leaf in eLeaves) drawCircle(KlikCommitmentAccent, 3.5.dp.toPx(), Offset(leaf.second.dp.toPx(), leaf.third.dp.toPx()))
+      // Leaves — organic leaf shapes alternating sides of each branch
+      val hL = 7.dp.toPx(); val hW = 3.5.dp.toPx()
+      fun drawBranchLeaves(
+        leaves: List<LeafInfo>,
+        cp1x: Float, cp1y: Float, cp2x: Float, cp2y: Float,
+        tipX: Float, tipY: Float, color: Color,
+      ) {
+        for ((idx, leaf) in leaves.withIndex()) {
+          val lx = leaf.x.dp.toPx(); val ly = leaf.y.dp.toPx()
+          val ddx = evalCubicDeriv(leaf.t, rootX, cp1x, cp2x, tipX)
+          val ddy = evalCubicDeriv(leaf.t, trunkTopY, cp1y, cp2y, tipY)
+          val angle = atan2(ddy, ddx)
+          drawLeaf(lx, ly, angle, if (idx % 2 == 0) 1f else -1f, hL, hW, color)
+        }
+      }
+      drawBranchLeaves(pLeaves, pCp1X, pCp1Y, pCp2X, pCp2Y, pTipX, pTipY, KlikInkPrimary)
+      drawBranchLeaves(oLeaves, oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY, KlikDecisionAccent)
+      drawBranchLeaves(eLeaves, eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY, KlikCommitmentAccent)
 
-      // Achievement diamonds on trunk (milestone markers)
+      // Fruits (achievements/milestones) on trunk
       if (achievementCount > 0) {
-        val n = achievementCount.coerceAtMost(6)
+        val n = achievementCount.coerceAtMost(7)
         val trunkLen = rootY - 14f - trunkTopY
         for (i in 0 until n) {
           val t = (i + 1f) / (n + 1f)
-          val dx = rx
-          val dy = (ry - 13.dp.toPx()) - t * trunkLen.dp.toPx()
-          val ds = 2.8.dp.toPx()
-          drawPath(
-            Path().apply {
-              moveTo(dx, dy - ds); lineTo(dx + ds, dy); lineTo(dx, dy + ds); lineTo(dx - ds, dy); close()
-            },
-            KlikRiskAccent,
-          )
+          val fx = rx
+          val fy = (ry - 13.dp.toPx()) - t * trunkLen.dp.toPx()
+          // Alternate fruit left/right of trunk for natural look
+          val offset = if (i % 2 == 0) 5.dp.toPx() else -5.dp.toPx()
+          drawFruit(fx + offset, fy, 3.8.dp.toPx(), KlikRiskAccent)
         }
       }
 
-      // Goal circles at branch tips (future growth)
+      // Goal dashed rings at branch tips
       if (goals.isNotEmpty()) {
         for ((tipX, tipY) in listOf(pTipX to pTipY, oTipX to oTipY, eTipX to eTipY)) {
+          drawCircle(KlikInkMuted.copy(alpha = 0.18f), 7.dp.toPx(), Offset(tipX.dp.toPx(), tipY.dp.toPx()))
           drawCircle(
             color = KlikInkMuted,
-            radius = 5.dp.toPx(),
+            radius = 7.dp.toPx(),
             center = Offset(tipX.dp.toPx(), tipY.dp.toPx()),
-            style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f))),
+            style = Stroke(width = 0.8.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.5f, 2.5f))),
           )
         }
       }
@@ -494,10 +560,14 @@ private fun TreeCanvasBlock(
       drawCircle(KlikPaperApp, 7.5.dp.toPx(), Offset(rx, ry))
       drawCircle(KlikInkPrimary, 4.dp.toPx(), Offset(rx, ry))
 
-      // Branch tip dots
-      drawCircle(KlikInkPrimary, 4.5.dp.toPx(), Offset(pTipX.dp.toPx(), pTipY.dp.toPx()))
-      drawCircle(KlikDecisionAccent, 4.5.dp.toPx(), Offset(oTipX.dp.toPx(), oTipY.dp.toPx()))
-      drawCircle(KlikCommitmentAccent, 4.5.dp.toPx(), Offset(eTipX.dp.toPx(), eTipY.dp.toPx()))
+      // Branch tip buds (filled core + soft halo)
+      fun drawBud(bx: Float, by: Float, color: Color) {
+        drawCircle(color.copy(alpha = 0.14f), 6.5.dp.toPx(), Offset(bx, by))
+        drawCircle(color, 3.5.dp.toPx(), Offset(bx, by))
+      }
+      drawBud(pTipX.dp.toPx(), pTipY.dp.toPx(), KlikInkPrimary)
+      drawBud(oTipX.dp.toPx(), oTipY.dp.toPx(), KlikDecisionAccent)
+      drawBud(eTipX.dp.toPx(), eTipY.dp.toPx(), KlikCommitmentAccent)
     }
 
     // Text overlays
@@ -513,13 +583,13 @@ private fun TreeCanvasBlock(
     OverlayLabel(cx = eTipX, y = eTipY + 22f, widthDp = 74f, text = "$projectsTotal", isMeta = true)
 
     for (leaf in pLeaves) {
-      OverlayLabel(cx = leaf.second, y = leaf.third + 7f, widthDp = 80f, text = leaf.first.label.ifBlank { "—" }, isLeaf = true)
+      OverlayLabel(cx = leaf.x, y = leaf.y + 9f, widthDp = 80f, text = leaf.node.label.ifBlank { "—" }, isLeaf = true)
     }
     for (leaf in oLeaves) {
-      OverlayLabel(cx = leaf.second, y = leaf.third + 7f, widthDp = 80f, text = leaf.first.label.ifBlank { "—" }, isLeaf = true)
+      OverlayLabel(cx = leaf.x, y = leaf.y + 9f, widthDp = 80f, text = leaf.node.label.ifBlank { "—" }, isLeaf = true)
     }
     for (leaf in eLeaves) {
-      OverlayLabel(cx = leaf.second, y = leaf.third + 7f, widthDp = 80f, text = leaf.first.label.ifBlank { "—" }, isLeaf = true)
+      OverlayLabel(cx = leaf.x, y = leaf.y + 9f, widthDp = 80f, text = leaf.node.label.ifBlank { "—" }, isLeaf = true)
     }
   }
 }
