@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,13 +51,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.fletchmckee.liquid.samples.app.data.source.remote.GrowthTreeEdge
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.GrowthTreeFutureNode
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.GrowthTreeNode
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.GrowthTreeResponse
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.GrowthTreeUserSummary
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.RemoteDataFetcher
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
+import io.github.fletchmckee.liquid.samples.app.platform.ShareService
 import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikDecisionAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkFaint
@@ -66,7 +65,6 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
-import io.github.fletchmckee.liquid.samples.app.theme.KlikLineMute
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
@@ -78,24 +76,10 @@ import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
-// ──────────────────────────────────────────────────────────────────────────
-// Editorial growth-tree visualizations.
-//
-// All three views (Constellation / River / Network) share one paper-and-ink
-// vocabulary:
-//   • paper backgrounds (KlikPaperApp / KlikPaperSoft)
-//   • hairline strokes for every line and node ring
-//   • filled K1 ink dots for nodes; type is encoded by a single restrained
-//     accent ink (person = primary, organization = decision-gold,
-//     project = commitment-teal, achievement = risk-rose, future = mute).
-// No glow, no neon, no glassy gradients, no animation.
-// ──────────────────────────────────────────────────────────────────────────
-
 private const val TYPE_PERSON = "person"
 private const val TYPE_ORG = "organization"
 private const val TYPE_PROJECT = "project"
 
-// Single source of truth for type → accent ink.
 private fun accentForType(type: String): Color = when (type) {
   TYPE_PERSON -> KlikInkPrimary
   TYPE_ORG -> KlikDecisionAccent
@@ -122,55 +106,48 @@ fun GrowthTreeScreen(
     errorMessage = null
     try {
       treeData = RemoteDataFetcher.fetchGrowthTree()
-      KlikLogger.d(
-        "GrowthTreeScreen",
-        "Loaded growth tree: ${treeData?.meta?.totalNodes} nodes, ${treeData?.meta?.totalEdges} edges",
-      )
+      KlikLogger.d("GrowthTreeScreen", "Loaded: ${treeData?.meta?.totalNodes} nodes")
     } catch (e: Exception) {
-      KlikLogger.e("GrowthTreeScreen", "Failed to load growth tree: ${e.message}")
+      KlikLogger.e("GrowthTreeScreen", "Failed: ${e.message}")
       errorMessage = e.message
     } finally {
       isLoading = false
     }
   }
 
-  Box(
-    modifier = modifier
-      .fillMaxSize()
-      .background(KlikPaperApp),
-  ) {
+  Box(modifier = modifier.fillMaxSize().background(KlikPaperApp)) {
     Column(modifier = Modifier.fillMaxSize()) {
       GrowthTreeTopBar(
         selectedView = selectedView,
         onViewChange = { selectedView = it },
         onBack = onBack,
+        onShare = treeData?.let { data ->
+          {
+            val u = data.user
+            ShareService.share(
+              text = buildString {
+                append("${u.displayName}'s Growth — Level ${u.level}\n")
+                append("${u.totalXp} XP · ${u.totalSessions} sessions\n")
+                append("${u.totalPeople} people · ${u.totalOrgs} orgs · ${u.totalProjects} projects")
+                if (data.achievements.isNotEmpty()) append("\n${data.achievements.size} milestones reached")
+                append("\n\nTracked with Klik")
+              },
+              subject = "My Growth — Level ${u.level}",
+            )
+          }
+        },
       )
 
       when {
         isLoading -> CenterMessage {
-          CircularProgressIndicator(
-            color = KlikInkPrimary,
-            strokeWidth = 1.5.dp,
-            modifier = Modifier.size(20.dp),
-          )
+          CircularProgressIndicator(color = KlikInkPrimary, strokeWidth = 1.5.dp, modifier = Modifier.size(20.dp))
           Spacer(Modifier.height(10.dp))
-          Text("Loading growth tree…", color = KlikInkTertiary, fontSize = 12.sp)
+          Text("Loading…", color = KlikInkTertiary, fontSize = 12.sp)
         }
-
         errorMessage != null -> CenterMessage {
-          Text(
-            "Couldn't load",
-            color = KlikInkPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-          )
+          Text("Couldn't load", color = KlikInkPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
           Spacer(Modifier.height(6.dp))
-          Text(
-            errorMessage ?: "Unknown error",
-            color = KlikInkTertiary,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-          )
+          Text(errorMessage ?: "Unknown error", color = KlikInkTertiary, fontSize = 12.sp, textAlign = TextAlign.Center)
           Spacer(Modifier.height(14.dp))
           Box(
             modifier = Modifier
@@ -179,27 +156,20 @@ fun GrowthTreeScreen(
               .k1Clickable { retryKey += 1 }
               .padding(horizontal = 14.dp, vertical = 8.dp),
           ) {
-            Text(
-              "Try again",
-              color = KlikInkPrimary,
-              fontSize = 12.sp,
-              fontWeight = FontWeight.Medium,
-            )
+            Text("Try again", color = KlikInkPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
           }
         }
-
         treeData != null -> {
           StatsBar(user = treeData!!.user)
           HairlineDivider()
           AnimatedContent(
             targetState = selectedView,
             transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
-            label = "GrowthTreeView",
+            label = "GrowthView",
           ) { view ->
             when (view) {
-              0 -> BloomTreeView(treeData!!)
-              1 -> RiverTimelineView(treeData!!)
-              2 -> ConstellationView(treeData!!)
+              0 -> TreeView(treeData!!)
+              else -> HeatView(treeData!!)
             }
           }
         }
@@ -210,25 +180,14 @@ fun GrowthTreeScreen(
 
 @Composable
 private fun CenterMessage(content: @Composable () -> Unit) {
-  Box(
-    modifier = Modifier.fillMaxSize(),
-    contentAlignment = Alignment.Center,
-  ) {
-    Column(
-      horizontalAlignment = Alignment.CenterHorizontally,
-      modifier = Modifier.padding(32.dp),
-    ) { content() }
+  Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) { content() }
   }
 }
 
 @Composable
 private fun HairlineDivider() {
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .height(1.dp)
-      .background(KlikLineHairline),
-  )
+  Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(KlikLineHairline))
 }
 
 // ==================== Top Bar ====================
@@ -238,48 +197,46 @@ private fun GrowthTreeTopBar(
   selectedView: Int,
   onViewChange: (Int) -> Unit,
   onBack: (() -> Unit)?,
+  onShare: (() -> Unit)?,
 ) {
-  val viewLabels = listOf("Bloom", "River", "Map")
-
   Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(KlikPaperApp)
-      .statusBarsPadding(),
+    modifier = Modifier.fillMaxWidth().background(KlikPaperApp).statusBarsPadding(),
   ) {
-    // Top bar — chevron alone when there's somewhere to go back to.
-    // When this screen is a tab root (onBack == null) we leave the row in
-    // place so the eyebrow + title stay anchored at the same y as elsewhere.
     Row(
       verticalAlignment = Alignment.CenterVertically,
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 12.dp),
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
     ) {
       if (onBack != null) {
         Box(
-          modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .k1Clickable(onClick = onBack),
+          modifier = Modifier.size(32.dp).clip(CircleShape).k1Clickable(onClick = onBack),
           contentAlignment = Alignment.Center,
         ) {
           Canvas(Modifier.size(14.dp)) {
             val w = 1.4.dp.toPx()
-            drawLine(
-              color = KlikInkPrimary,
-              strokeWidth = w,
-              cap = StrokeCap.Round,
-              start = Offset(9.dp.toPx(), 3.dp.toPx()),
-              end = Offset(4.dp.toPx(), 7.dp.toPx()),
-            )
-            drawLine(
-              color = KlikInkPrimary,
-              strokeWidth = w,
-              cap = StrokeCap.Round,
-              start = Offset(4.dp.toPx(), 7.dp.toPx()),
-              end = Offset(9.dp.toPx(), 11.dp.toPx()),
-            )
+            drawLine(KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round, start = Offset(9.dp.toPx(), 3.dp.toPx()), end = Offset(4.dp.toPx(), 7.dp.toPx()))
+            drawLine(KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round, start = Offset(4.dp.toPx(), 7.dp.toPx()), end = Offset(9.dp.toPx(), 11.dp.toPx()))
+          }
+        }
+      } else {
+        Spacer(Modifier.size(32.dp))
+      }
+
+      Spacer(Modifier.weight(1f))
+      Text("GROWTH", color = KlikInkFaint, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp)
+      Spacer(Modifier.weight(1f))
+
+      if (onShare != null) {
+        Box(
+          modifier = Modifier.size(32.dp).clip(CircleShape).k1Clickable(onClick = onShare),
+          contentAlignment = Alignment.Center,
+        ) {
+          Canvas(Modifier.size(14.dp)) {
+            val w = 1.4.dp.toPx()
+            val cx = size.width / 2f
+            drawLine(KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round, start = Offset(cx, 9.dp.toPx()), end = Offset(cx, 1.5.dp.toPx()))
+            drawLine(KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round, start = Offset(cx - 2.5.dp.toPx(), 4.5.dp.toPx()), end = Offset(cx, 1.5.dp.toPx()))
+            drawLine(KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round, start = Offset(cx + 2.5.dp.toPx(), 4.5.dp.toPx()), end = Offset(cx, 1.5.dp.toPx()))
+            drawLine(KlikInkPrimary, strokeWidth = w, cap = StrokeCap.Round, start = Offset(2.dp.toPx(), 11.dp.toPx()), end = Offset(12.dp.toPx(), 11.dp.toPx()))
           }
         }
       } else {
@@ -287,37 +244,12 @@ private fun GrowthTreeTopBar(
       }
     }
 
-    // Hero — eyebrow + title stacked, indented to the page margin.
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-      Text(
-        "GROWTH",
-        color = KlikInkFaint,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.2.sp,
-      )
-      Spacer(Modifier.height(6.dp))
-      Text(
-        text = "Tree",
-        color = KlikInkPrimary,
-        fontSize = 28.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = (-0.8).sp,
-      )
-    }
-
-    Spacer(Modifier.height(K1Sp.lg))
-
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
       Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .clip(RoundedCornerShape(10.dp))
-          .background(KlikPaperChip)
-          .padding(4.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(KlikPaperChip).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
       ) {
-        viewLabels.forEachIndexed { index, label ->
+        listOf("Tree", "Heat").forEachIndexed { index, label ->
           val isSelected = selectedView == index
           Box(
             modifier = Modifier
@@ -348,10 +280,7 @@ private fun GrowthTreeTopBar(
 @Composable
 private fun StatsBar(user: GrowthTreeUserSummary) {
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 10.dp)
-      .horizontalScroll(rememberScrollState()),
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).horizontalScroll(rememberScrollState()),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     StatChip("Lv ${user.level}", "Level")
@@ -365,23 +294,19 @@ private fun StatsBar(user: GrowthTreeUserSummary) {
 
 @Composable
 private fun StatChip(value: String, label: String) {
-  Box(
-    modifier = Modifier
-      .clip(RoundedCornerShape(7.dp))
-      .background(KlikPaperChip)
-      .padding(horizontal = 10.dp, vertical = 6.dp),
-  ) {
+  Box(modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(KlikPaperChip).padding(horizontal = 10.dp, vertical = 6.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(value, color = KlikInkPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
       Spacer(Modifier.width(4.dp))
-      Text(label, color = KlikInkTertiary, fontSize = 10.sp, fontWeight = FontWeight.Normal)
+      Text(label, color = KlikInkTertiary, fontSize = 10.sp)
     }
   }
 }
 
 // ==================== Helpers ====================
 
-private fun GrowthTreeResponse.nodesByType(type: String): List<GrowthTreeNode> = timelineNodes.filter { it.nodeType == type && !it.isFuture }
+private fun GrowthTreeResponse.nodesByType(type: String): List<GrowthTreeNode> =
+  timelineNodes.filter { it.nodeType == type && !it.isFuture }
 
 private fun GrowthTreeNode.metaString(key: String): String? = metadata[key]?.jsonPrimitive?.content
 
@@ -392,276 +317,213 @@ private fun GrowthTreeNode.metaFloat(key: String): Float? = metadata[key]?.jsonP
 private fun GrowthTreeNode.metaInt(key: String): Int? = metadata[key]?.jsonPrimitive?.intOrNull
 
 private fun String.formatShortDate(): String {
-  val parts = this.split("-")
-  if (parts.size < 2) return this.take(8)
+  val parts = split("-")
+  if (parts.size < 2) return take(8)
   val year = parts[0].takeLast(2)
   val month = when (parts[1]) {
-    "01" -> "JAN"
-    "02" -> "FEB"
-    "03" -> "MAR"
-    "04" -> "APR"
-    "05" -> "MAY"
-    "06" -> "JUN"
-    "07" -> "JUL"
-    "08" -> "AUG"
-    "09" -> "SEP"
-    "10" -> "OCT"
-    "11" -> "NOV"
-    "12" -> "DEC"
+    "01" -> "JAN"; "02" -> "FEB"; "03" -> "MAR"; "04" -> "APR"
+    "05" -> "MAY"; "06" -> "JUN"; "07" -> "JUL"; "08" -> "AUG"
+    "09" -> "SEP"; "10" -> "OCT"; "11" -> "NOV"; "12" -> "DEC"
     else -> parts[1]
   }
   return "$month '$year"
 }
 
-// ==================== VIEW B: Bloom Tree ====================
-//
-// A real 2-D tree.  YOU is the root at the top.  Three Bezier branches
-// curve out to PEOPLE / ORGS / PROJECTS primaries; each primary curves
-// further to its top entities as leaves.  Faint dashed cross-edges from
-// data.edges thread between leaves so the canopy looks connected.
-// Every label is a real Compose Text positioned via Modifier.offset —
-// no canvas drawText anywhere, so labels never collide or get clipped.
+private fun evalCubic(t: Float, p0: Float, cp1: Float, cp2: Float, p1: Float): Float {
+  val u = 1f - t
+  return u * u * u * p0 + 3f * u * u * t * cp1 + 3f * u * t * t * cp2 + t * t * t * p1
+}
 
-private const val BLOOM_LEAF_COUNT = 4
+// ==================== VIEW: Tree ====================
+//
+// You are at the bottom (root). Three branches curve upward:
+//   left → People, center → Orgs, right → Projects.
+// Entities are leaf dots placed along each branch, oldest near the
+// trunk (lower), newest near the tip (upper) — the tree grows over time.
+// Achievement milestones are small diamond markers on the trunk.
+// Future goals are dashed circles just past the branch tips.
 
 @Composable
-fun BloomTreeView(data: GrowthTreeResponse) {
+private fun TreeView(data: GrowthTreeResponse) {
   val people = remember(data.timelineNodes) {
-    val tier = mapOf("S" to 0, "A" to 1, "B" to 2, "C" to 3, "D" to 4)
-    data.nodesByType(TYPE_PERSON).sortedBy { tier[it.metaString("influence_tier")] ?: 5 }
+    data.nodesByType(TYPE_PERSON).sortedBy { it.timestamp }.take(6)
   }
-  val orgs = data.nodesByType(TYPE_ORG)
-  val projects = data.nodesByType(TYPE_PROJECT)
-  val futureGoals = data.futureProjection
-  val edges = data.edges
+  val orgs = remember(data.timelineNodes) {
+    data.nodesByType(TYPE_ORG).sortedBy { it.timestamp }.take(6)
+  }
+  val projects = remember(data.timelineNodes) {
+    data.nodesByType(TYPE_PROJECT).sortedBy { it.timestamp }.take(6)
+  }
 
-  val showPeople = people.take(BLOOM_LEAF_COUNT)
-  val showOrgs = orgs.take(BLOOM_LEAF_COUNT)
-  val showProjects = projects.take(BLOOM_LEAF_COUNT)
-
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .verticalScroll(rememberScrollState())
-      .background(KlikPaperApp),
-  ) {
-    Spacer(Modifier.height(8.dp))
-
-    BloomCanvasBlock(
+  Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(KlikPaperApp)) {
+    Spacer(Modifier.height(4.dp))
+    TreeCanvasBlock(
       user = data.user,
-      people = showPeople,
-      orgs = showOrgs,
-      projects = showProjects,
-      edges = edges,
-      peopleTotal = data.user.totalPeople.coerceAtLeast(people.size),
-      orgsTotal = data.user.totalOrgs.coerceAtLeast(orgs.size),
-      projectsTotal = data.user.totalProjects.coerceAtLeast(projects.size),
+      people = people,
+      orgs = orgs,
+      projects = projects,
+      achievementCount = data.achievements.size,
+      goals = data.futureProjection,
+      peopleTotal = data.user.totalPeople.coerceAtLeast(data.nodesByType(TYPE_PERSON).size),
+      orgsTotal = data.user.totalOrgs.coerceAtLeast(data.nodesByType(TYPE_ORG).size),
+      projectsTotal = data.user.totalProjects.coerceAtLeast(data.nodesByType(TYPE_PROJECT).size),
     )
-
-    BloomTodayLine(level = data.user.level, xpToNext = data.user.xpToNextLevel)
-
-    if (futureGoals.isNotEmpty()) {
-      BloomGoalsStrip(futureGoals)
+    TodayLine(level = data.user.level, xpToNext = data.user.xpToNextLevel)
+    if (data.futureProjection.isNotEmpty()) {
+      GoalsStrip(data.futureProjection)
     }
-
-    Spacer(Modifier.height(12.dp))
-    DescriptionCard(
-      title = "Bloom",
-      description = "${data.user.displayName}'s tree as it grows. " +
-        "${data.user.totalPeople} people · " +
-        "${data.user.totalOrgs} orgs · " +
-        "${data.user.totalProjects} projects — every leaf connects back to you.",
-    )
     Spacer(Modifier.height(28.dp))
   }
 }
 
 @Composable
-private fun BloomCanvasBlock(
+private fun TreeCanvasBlock(
   user: GrowthTreeUserSummary,
   people: List<GrowthTreeNode>,
   orgs: List<GrowthTreeNode>,
   projects: List<GrowthTreeNode>,
-  edges: List<GrowthTreeEdge>,
+  achievementCount: Int,
+  goals: List<GrowthTreeFutureNode>,
   peopleTotal: Int,
   orgsTotal: Int,
   projectsTotal: Int,
 ) {
-  BoxWithConstraints(
-    modifier = Modifier
-      .fillMaxWidth()
-      .height(660.dp)
-      .padding(horizontal = 8.dp),
-  ) {
-    val widthDp = maxWidth.value
-    val rootX = widthDp * 0.50f
-    val rootY = 50f
-    val priY = 200f
-    val pPriX = widthDp * 0.16f
-    val oPriX = widthDp * 0.50f
-    val ePriX = widthDp * 0.84f
-    val leafY0 = 320f
-    val leafYStep = 78f
+  BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(540.dp).padding(horizontal = 8.dp)) {
+    val wDp = maxWidth.value
 
-    // Each leaf entry: (node, x, y) in dp coords inside the BoxWithConstraints.
-    fun layoutBranch(priX: Float, list: List<GrowthTreeNode>): List<Triple<GrowthTreeNode, Float, Float>> {
-      val out = ArrayList<Triple<GrowthTreeNode, Float, Float>>(list.size)
-      for (i in 0 until list.size) {
-        val jitter = if (i % 2 == 0) -10f else 10f
-        out.add(Triple(list[i], priX + jitter, leafY0 + i * leafYStep))
+    // Root at bottom center (in dp coords within the box)
+    val rootX = wDp * 0.50f
+    val rootY = 500f
+
+    // Trunk top (where branches diverge)
+    val trunkTopY = 320f
+
+    // Branch tips
+    val pTipX = wDp * 0.12f; val pTipY = 60f   // People — upper left
+    val oTipX = wDp * 0.50f; val oTipY = 44f   // Orgs  — upper centre
+    val eTipX = wDp * 0.88f; val eTipY = 60f   // Projects — upper right
+
+    // Cubic bezier control points for each branch
+    val pCp1X = rootX - 6f; val pCp1Y = trunkTopY - 70f
+    val pCp2X = pTipX + 44f; val pCp2Y = pTipY + 110f
+    val oCp1X = rootX; val oCp1Y = trunkTopY - 110f
+    val oCp2X = oTipX; val oCp2Y = oTipY + 110f
+    val eCp1X = rootX + 6f; val eCp1Y = trunkTopY - 70f
+    val eCp2X = eTipX - 44f; val eCp2Y = eTipY + 110f
+
+    // Distribute N leaves along a bezier: oldest at t=low (near trunk), newest at t=high (tip)
+    fun leafPositions(
+      nodes: List<GrowthTreeNode>,
+      cp1x: Float, cp1y: Float,
+      cp2x: Float, cp2y: Float,
+      tipX: Float, tipY: Float,
+    ): List<Triple<GrowthTreeNode, Float, Float>> {
+      if (nodes.isEmpty()) return emptyList()
+      return nodes.mapIndexed { i, node ->
+        val t = (i + 1f) / (nodes.size + 1f)
+        Triple(node, evalCubic(t, rootX, cp1x, cp2x, tipX), evalCubic(t, trunkTopY, cp1y, cp2y, tipY))
       }
-      return out
     }
-    val pLeaves = layoutBranch(pPriX, people)
-    val oLeaves = layoutBranch(oPriX, orgs)
-    val eLeaves = layoutBranch(ePriX, projects)
 
-    val allLeaves: List<Triple<GrowthTreeNode, Float, Float>> = pLeaves + oLeaves + eLeaves
-    val byId: Map<String, Triple<GrowthTreeNode, Float, Float>> = run {
-      val m = HashMap<String, Triple<GrowthTreeNode, Float, Float>>()
-      for (t in allLeaves) m[t.first.id] = t
-      m
-    }
+    val pLeaves = leafPositions(people, pCp1X, pCp1Y, pCp2X, pCp2Y, pTipX, pTipY)
+    val oLeaves = leafPositions(orgs, oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY)
+    val eLeaves = leafPositions(projects, eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY)
 
     Canvas(modifier = Modifier.matchParentSize()) {
-      val rootXP = rootX.dp.toPx()
-      val rootYP = rootY.dp.toPx()
-      val priYP = priY.dp.toPx()
+      val rx = rootX.dp.toPx(); val ry = rootY.dp.toPx()
+      val ttx = rootX.dp.toPx(); val tty = trunkTopY.dp.toPx()
 
-      // Root → primary curves
-      val branches = listOf(
-        Pair(pPriX, KlikInkPrimary),
-        Pair(oPriX, KlikDecisionAccent),
-        Pair(ePriX, KlikCommitmentAccent),
+      // Trunk
+      drawLine(
+        color = KlikInkPrimary,
+        strokeWidth = 1.8.dp.toPx(),
+        cap = StrokeCap.Round,
+        start = Offset(rx, ry - 13.dp.toPx()),
+        end = Offset(ttx, tty),
       )
-      for (b in branches) {
-        val targetX = b.first.dp.toPx()
-        val path = Path().apply {
-          moveTo(rootXP, (rootY + 13f).dp.toPx())
-          val midY = ((rootY + priY) / 2f + 14f).dp.toPx()
-          quadraticTo(rootXP, midY, targetX, (priY - 8f).dp.toPx())
-        }
-        drawPath(
-          path = path,
-          color = KlikInkPrimary,
-          style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round),
-        )
-      }
 
-      // Primary → leaf curves
-      fun drawLimb(priX: Float, leaves: List<Triple<GrowthTreeNode, Float, Float>>) {
-        val pxStart = priX.dp.toPx()
-        val pyStart = (priY + 7f).dp.toPx()
-        for (t in leaves) {
-          val lx = t.second.dp.toPx()
-          val ly = (t.third - 4f).dp.toPx()
-          val path = Path().apply {
-            moveTo(pxStart, pyStart)
-            val ctlX = ((priX + t.second) / 2f).dp.toPx()
-            val ctlY = ((priY + t.third) / 2f - 6f).dp.toPx()
-            quadraticTo(ctlX, ctlY, lx, ly)
-          }
+      // Three branches
+      fun branch(cp1x: Float, cp1y: Float, cp2x: Float, cp2y: Float, tipX: Float, tipY: Float) {
+        val path = Path().apply {
+          moveTo(ttx, tty)
+          cubicTo(cp1x.dp.toPx(), cp1y.dp.toPx(), cp2x.dp.toPx(), cp2y.dp.toPx(), tipX.dp.toPx(), tipY.dp.toPx())
+        }
+        drawPath(path, KlikLineHairline, style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round))
+      }
+      branch(pCp1X, pCp1Y, pCp2X, pCp2Y, pTipX, pTipY)
+      branch(oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY)
+      branch(eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY)
+
+      // Leaf dots
+      for (leaf in pLeaves) drawCircle(KlikInkPrimary, 3.5.dp.toPx(), Offset(leaf.second.dp.toPx(), leaf.third.dp.toPx()))
+      for (leaf in oLeaves) drawCircle(KlikDecisionAccent, 3.5.dp.toPx(), Offset(leaf.second.dp.toPx(), leaf.third.dp.toPx()))
+      for (leaf in eLeaves) drawCircle(KlikCommitmentAccent, 3.5.dp.toPx(), Offset(leaf.second.dp.toPx(), leaf.third.dp.toPx()))
+
+      // Achievement diamonds on trunk (milestone markers)
+      if (achievementCount > 0) {
+        val n = achievementCount.coerceAtMost(6)
+        val trunkLen = rootY - 14f - trunkTopY
+        for (i in 0 until n) {
+          val t = (i + 1f) / (n + 1f)
+          val dx = rx
+          val dy = (ry - 13.dp.toPx()) - t * trunkLen.dp.toPx()
+          val ds = 2.8.dp.toPx()
           drawPath(
-            path = path,
-            color = KlikLineHairline,
-            style = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Round),
+            Path().apply {
+              moveTo(dx, dy - ds); lineTo(dx + ds, dy); lineTo(dx, dy + ds); lineTo(dx - ds, dy); close()
+            },
+            KlikRiskAccent,
           )
         }
       }
-      drawLimb(pPriX, pLeaves)
-      drawLimb(oPriX, oLeaves)
-      drawLimb(ePriX, eLeaves)
 
-      // Cross-connections — faint dashed lines between leaves whose ids
-      // appear together in data.edges.  Cap at a generous limit so the
-      // canopy stays readable rather than turning into a hairball.
-      var drawn = 0
-      for (edge in edges) {
-        if (drawn >= 60) break
-        val s = byId[edge.sourceId] ?: continue
-        val t = byId[edge.targetId] ?: continue
-        if (s.first.id == t.first.id) continue
-        drawLine(
-          color = KlikInkMuted,
-          start = Offset(s.second.dp.toPx(), s.third.dp.toPx()),
-          end = Offset(t.second.dp.toPx(), t.third.dp.toPx()),
-          strokeWidth = 0.8.dp.toPx(),
-          pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 3f)),
-        )
-        drawn++
-      }
-
-      // Root dot — large concentric.
-      val rr = 13.dp.toPx()
-      drawCircle(KlikInkPrimary, rr, Offset(rootXP, rootYP))
-      drawCircle(KlikPaperApp, rr - 3f, Offset(rootXP, rootYP))
-      drawCircle(KlikInkPrimary, rr - 6f, Offset(rootXP, rootYP))
-
-      // Primary dots.
-      for (b in branches) {
-        drawCircle(b.second, 7.dp.toPx(), Offset(b.first.dp.toPx(), priYP))
-      }
-
-      // Leaves — accent fills, ringed for S-tier people.
-      for (t in allLeaves) {
-        val accent = accentForType(t.first.nodeType)
-        val isStar = t.first.nodeType == TYPE_PERSON &&
-          t.first.metaString("influence_tier") == "S"
-        val centre = Offset(t.second.dp.toPx(), t.third.dp.toPx())
-        if (isStar) {
-          drawCircle(accent, 6.dp.toPx(), centre, style = Stroke(width = 1.dp.toPx()))
+      // Goal circles at branch tips (future growth)
+      if (goals.isNotEmpty()) {
+        for ((tipX, tipY) in listOf(pTipX to pTipY, oTipX to oTipY, eTipX to eTipY)) {
+          drawCircle(
+            color = KlikInkMuted,
+            radius = 5.dp.toPx(),
+            center = Offset(tipX.dp.toPx(), tipY.dp.toPx()),
+            style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f))),
+          )
         }
-        drawCircle(accent, 4.dp.toPx(), centre)
       }
+
+      // Root dot — concentric rings
+      drawCircle(KlikInkPrimary, 11.dp.toPx(), Offset(rx, ry))
+      drawCircle(KlikPaperApp, 7.5.dp.toPx(), Offset(rx, ry))
+      drawCircle(KlikInkPrimary, 4.dp.toPx(), Offset(rx, ry))
+
+      // Branch tip dots
+      drawCircle(KlikInkPrimary, 4.5.dp.toPx(), Offset(pTipX.dp.toPx(), pTipY.dp.toPx()))
+      drawCircle(KlikDecisionAccent, 4.5.dp.toPx(), Offset(oTipX.dp.toPx(), oTipY.dp.toPx()))
+      drawCircle(KlikCommitmentAccent, 4.5.dp.toPx(), Offset(eTipX.dp.toPx(), eTipY.dp.toPx()))
     }
 
-    // === Real Compose Text overlays — placed via Modifier.offset ===
+    // Text overlays
+    OverlayLabel(cx = rootX, y = rootY + 14f, widthDp = 160f, text = user.displayName, isHeader = true)
 
-    // Root labels.
-    OverlayLabel(cx = rootX, y = rootY + 22f, widthDp = 80f, text = "ROOT", isEyebrow = true)
-    OverlayLabel(
-      cx = rootX, y = rootY + 36f, widthDp = 140f,
-      text = user.displayName,
-      isHeader = true,
-    )
+    OverlayLabel(cx = pTipX, y = pTipY + 10f, widthDp = 74f, text = "PEOPLE", isEyebrow = true)
+    OverlayLabel(cx = pTipX, y = pTipY + 22f, widthDp = 74f, text = "$peopleTotal", isMeta = true)
 
-    // Primary labels.
-    OverlayLabel(cx = pPriX, y = priY + 16f, widthDp = 110f, text = "PEOPLE", isEyebrow = true)
-    OverlayLabel(
-      cx = pPriX, y = priY + 30f, widthDp = 110f,
-      text = "$peopleTotal",
-      isMeta = true,
-    )
-    OverlayLabel(cx = oPriX, y = priY + 16f, widthDp = 90f, text = "ORGS", isEyebrow = true)
-    OverlayLabel(
-      cx = oPriX, y = priY + 30f, widthDp = 90f,
-      text = "$orgsTotal",
-      isMeta = true,
-    )
-    OverlayLabel(cx = ePriX, y = priY + 16f, widthDp = 110f, text = "PROJECTS", isEyebrow = true)
-    OverlayLabel(
-      cx = ePriX, y = priY + 30f, widthDp = 110f,
-      text = "$projectsTotal",
-      isMeta = true,
-    )
+    OverlayLabel(cx = oTipX, y = oTipY + 10f, widthDp = 74f, text = "ORGS", isEyebrow = true)
+    OverlayLabel(cx = oTipX, y = oTipY + 22f, widthDp = 74f, text = "$orgsTotal", isMeta = true)
 
-    // Leaf labels — short text just below each leaf.
-    for (t in allLeaves) {
-      OverlayLabel(
-        cx = t.second,
-        y = t.third + 10f,
-        widthDp = 86f,
-        text = t.first.label.ifBlank { "—" },
-        isLeaf = true,
-      )
+    OverlayLabel(cx = eTipX, y = eTipY + 10f, widthDp = 74f, text = "PROJECTS", isEyebrow = true)
+    OverlayLabel(cx = eTipX, y = eTipY + 22f, widthDp = 74f, text = "$projectsTotal", isMeta = true)
+
+    for (leaf in pLeaves) {
+      OverlayLabel(cx = leaf.second, y = leaf.third + 7f, widthDp = 80f, text = leaf.first.label.ifBlank { "—" }, isLeaf = true)
+    }
+    for (leaf in oLeaves) {
+      OverlayLabel(cx = leaf.second, y = leaf.third + 7f, widthDp = 80f, text = leaf.first.label.ifBlank { "—" }, isLeaf = true)
+    }
+    for (leaf in eLeaves) {
+      OverlayLabel(cx = leaf.second, y = leaf.third + 7f, widthDp = 80f, text = leaf.first.label.ifBlank { "—" }, isLeaf = true)
     }
   }
 }
 
-// Place a real Compose Text at (cx, y) inside the surrounding BoxScope, with
-// the label centred horizontally on cx and a fixed widthDp so adjacent
-// labels never bleed into each other.  Style is selected by flag rather
-// than by passing TextUnit values around (keeps the call sites tidy).
 @Composable
 private fun BoxScope.OverlayLabel(
   cx: Float,
@@ -673,28 +535,25 @@ private fun BoxScope.OverlayLabel(
   isMeta: Boolean = false,
   isLeaf: Boolean = false,
 ) {
-  val resolvedColor = when {
-    isMeta -> KlikInkTertiary
-    isEyebrow && !isHeader -> KlikInkFaint
-    else -> KlikInkPrimary
-  }
   Box(
-    modifier = Modifier
-      .offset(x = (cx - widthDp / 2f).dp, y = y.dp)
-      .width(widthDp.dp),
+    modifier = Modifier.offset(x = (cx - widthDp / 2f).dp, y = y.dp).width(widthDp.dp),
     contentAlignment = Alignment.TopCenter,
   ) {
     Text(
       text = text.ifBlank { "—" },
-      color = resolvedColor,
+      color = when {
+        isMeta -> KlikInkTertiary
+        isEyebrow && !isHeader -> KlikInkFaint
+        else -> KlikInkPrimary
+      },
       fontSize = when {
         isHeader -> 14.sp
-        isLeaf -> 11.sp
-        isEyebrow -> 9.sp
+        isLeaf -> 10.sp
+        isEyebrow -> 8.5.sp
         else -> 10.sp
       },
       fontWeight = if (isMeta) FontWeight.Normal else FontWeight.Medium,
-      letterSpacing = if (isEyebrow) 1.4.sp else 0.sp,
+      letterSpacing = if (isEyebrow) 1.2.sp else 0.sp,
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
       textAlign = TextAlign.Center,
@@ -703,65 +562,42 @@ private fun BoxScope.OverlayLabel(
 }
 
 @Composable
-private fun BloomTodayLine(level: Int, xpToNext: Int) {
+private fun TodayLine(level: Int, xpToNext: Int) {
   Row(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Box(modifier = Modifier.weight(1f).height(1.dp).background(KlikInkPrimary))
     Spacer(Modifier.width(10.dp))
-    Text(
-      text = "TODAY",
-      color = KlikInkPrimary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.4.sp,
-    )
+    Text("TODAY", color = KlikInkPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.4.sp)
     Spacer(Modifier.width(8.dp))
-    Text(
-      text = "Lv $level · $xpToNext to next",
-      color = KlikInkTertiary,
-      fontSize = 11.sp,
-    )
+    Text("Lv $level · $xpToNext to next", color = KlikInkTertiary, fontSize = 11.sp)
     Spacer(Modifier.width(10.dp))
     Box(modifier = Modifier.weight(1f).height(1.dp).background(KlikInkPrimary))
   }
 }
 
 @Composable
-private fun BloomGoalsStrip(goals: List<GrowthTreeFutureNode>) {
-  Spacer(Modifier.height(6.dp))
+private fun GoalsStrip(goals: List<GrowthTreeFutureNode>) {
+  Spacer(Modifier.height(4.dp))
   Row(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Box(
-      modifier = Modifier
-        .size(6.dp)
-        .clip(CircleShape)
-        .background(KlikInkMuted),
-    )
+    Canvas(Modifier.size(6.dp)) {
+      drawCircle(KlikInkMuted, 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
+    }
     Spacer(Modifier.width(8.dp))
-    Text(
-      text = "GOALS AHEAD",
-      color = KlikInkPrimary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.4.sp,
-    )
+    Text("GOALS AHEAD", color = KlikInkPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.4.sp)
     Spacer(Modifier.width(8.dp))
-    Text(text = "· ${goals.size}", color = KlikInkTertiary, fontSize = 11.sp)
+    Text("· ${goals.size}", color = KlikInkTertiary, fontSize = 11.sp)
   }
   Spacer(Modifier.height(8.dp))
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .horizontalScroll(rememberScrollState())
-      .padding(horizontal = 20.dp),
+    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    for (i in 0 until goals.size) {
-      val g = goals[i]
+    for (g in goals) {
       Row(
         modifier = Modifier
           .clip(RoundedCornerShape(999.dp))
@@ -771,1295 +607,226 @@ private fun BloomGoalsStrip(goals: List<GrowthTreeFutureNode>) {
       ) {
         Canvas(modifier = Modifier.size(10.dp)) {
           val c = Offset(size.width / 2f, size.height / 2f)
-          drawCircle(
-            color = KlikInkMuted,
-            radius = 3.dp.toPx(),
-            center = c,
-            style = Stroke(
-              width = 1.dp.toPx(),
-              pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f)),
-            ),
-          )
+          drawCircle(KlikInkMuted, 3.dp.toPx(), c, style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f))))
         }
         Spacer(Modifier.width(6.dp))
-        Text(
-          text = g.label.ifBlank { "Planned" },
-          color = KlikInkTertiary,
-          fontSize = 11.sp,
-          fontWeight = FontWeight.Medium,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
+        Text(g.label.ifBlank { "Planned" }, color = KlikInkTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
     }
   }
   Spacer(Modifier.height(8.dp))
 }
 
-// ==================== VIEW A: Constellation ====================
+// ==================== VIEW: Heat ====================
 //
-// At-a-glance map of every entity in the user's growth.  Top: YOU, the
-// origin.  Below: editorial sections per type — each section a horizontally
-// scrolling row of chips so labels never collide or get truncated by canvas
-// drawText.  Closes with TODAY and AHEAD.
+// Three-column heatmap — People | Projects | Orgs.
+// Each row is a calendar month; cell darkness reflects activity volume.
+// Achievement months get a rose accent corner dot.
+// Future goal months appear below a divider with dashed circles.
 
 @Composable
-fun ConstellationView(data: GrowthTreeResponse) {
-  val people = data.nodesByType(TYPE_PERSON)
-  val orgs = data.nodesByType(TYPE_ORG)
-  val projects = data.nodesByType(TYPE_PROJECT)
-  val achievements = data.achievements
-  val futureNodes = data.futureProjection
-
-  val rankedPeople = remember(people) {
-    val tierOrder = mapOf("S" to 0, "A" to 1, "B" to 2, "C" to 3, "D" to 4)
-    people.sortedBy { tierOrder[it.metaString("influence_tier")] ?: 5 }
+private fun HeatView(data: GrowthTreeResponse) {
+  val nodesByMonthType = remember(data.timelineNodes) {
+    val map = mutableMapOf<String, MutableMap<String, Int>>()
+    data.timelineNodes
+      .filter { !it.isFuture && it.timestamp.isNotBlank() }
+      .forEach { node ->
+        val month = node.timestamp.take(7)
+        val typeMap = map.getOrPut(month) { mutableMapOf() }
+        typeMap[node.nodeType] = (typeMap[node.nodeType] ?: 0) + 1
+      }
+    map
   }
 
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .verticalScroll(rememberScrollState())
-      .background(KlikPaperApp),
-  ) {
+  val achievementMonths = remember(data.achievements) {
+    data.achievements.filter { it.earnedAt.isNotBlank() }.map { it.earnedAt.take(7) }.toSet()
+  }
+
+  val goalMonths = remember(data.futureProjection) {
+    data.futureProjection.mapNotNull { it.targetDate?.takeIf { s -> s.isNotBlank() }?.take(7) }.toSet()
+  }
+
+  val allMonths = remember(nodesByMonthType) { nodesByMonthType.keys.sortedDescending() }
+
+  val maxCount = remember(nodesByMonthType) {
+    nodesByMonthType.values.flatMap { it.values }.maxOrNull()?.coerceAtLeast(1) ?: 1
+  }
+
+  val columnTypes = listOf(TYPE_PERSON, TYPE_PROJECT, TYPE_ORG)
+  val columnLabels = listOf("PEOPLE", "PROJECTS", "ORGS")
+  val columnAccents = listOf(KlikInkPrimary, KlikCommitmentAccent, KlikDecisionAccent)
+
+  Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(KlikPaperApp)) {
+    Spacer(Modifier.height(12.dp))
+
+    // Column headers
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+      Spacer(Modifier.width(56.dp))
+      columnLabels.forEachIndexed { i, label ->
+        Column(
+          modifier = Modifier.weight(1f),
+          horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+          Canvas(Modifier.size(6.dp)) {
+            drawCircle(columnAccents[i], 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
+          }
+          Spacer(Modifier.height(3.dp))
+          Text(label, color = KlikInkFaint, fontSize = 8.5.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, textAlign = TextAlign.Center)
+        }
+      }
+    }
+
+    Spacer(Modifier.height(10.dp))
+
+    if (allMonths.isEmpty()) {
+      Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+        Text("No data yet", color = KlikInkTertiary, fontSize = 13.sp)
+      }
+    } else {
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+      ) {
+        for (month in allMonths) {
+          val hasAchievement = month in achievementMonths
+          val counts = nodesByMonthType[month] ?: emptyMap()
+          HeatRow(month = month, counts = counts, columnTypes = columnTypes, columnAccents = columnAccents, maxCount = maxCount, hasAchievement = hasAchievement)
+        }
+
+        if (goalMonths.isNotEmpty()) {
+          Spacer(Modifier.height(8.dp))
+          HairlineDivider()
+          Spacer(Modifier.height(4.dp))
+          Text("AHEAD", color = KlikInkFaint, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, modifier = Modifier.padding(start = 60.dp))
+          Spacer(Modifier.height(4.dp))
+          for (month in goalMonths.sorted()) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Text(
+                text = month.heatLabel(),
+                color = KlikInkFaint,
+                fontSize = 9.sp,
+                modifier = Modifier.width(56.dp),
+                textAlign = TextAlign.End,
+              )
+              Spacer(Modifier.width(4.dp))
+              columnTypes.forEachIndexed { i, _ ->
+                Box(
+                  modifier = Modifier.weight(1f).height(24.dp).clip(RoundedCornerShape(4.dp)).background(KlikPaperChip),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  Canvas(Modifier.size(8.dp)) {
+                    drawCircle(KlikInkMuted, 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f), style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f))))
+                  }
+                }
+                if (i < columnTypes.size - 1) Spacer(Modifier.width(3.dp))
+              }
+            }
+          }
+        }
+      }
+    }
+
     Spacer(Modifier.height(16.dp))
-    ConstellationOriginCard(data)
-
-    ConstellationSection(
-      title = "PEOPLE",
-      count = data.user.totalPeople.coerceAtLeast(rankedPeople.size),
-      visible = rankedPeople.size,
-      accent = KlikInkPrimary,
-    ) {
-      rankedPeople.take(20).forEach { node ->
-        val tier = node.metaString("influence_tier")
-        ConstellationChip(
-          label = node.label.ifBlank { "—" },
-          accent = KlikInkPrimary,
-          starred = tier == "S",
-          subtitle = tier?.let { "tier $it" },
-        )
-      }
-    }
-
-    ConstellationSection(
-      title = "ORGANIZATIONS",
-      count = data.user.totalOrgs.coerceAtLeast(orgs.size),
-      visible = orgs.size,
-      accent = KlikDecisionAccent,
-    ) {
-      orgs.take(16).forEach { node ->
-        ConstellationChip(
-          label = node.label.ifBlank { "—" },
-          accent = KlikDecisionAccent,
-          subtitle = node.metaString("role"),
-        )
-      }
-    }
-
-    ConstellationSection(
-      title = "PROJECTS",
-      count = data.user.totalProjects.coerceAtLeast(projects.size),
-      visible = projects.size,
-      accent = KlikCommitmentAccent,
-    ) {
-      projects.take(16).forEach { node ->
-        ConstellationChip(
-          label = node.label.ifBlank { "—" },
-          accent = KlikCommitmentAccent,
-          subtitle = node.metaString("status"),
-        )
-      }
-    }
-
-    if (achievements.isNotEmpty()) {
-      ConstellationSection(
-        title = "MILESTONES",
-        count = achievements.size,
-        visible = achievements.size,
-        accent = KlikRiskAccent,
-      ) {
-        achievements.forEach { ach ->
-          val label = when (ach.milestoneType) {
-            "level_up" -> "Level ${ach.levelReached ?: ""}".trim()
-            "streak" -> "${ach.streakDays ?: 0}-day streak"
-            else -> ach.achievementId.ifBlank { "Milestone" }
-          }
-          ConstellationChip(
-            label = label,
-            accent = KlikRiskAccent,
-            subtitle = ach.xpEarned?.let { "+$it XP" },
-          )
-        }
-      }
-    }
-
-    ConstellationTodayBar(data.user.level, data.user.xpToNextLevel)
-
-    if (futureNodes.isNotEmpty()) {
-      ConstellationSection(
-        title = "AHEAD",
-        count = futureNodes.size,
-        visible = futureNodes.size,
-        accent = KlikInkMuted,
-      ) {
-        futureNodes.forEach { fNode ->
-          ConstellationChip(
-            label = fNode.label.ifBlank { "Planned" },
-            accent = KlikInkMuted,
-            subtitle = fNode.targetDate?.formatShortDate(),
-            dashed = true,
-          )
-        }
-      }
-    }
-
-    Spacer(Modifier.height(12.dp))
-    DescriptionCard(
-      title = "Constellation",
-      description = "${data.user.displayName}'s map at a glance — " +
-        "${data.user.totalPeople} people, ${data.user.totalOrgs} orgs, " +
-        "${data.user.totalProjects} projects.",
-    )
-    TypeLegend()
-    Spacer(Modifier.height(28.dp))
-  }
-}
-
-// Origin card — the YOU node.
-@Composable
-private fun ConstellationOriginCard(data: GrowthTreeResponse) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 20.dp, vertical = 4.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier.size(36.dp),
-      contentAlignment = Alignment.Center,
-    ) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val r = 13.dp.toPx()
-        drawCircle(KlikInkPrimary, r, Offset(cx, cy))
-        drawCircle(KlikPaperApp, r - 3f, Offset(cx, cy))
-        drawCircle(KlikInkPrimary, r - 6f, Offset(cx, cy))
-      }
-    }
-    Spacer(Modifier.width(14.dp))
-    Column(modifier = Modifier.weight(1f)) {
-      Text(
-        "YOU",
-        color = KlikInkFaint,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.4.sp,
-      )
-      Spacer(Modifier.height(2.dp))
-      Text(
-        text = data.user.displayName.ifBlank { "—" },
-        color = KlikInkPrimary,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = (-0.4).sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      Spacer(Modifier.height(2.dp))
-      Text(
-        text = "Level ${data.user.level} · ${data.user.totalXp} XP",
-        color = KlikInkTertiary,
-        fontSize = 11.sp,
-        maxLines = 1,
-      )
-    }
-  }
-  Spacer(Modifier.height(8.dp))
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 20.dp)
-      .height(1.dp)
-      .background(KlikLineHairline),
-  )
-}
-
-// A section header followed by a horizontally scrollable row of chips.
-@Composable
-private fun ConstellationSection(
-  title: String,
-  count: Int,
-  visible: Int,
-  accent: Color,
-  content: @Composable () -> Unit,
-) {
-  Spacer(Modifier.height(18.dp))
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(6.dp)
-        .clip(CircleShape)
-        .background(accent),
-    )
-    Spacer(Modifier.width(8.dp))
-    Text(
-      text = title,
-      color = KlikInkPrimary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.4.sp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Text(
-      text = "· $count",
-      color = KlikInkTertiary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Normal,
-    )
-    Spacer(Modifier.width(10.dp))
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikLineHairline),
-    )
-  }
-  Spacer(Modifier.height(8.dp))
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .horizontalScroll(rememberScrollState())
-      .padding(horizontal = 20.dp),
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
-  ) {
-    content()
-    if (count > visible) {
-      MoreChip(extra = count - visible)
-    }
-  }
-}
-
-@Composable
-private fun ConstellationChip(
-  label: String,
-  accent: Color,
-  starred: Boolean = false,
-  subtitle: String? = null,
-  dashed: Boolean = false,
-) {
-  Row(
-    modifier = Modifier
-      .clip(RoundedCornerShape(10.dp))
-      .background(KlikPaperCard)
-      .padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Canvas(modifier = Modifier.size(10.dp)) {
-      val c = Offset(size.width / 2f, size.height / 2f)
-      val r = 3.dp.toPx()
-      when {
-        dashed -> drawCircle(
-          color = accent,
-          radius = r,
-          center = c,
-          style = Stroke(
-            width = 1.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f)),
-          ),
-        )
-        starred -> {
-          drawCircle(accent, r + 1.dp.toPx(), c, style = Stroke(width = 1.dp.toPx()))
-          drawCircle(accent, r - 1.dp.toPx(), c)
-        }
-        else -> drawCircle(accent, r, c)
-      }
-    }
-    Spacer(Modifier.width(8.dp))
-    Column {
-      Text(
-        text = label,
-        color = KlikInkPrimary,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Medium,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      if (!subtitle.isNullOrBlank()) {
-        Text(
-          text = subtitle,
-          color = KlikInkTertiary,
-          fontSize = 10.sp,
-          fontWeight = FontWeight.Normal,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun MoreChip(extra: Int) {
-  Box(
-    modifier = Modifier
-      .clip(RoundedCornerShape(10.dp))
-      .background(KlikPaperChip)
-      .padding(horizontal = 12.dp, vertical = 8.dp),
-  ) {
-    Text(
-      text = "+$extra more",
-      color = KlikInkTertiary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-    )
-  }
-}
-
-@Composable
-private fun ConstellationTodayBar(level: Int, xpToNext: Int) {
-  Spacer(Modifier.height(20.dp))
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikInkPrimary),
-    )
-    Spacer(Modifier.width(10.dp))
-    Text(
-      text = "TODAY",
-      color = KlikInkPrimary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.4.sp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Text(
-      text = "Lv $level · $xpToNext to next",
-      color = KlikInkTertiary,
-      fontSize = 11.sp,
-    )
-    Spacer(Modifier.width(10.dp))
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikInkPrimary),
-    )
-  }
-}
-
-// ==================== VIEW E: River Timeline ====================
-//
-// A real Compose-text vertical timeline.  Day one at the top, today midway,
-// what's ahead at the bottom.  Each moment is a row with: editorial date in
-// the gutter, a hairline trunk + accent dot, and a real Text card on the
-// right.  No more canvas-painted labels colliding into each other.
-
-private fun riverVerbFor(type: String): String = when (type) {
-  TYPE_PERSON -> "MET"
-  TYPE_ORG -> "JOINED"
-  TYPE_PROJECT -> "STARTED"
-  "level_up" -> "LEVELLED UP"
-  "streak" -> "STREAK"
-  "achievement" -> "EARNED"
-  "future" -> "PLANNED"
-  else -> "MOMENT"
-}
-
-private data class RiverItem(
-  val id: String,
-  val timestamp: String,
-  val monthKey: String,
-  val monthLabel: String,
-  val dayLabel: String,
-  val typeKey: String,
-  val verb: String,
-  val title: String,
-  val subtitle: String?,
-  val accent: Color,
-  val isFuture: Boolean,
-)
-
-private fun String.riverMonthKey(): String {
-  val head = this.take(10).split("-")
-  return if (head.size >= 2) "${head[0]}-${head[1]}" else this.take(7)
-}
-
-private fun String.riverDayLabel(): String {
-  val head = this.take(10).split("-")
-  return if (head.size >= 3) head[2].trimStart('0').ifEmpty { "1" } else "—"
-}
-
-private fun buildRiverItems(data: GrowthTreeResponse): List<RiverItem> {
-  val past = mutableListOf<RiverItem>()
-
-  data.timelineNodes
-    .filter { !it.isFuture && it.timestamp.isNotBlank() }
-    .forEach { node ->
-      val ts = node.timestamp
-      val type = node.nodeType
-      val subtitle = node.metaString("influence_tier")?.let { "tier $it" }
-        ?: node.metaString("role")
-        ?: node.metaString("status")
-      past += RiverItem(
-        id = node.id,
-        timestamp = ts,
-        monthKey = ts.riverMonthKey(),
-        monthLabel = ts.formatShortDate(),
-        dayLabel = ts.riverDayLabel(),
-        typeKey = type,
-        verb = riverVerbFor(type),
-        title = node.label.ifBlank { "Untitled" },
-        subtitle = subtitle,
-        accent = accentForType(type),
-        isFuture = false,
-      )
-    }
-
-  data.achievements
-    .filter { it.earnedAt.isNotBlank() }
-    .forEach { ach ->
-      val ts = ach.earnedAt
-      val type = ach.milestoneType
-      val title = when (type) {
-        "level_up" -> "Reached level ${ach.levelReached ?: ""}".trim()
-        "streak" -> "${ach.streakDays ?: 0}-day streak"
-        else -> ach.achievementId.ifBlank { "Milestone" }
-      }
-      past += RiverItem(
-        id = ach.id,
-        timestamp = ts,
-        monthKey = ts.riverMonthKey(),
-        monthLabel = ts.formatShortDate(),
-        dayLabel = ts.riverDayLabel(),
-        typeKey = type,
-        verb = riverVerbFor(type),
-        title = title,
-        subtitle = ach.xpEarned?.let { "+$it XP" },
-        accent = accentForType(type),
-        isFuture = false,
-      )
-    }
-
-  val sortedPast = past.sortedBy { it.timestamp }
-
-  val future = data.futureProjection.mapNotNull { f ->
-    val ts = f.targetDate?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-    RiverItem(
-      id = f.id,
-      timestamp = ts,
-      monthKey = ts.riverMonthKey(),
-      monthLabel = ts.formatShortDate(),
-      dayLabel = ts.riverDayLabel(),
-      typeKey = "future",
-      verb = riverVerbFor("future"),
-      title = f.label.ifBlank { "Planned" },
-      subtitle = f.progressPct?.takeIf { it > 0f }?.let { "${(it * 100).toInt()}% in progress" },
-      accent = KlikInkMuted,
-      isFuture = true,
-    )
-  }.sortedBy { it.timestamp }
-
-  return sortedPast + future
-}
-
-@Composable
-fun RiverTimelineView(data: GrowthTreeResponse) {
-  val items = remember(data) { buildRiverItems(data) }
-  val past = items.filter { !it.isFuture }
-  val future = items.filter { it.isFuture }
-  val grouped = past.groupBy { it.monthKey }
-  val sortedKeys = grouped.keys.sorted()
-  val monthGroups: List<List<RiverItem>> = sortedKeys.map { grouped.getValue(it) }
-
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .verticalScroll(rememberScrollState())
-      .background(KlikPaperApp),
-  ) {
-    Spacer(Modifier.height(12.dp))
-    RiverOriginRow(data.user)
-
-    for (groupIndex in 0 until monthGroups.size) {
-      val monthItems: List<RiverItem> = monthGroups[groupIndex]
-      RiverMonthEyebrow(monthItems[0].monthLabel)
-      for (index in 0 until monthItems.size) {
-        RiverEventRow(
-          item = monthItems[index],
-          isLastInGroup = index == monthItems.size - 1,
-        )
-      }
-    }
-
-    RiverTodayRow(level = data.user.level, xpToNext = data.user.xpToNextLevel)
-
-    if (future.isNotEmpty()) {
-      RiverAheadEyebrow()
-      for (index in 0 until future.size) {
-        RiverEventRow(
-          item = future[index],
-          isLastInGroup = index == future.size - 1,
-        )
-      }
-    }
-
-    Spacer(Modifier.height(12.dp))
-    DescriptionCard(
-      title = "River",
-      description = "${data.user.displayName}'s journey, day one to today. " +
-        "${past.size} moments downstream" +
-        (if (future.isNotEmpty()) " · ${future.size} ahead." else "."),
-    )
-    TypeLegend()
+    HeatLegend(columnAccents)
     Spacer(Modifier.height(28.dp))
   }
 }
 
 @Composable
-private fun RiverOriginRow(user: GrowthTreeUserSummary) {
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.Top,
-  ) {
-    Column(
-      horizontalAlignment = Alignment.End,
-      modifier = Modifier.width(48.dp).padding(top = 4.dp),
-    ) {
-      Text(
-        "DAY",
-        color = KlikInkFaint,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.sp,
-      )
-      Text(
-        "ONE",
-        color = KlikInkPrimary,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.6.sp,
-      )
-    }
-    Spacer(Modifier.width(12.dp))
-    Box(modifier = Modifier.width(20.dp).height(72.dp)) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        val cx = size.width / 2f
-        drawLine(
-          color = KlikLineHairline,
-          strokeWidth = 1.dp.toPx(),
-          start = Offset(cx, 18.dp.toPx()),
-          end = Offset(cx, size.height),
-        )
-        val cy = 12.dp.toPx()
-        val r = 7.dp.toPx()
-        drawCircle(KlikInkPrimary, r, Offset(cx, cy))
-        drawCircle(KlikPaperApp, r - 2f, Offset(cx, cy))
-        drawCircle(KlikInkPrimary, r - 4f, Offset(cx, cy))
-      }
-    }
-    Spacer(Modifier.width(14.dp))
-    Column(modifier = Modifier.weight(1f).padding(top = 2.dp)) {
-      Text(
-        "YOU",
-        color = KlikInkFaint,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.2.sp,
-      )
-      Spacer(Modifier.height(2.dp))
-      Text(
-        text = user.displayName.ifBlank { "—" },
-        color = KlikInkPrimary,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Medium,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      Spacer(Modifier.height(2.dp))
-      val seed = user.accountCreatedAt.takeIf { it.isNotBlank() }?.formatShortDate()
-      Text(
-        text = "Seeded ${seed ?: "the day you began"} · Lv ${user.level}",
-        color = KlikInkTertiary,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Normal,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-    }
-  }
-}
-
-@Composable
-private fun RiverMonthEyebrow(label: String) {
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Spacer(Modifier.width(48.dp))
-    Spacer(Modifier.width(12.dp))
-    Box(modifier = Modifier.width(20.dp).height(28.dp)) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        drawLine(
-          color = KlikLineHairline,
-          strokeWidth = 1.dp.toPx(),
-          start = Offset(size.width / 2f, 0f),
-          end = Offset(size.width / 2f, size.height),
-        )
-      }
-    }
-    Spacer(Modifier.width(14.dp))
-    Text(
-      text = label,
-      color = KlikInkFaint,
-      fontSize = 10.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.2.sp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikLineHairline),
-    )
-  }
-}
-
-@Composable
-private fun RiverEventRow(
-  item: RiverItem,
-  isLastInGroup: Boolean,
+private fun HeatRow(
+  month: String,
+  counts: Map<String, Int>,
+  columnTypes: List<String>,
+  columnAccents: List<Color>,
+  maxCount: Int,
+  hasAchievement: Boolean,
 ) {
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.Top,
-  ) {
-    Column(
-      horizontalAlignment = Alignment.End,
-      modifier = Modifier.width(48.dp).padding(top = 16.dp),
-    ) {
-      Text(
-        text = item.dayLabel,
-        color = KlikInkPrimary,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
-      )
-    }
-    Spacer(Modifier.width(12.dp))
-    Box(modifier = Modifier.width(20.dp).heightIn(min = 60.dp)) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        val cx = size.width / 2f
-        val dotY = 22.dp.toPx()
-        drawLine(
-          color = KlikLineHairline,
-          strokeWidth = 1.dp.toPx(),
-          start = Offset(cx, 0f),
-          end = Offset(cx, if (isLastInGroup) dotY + 2f else size.height),
-        )
-        if (item.isFuture) {
-          drawCircle(
-            color = KlikInkMuted,
-            radius = 4.dp.toPx(),
-            center = Offset(cx, dotY),
-            style = Stroke(
-              width = 1.dp.toPx(),
-              pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.5f, 2.5f)),
-            ),
-          )
-        } else {
-          drawCircle(
-            color = item.accent,
-            radius = 3.5.dp.toPx(),
-            center = Offset(cx, dotY),
-          )
-        }
-      }
-    }
-    Spacer(Modifier.width(14.dp))
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(top = 12.dp, bottom = 14.dp),
-    ) {
-      Text(
-        text = item.verb,
-        color = item.accent,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.2.sp,
-      )
-      Spacer(Modifier.height(2.dp))
-      Text(
-        text = item.title,
-        color = if (item.isFuture) KlikInkTertiary else KlikInkPrimary,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        lineHeight = 18.sp,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-      )
-      if (!item.subtitle.isNullOrBlank()) {
-        Spacer(Modifier.height(2.dp))
-        Text(
-          text = item.subtitle,
-          color = KlikInkTertiary,
-          fontSize = 11.sp,
-          fontWeight = FontWeight.Normal,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun RiverTodayRow(level: Int, xpToNext: Int) {
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Spacer(Modifier.width(48.dp))
-    Spacer(Modifier.width(12.dp))
-    Box(modifier = Modifier.width(20.dp).height(36.dp)) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        val cx = size.width / 2f
-        drawLine(
-          color = KlikLineHairline,
-          strokeWidth = 1.dp.toPx(),
-          start = Offset(cx, 0f),
-          end = Offset(cx, size.height / 2f),
-        )
-        drawLine(
-          color = KlikInkMuted,
-          strokeWidth = 1.dp.toPx(),
-          start = Offset(cx, size.height / 2f),
-          end = Offset(cx, size.height),
-          pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f)),
-        )
-        drawCircle(
-          color = KlikInkPrimary,
-          radius = 5.dp.toPx(),
-          center = Offset(cx, size.height / 2f),
-        )
-      }
-    }
-    Spacer(Modifier.width(14.dp))
-    Column(modifier = Modifier.weight(1f)) {
-      Text(
-        "TODAY",
-        color = KlikInkPrimary,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.4.sp,
-      )
-      Text(
-        "Level $level · $xpToNext XP to next",
-        color = KlikInkTertiary,
-        fontSize = 11.sp,
-      )
-    }
-  }
-}
-
-@Composable
-private fun RiverAheadEyebrow() {
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Spacer(Modifier.width(48.dp))
-    Spacer(Modifier.width(12.dp))
-    Box(modifier = Modifier.width(20.dp).height(20.dp)) {
-      Canvas(modifier = Modifier.fillMaxSize()) {
-        drawLine(
-          color = KlikInkMuted,
-          strokeWidth = 1.dp.toPx(),
-          start = Offset(size.width / 2f, 0f),
-          end = Offset(size.width / 2f, size.height),
-          pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f)),
-        )
-      }
-    }
-    Spacer(Modifier.width(14.dp))
+  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
     Text(
-      text = "AHEAD",
-      color = KlikInkFaint,
-      fontSize = 10.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.2.sp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikLineMute),
-    )
-  }
-}
-
-// ==================== VIEW F: Connected Network ====================
-//
-// Network keeps the canvas for dots and edges only — no on-canvas labels,
-// because adjacent dots make their labels collide.  Below the diagram we
-// show a clean numbered legend so every plotted node is readable.
-
-@Composable
-fun ConnectedConstellationView(data: GrowthTreeResponse) {
-  val people = data.nodesByType(TYPE_PERSON)
-  val orgs = data.nodesByType(TYPE_ORG)
-  val projects = data.nodesByType(TYPE_PROJECT)
-  val edges = data.edges
-  val futureNodes = data.futureProjection
-
-  val rankedPeople = remember(people) {
-    val order = mapOf("S" to 0, "A" to 1, "B" to 2, "C" to 3, "D" to 4)
-    people.sortedBy { order[it.metaString("influence_tier")] ?: 5 }
-  }
-
-  val tier1 = remember(rankedPeople, orgs) { rankedPeople.take(5) + orgs.take(3) }
-  val tier2 = remember(projects) { projects.take(6) }
-  val plotted = remember(tier1, tier2) { tier1 + tier2 }
-
-  // Relative positions on a 0..1 plane (xR, yR).  YOU sits at top centre;
-  // tier1 fans out beneath; tier2 sits in the lower band.
-  val positions = remember(tier1, tier2, data.user.userId) {
-    val m = mutableMapOf<String, Pair<Float, Float>>()
-    m[data.user.userId] = 0.50f to 0.10f
-    tier1.forEachIndexed { i, n ->
-      val t = if (tier1.size <= 1) 0.5f else i.toFloat() / (tier1.size - 1)
-      val x = 0.10f + 0.80f * t
-      val y = 0.42f + (i % 2) * 0.08f
-      m[n.id] = x to y
-    }
-    tier2.forEachIndexed { i, n ->
-      val t = if (tier2.size <= 1) 0.5f else i.toFloat() / (tier2.size - 1)
-      val x = 0.10f + 0.80f * t
-      val y = 0.78f + (i % 2) * 0.06f
-      m[n.id] = x to y
-    }
-    m
-  }
-
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .verticalScroll(rememberScrollState())
-      .background(KlikPaperApp),
-  ) {
-    EdgeLegend()
-
-    // Diagram — pure shapes, no text.
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 16.dp, vertical = 4.dp)
-        .clip(RoundedCornerShape(14.dp))
-        .background(KlikPaperSoft),
-    ) {
-      Canvas(
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(360.dp)
-          .padding(20.dp),
-      ) {
-        val w = size.width
-        val h = size.height
-        val dotR = 4.dp.toPx()
-        val ringR = 6.5.dp.toPx()
-        val youR = 9.dp.toPx()
-
-        edges.forEach { edge ->
-          val s = positions[edge.sourceId] ?: return@forEach
-          val t = positions[edge.targetId] ?: return@forEach
-          val dashed = edge.relationshipType in DASHED_REL_TYPES
-          drawLine(
-            color = KlikLineHairline,
-            start = Offset(s.first * w, s.second * h),
-            end = Offset(t.first * w, t.second * h),
-            strokeWidth = 1.dp.toPx(),
-            pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(5f, 4f)) else null,
-          )
-        }
-
-        plotted.forEach { node ->
-          val p = positions[node.id] ?: return@forEach
-          val center = Offset(p.first * w, p.second * h)
-          val isStar = node.nodeType == TYPE_PERSON &&
-            node.metaString("influence_tier") == "S"
-          if (isStar) {
-            drawCircle(
-              color = KlikInkPrimary,
-              radius = ringR,
-              center = center,
-              style = Stroke(width = 1.dp.toPx()),
-            )
-          }
-          drawCircle(accentForType(node.nodeType), dotR, center)
-        }
-
-        val you = positions[data.user.userId]
-        if (you != null) {
-          val yc = Offset(you.first * w, you.second * h)
-          drawCircle(KlikInkPrimary, youR, yc)
-          drawCircle(KlikPaperSoft, youR - 2f, yc)
-          drawCircle(KlikInkPrimary, youR - 4f, yc)
-        }
-      }
-    }
-
-    // Indexed legend — every plotted node, color-coded, fully readable.
-    NetworkLegendSection(
-      title = "INNER CIRCLE",
-      count = tier1.size,
-      accent = KlikInkPrimary,
-      nodes = tier1,
-    )
-    NetworkLegendSection(
-      title = "PROJECTS",
-      count = tier2.size,
-      accent = KlikCommitmentAccent,
-      nodes = tier2,
-    )
-
-    if (futureNodes.isNotEmpty()) {
-      NetworkLegendFutureSection(futureNodes)
-    }
-
-    Spacer(Modifier.height(12.dp))
-    DescriptionCard(
-      title = "Network",
-      description = "${data.user.totalRelationships} relationships. " +
-        "Solid lines are direct ties; dashed lines are softer signals.",
-    )
-    TypeLegend()
-    Spacer(Modifier.height(28.dp))
-  }
-}
-
-@Composable
-private fun NetworkLegendSection(
-  title: String,
-  count: Int,
-  accent: Color,
-  nodes: List<GrowthTreeNode>,
-) {
-  if (nodes.isEmpty()) return
-  Spacer(Modifier.height(14.dp))
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(6.dp)
-        .clip(CircleShape)
-        .background(accent),
-    )
-    Spacer(Modifier.width(8.dp))
-    Text(
-      text = title,
-      color = KlikInkPrimary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.4.sp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Text(
-      text = "· $count",
-      color = KlikInkTertiary,
-      fontSize = 11.sp,
-    )
-    Spacer(Modifier.width(10.dp))
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikLineHairline),
-    )
-  }
-  Spacer(Modifier.height(6.dp))
-  Column(modifier = Modifier.fillMaxWidth()) {
-    nodes.forEach { node ->
-      NetworkNodeRow(node = node)
-    }
-  }
-}
-
-@Composable
-private fun NetworkNodeRow(node: GrowthTreeNode) {
-  val accent = accentForType(node.nodeType)
-  val isStar = node.nodeType == TYPE_PERSON &&
-    node.metaString("influence_tier") == "S"
-  val subtitle = when (node.nodeType) {
-    TYPE_PERSON -> node.metaString("influence_tier")?.let { "tier $it" }
-    TYPE_ORG -> node.metaString("role")
-    TYPE_PROJECT -> node.metaString("status")
-    else -> null
-  }
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 20.dp, vertical = 6.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Canvas(modifier = Modifier.size(14.dp)) {
-      val c = Offset(size.width / 2f, size.height / 2f)
-      val r = 4.dp.toPx()
-      if (isStar) {
-        drawCircle(accent, r + 1.5.dp.toPx(), c, style = Stroke(width = 1.dp.toPx()))
-      }
-      drawCircle(accent, r, c)
-    }
-    Spacer(Modifier.width(10.dp))
-    Column(modifier = Modifier.weight(1f)) {
-      Text(
-        text = node.label.ifBlank { "—" },
-        color = KlikInkPrimary,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      if (!subtitle.isNullOrBlank()) {
-        Text(
-          text = subtitle,
-          color = KlikInkTertiary,
-          fontSize = 10.sp,
-          fontWeight = FontWeight.Normal,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-      }
-    }
-    Text(
-      text = node.nodeType.uppercase(),
+      text = month.heatLabel(),
       color = KlikInkFaint,
       fontSize = 9.sp,
       fontWeight = FontWeight.Medium,
-      letterSpacing = 1.sp,
+      modifier = Modifier.width(56.dp),
+      textAlign = TextAlign.End,
     )
-  }
-}
-
-@Composable
-private fun NetworkLegendFutureSection(future: List<GrowthTreeFutureNode>) {
-  Spacer(Modifier.height(14.dp))
-  Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(6.dp)
-        .clip(CircleShape)
-        .background(KlikInkMuted),
-    )
-    Spacer(Modifier.width(8.dp))
-    Text(
-      "AHEAD",
-      color = KlikInkPrimary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 1.4.sp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Text("· ${future.size}", color = KlikInkTertiary, fontSize = 11.sp)
-    Spacer(Modifier.width(10.dp))
-    Box(
-      modifier = Modifier
-        .weight(1f)
-        .height(1.dp)
-        .background(KlikLineMute),
-    )
-  }
-  Spacer(Modifier.height(6.dp))
-  for (fn in future) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 6.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Canvas(modifier = Modifier.size(14.dp)) {
-        val c = Offset(size.width / 2f, size.height / 2f)
-        drawCircle(
-          color = KlikInkMuted,
-          radius = 4.dp.toPx(),
-          center = c,
-          style = Stroke(
-            width = 1.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f)),
-          ),
-        )
+    Spacer(Modifier.width(4.dp))
+    columnTypes.forEachIndexed { i, type ->
+      val count = counts[type] ?: 0
+      val accent = columnAccents[i]
+      val alpha = when {
+        count == 0 -> 0f
+        count <= maxCount * 0.25f -> 0.18f
+        count <= maxCount * 0.50f -> 0.40f
+        count <= maxCount * 0.75f -> 0.65f
+        else -> 0.85f
       }
-      Spacer(Modifier.width(10.dp))
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = fn.label.ifBlank { "Planned" },
-          color = KlikInkTertiary,
-          fontSize = 13.sp,
-          fontWeight = FontWeight.Medium,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-        val sub = fn.targetDate?.takeIf { it.isNotBlank() }?.formatShortDate()
-        if (!sub.isNullOrBlank()) {
+      val bg = if (count == 0) KlikPaperChip else accent.copy(alpha = alpha)
+      Box(
+        modifier = Modifier.weight(1f).height(24.dp).clip(RoundedCornerShape(4.dp)).background(bg),
+        contentAlignment = Alignment.Center,
+      ) {
+        if (count > 0) {
           Text(
-            text = sub,
-            color = KlikInkFaint,
-            fontSize = 10.sp,
-            maxLines = 1,
+            text = "$count",
+            color = if (alpha > 0.5f) KlikPaperApp else accent,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
           )
         }
-      }
-    }
-  }
-}
-
-private val DASHED_REL_TYPES = setOf("collab", "involved_in", "leads")
-
-// ==================== Legends ====================
-
-@Composable
-private fun TypeLegend() {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 6.dp)
-      .horizontalScroll(rememberScrollState()),
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    DotLegendItem("You", KlikInkPrimary, filledRing = true)
-    DotLegendItem("Person", KlikInkPrimary)
-    DotLegendItem("Org", KlikDecisionAccent)
-    DotLegendItem("Project", KlikCommitmentAccent)
-    DotLegendItem("Achievement", KlikRiskAccent)
-    DotLegendItem("Future", KlikInkMuted, dashed = true)
-  }
-}
-
-@Composable
-private fun DotLegendItem(
-  label: String,
-  color: Color,
-  dashed: Boolean = false,
-  filledRing: Boolean = false,
-) {
-  Row(
-    verticalAlignment = Alignment.CenterVertically,
-    modifier = Modifier
-      .clip(RoundedCornerShape(7.dp))
-      .background(KlikPaperChip)
-      .padding(horizontal = 8.dp, vertical = 5.dp),
-  ) {
-    Canvas(modifier = Modifier.size(10.dp)) {
-      val r = 3.dp.toPx()
-      val c = Offset(size.width / 2f, size.height / 2f)
-      when {
-        dashed -> drawCircle(
-          color = color,
-          radius = r,
-          center = c,
-          style = Stroke(
-            width = 1.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f)),
-          ),
-        )
-
-        filledRing -> {
-          drawCircle(color, r + 1.dp.toPx(), c, style = Stroke(width = 1.dp.toPx()))
-          drawCircle(color, r - 1.dp.toPx(), c)
+        // Achievement indicator — rose dot in top-right corner
+        if (hasAchievement && type == TYPE_PERSON) {
+          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
+            Canvas(Modifier.size(8.dp).padding(2.dp)) {
+              drawCircle(KlikRiskAccent, 2.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
+            }
+          }
         }
-
-        else -> drawCircle(color, r, c)
       }
+      if (i < columnTypes.size - 1) Spacer(Modifier.width(3.dp))
     }
-    Spacer(Modifier.width(6.dp))
-    Text(label, color = KlikInkTertiary, fontSize = 10.sp, fontWeight = FontWeight.Medium)
   }
 }
 
 @Composable
-private fun EdgeLegend() {
+private fun HeatLegend(accents: List<Color>) {
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 6.dp)
-      .horizontalScroll(rememberScrollState()),
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    EdgeLegendItem("works_at", dashed = false)
-    EdgeLegendItem("owns", dashed = false)
-    EdgeLegendItem("collab", dashed = true)
-    EdgeLegendItem("involved_in", dashed = true)
-    EdgeLegendItem("leads", dashed = true)
-  }
-}
-
-@Composable
-private fun EdgeLegendItem(label: String, dashed: Boolean) {
-  Row(
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
     verticalAlignment = Alignment.CenterVertically,
-    modifier = Modifier
-      .clip(RoundedCornerShape(7.dp))
-      .background(KlikPaperChip)
-      .padding(horizontal = 8.dp, vertical = 5.dp),
   ) {
-    Canvas(modifier = Modifier.size(width = 22.dp, height = 2.dp)) {
-      drawLine(
-        color = KlikInkTertiary,
-        start = Offset(0f, size.height / 2f),
-        end = Offset(size.width, size.height / 2f),
-        strokeWidth = 1.dp.toPx(),
-        pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(4f, 3f)) else null,
-      )
+    // Intensity scale
+    Text("Less", color = KlikInkFaint, fontSize = 9.sp)
+    Spacer(Modifier.width(2.dp))
+    for (alpha in listOf(0.15f, 0.35f, 0.60f, 0.85f)) {
+      Box(modifier = Modifier.size(width = 14.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(KlikInkPrimary.copy(alpha = alpha)))
     }
-    Spacer(Modifier.width(6.dp))
-    Text(label, color = KlikInkTertiary, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-  }
-}
-
-// ==================== Description Card ====================
-
-@Composable
-private fun DescriptionCard(title: String, description: String) {
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 12.dp)
-      .clip(RoundedCornerShape(14.dp))
-      .background(KlikPaperSoft)
-      .padding(14.dp),
-  ) {
-    Column {
-      Text(
-        text = title.uppercase(),
-        color = KlikInkFaint,
-        fontSize = 9.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 1.sp,
-      )
-      Spacer(Modifier.height(4.dp))
-      Text(
-        text = description,
-        color = KlikInkPrimary,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Normal,
-        lineHeight = 17.sp,
-      )
+    Spacer(Modifier.width(2.dp))
+    Text("More", color = KlikInkFaint, fontSize = 9.sp)
+    Spacer(Modifier.weight(1f))
+    // Achievement dot
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Canvas(Modifier.size(8.dp)) {
+        drawCircle(KlikRiskAccent, 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
+      }
+      Spacer(Modifier.width(4.dp))
+      Text("Milestone", color = KlikInkFaint, fontSize = 9.sp)
     }
   }
 }
 
+private fun String.heatLabel(): String {
+  val parts = split("-")
+  if (parts.size < 2) return take(7)
+  val yr = parts[0].takeLast(2)
+  val mo = when (parts[1]) {
+    "01" -> "JAN"; "02" -> "FEB"; "03" -> "MAR"; "04" -> "APR"
+    "05" -> "MAY"; "06" -> "JUN"; "07" -> "JUL"; "08" -> "AUG"
+    "09" -> "SEP"; "10" -> "OCT"; "11" -> "NOV"; "12" -> "DEC"
+    else -> parts[1]
+  }
+  return "$mo '$yr"
+}
