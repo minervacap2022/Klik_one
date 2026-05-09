@@ -13,6 +13,8 @@ import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.platform.AppleSignInResult
 import io.github.fletchmckee.liquid.samples.app.platform.AppleSignInService
+import io.github.fletchmckee.liquid.samples.app.platform.GoogleSignInResult
+import io.github.fletchmckee.liquid.samples.app.platform.GoogleSignInService
 import io.github.fletchmckee.liquid.samples.app.platform.PickedImage
 
 /**
@@ -413,6 +415,64 @@ class AuthViewModel(
    * Check if Sign In with Apple is available on this platform.
    */
   fun isAppleSignInSupported(): Boolean = AppleSignInService.isSupported()
+
+  /**
+   * Initiate Google Sign In flow. Only available on iOS (provider injected by Swift layer).
+   */
+  fun loginWithGoogle() {
+    if (!GoogleSignInService.isSupported()) {
+      updateState { copy(error = "Google Sign In is not supported on this platform") }
+      return
+    }
+
+    updateState { copy(isLoading = true, error = null) }
+
+    GoogleSignInService.signIn { result ->
+      when (result) {
+        is GoogleSignInResult.Success -> {
+          launch {
+            val authResult = authRepository.loginWithGoogle(result.credential)
+            when (authResult) {
+              is Result.Success -> {
+                updateState { copy(isLoading = false, isLoggedIn = true, error = null) }
+                try {
+                  AppModule.syncCurrentUser()
+                  AppModule.reload()
+                  sendEvent(AuthEvent.LoginSuccess)
+                } catch (e: Exception) {
+                  val msg = e.message ?: "Google Sign In succeeded but data initialization failed"
+                  updateState { copy(error = msg) }
+                  sendEvent(AuthEvent.ShowError(msg))
+                }
+              }
+              is Result.Error -> {
+                updateState {
+                  copy(isLoading = false, error = authResult.exception.message ?: "Google Sign In failed")
+                }
+                sendEvent(AuthEvent.ShowError(authResult.exception.message ?: "Google Sign In failed"))
+              }
+              is Result.Loading -> {}
+            }
+          }
+        }
+        is GoogleSignInResult.Cancelled -> {
+          updateState { copy(isLoading = false, error = null) }
+        }
+        is GoogleSignInResult.Error -> {
+          updateState { copy(isLoading = false, error = result.message) }
+          sendEvent(AuthEvent.ShowError(result.message))
+        }
+        is GoogleSignInResult.NotSupported -> {
+          updateState { copy(isLoading = false, error = "Google Sign In is not supported") }
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if Google Sign In is available on this platform.
+   */
+  fun isGoogleSignInSupported(): Boolean = GoogleSignInService.isSupported()
 
   /**
    * Check if user is currently logged in (for initial app state)

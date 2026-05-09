@@ -5,6 +5,7 @@ package io.github.fletchmckee.liquid.samples.app.domain.repository
 import io.github.fletchmckee.liquid.samples.app.core.Result
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AppleSignInCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AuthResponse
+import io.github.fletchmckee.liquid.samples.app.platform.GoogleSignInCredential
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AuthState
 import io.github.fletchmckee.liquid.samples.app.domain.entity.LoginCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.SignupCredentials
@@ -29,6 +30,14 @@ interface AuthRepository {
    * Sends identity token to backend for verification.
    */
   suspend fun loginWithApple(credentials: AppleSignInCredentials): Result<AuthResponse>
+
+  /**
+   * Login with Google Sign In credential (iOS native SDK).
+   * Sends the idToken to the backend for verification. The token's `aud` claim equals the
+   * web client_id because GIDSignIn is configured with serverClientID=WEB_CLIENT_ID,
+   * so the backend verifies it identically to web Google tokens.
+   */
+  suspend fun loginWithGoogle(credential: GoogleSignInCredential): Result<AuthResponse>
 
   /**
    * Logout the current user

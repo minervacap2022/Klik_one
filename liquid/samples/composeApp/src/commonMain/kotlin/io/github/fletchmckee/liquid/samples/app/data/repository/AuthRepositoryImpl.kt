@@ -11,6 +11,7 @@ import io.github.fletchmckee.liquid.samples.app.data.storage.AuthStorageKeys
 import io.github.fletchmckee.liquid.samples.app.data.storage.SecureStorage
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AppleSignInCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AuthResponse
+import io.github.fletchmckee.liquid.samples.app.platform.GoogleSignInCredential
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AuthState
 import io.github.fletchmckee.liquid.samples.app.domain.entity.LoginCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.SignupCredentials
@@ -181,6 +182,15 @@ class AuthRepositoryImpl : AuthRepository {
     Result.Success(response)
   } catch (e: Exception) {
     KlikLogger.e("AuthRepository", "Apple Sign In failed: ${e.message}", e)
+    Result.Error(e)
+  }
+
+  override suspend fun loginWithGoogle(credential: GoogleSignInCredential): Result<AuthResponse> = try {
+    val response = backendAuth.googleLogin(credential)
+    saveAuthFromResponse(response)
+    Result.Success(response)
+  } catch (e: Exception) {
+    KlikLogger.e("AuthRepository", "Google Sign In failed: ${e.message}", e)
     Result.Error(e)
   }
 

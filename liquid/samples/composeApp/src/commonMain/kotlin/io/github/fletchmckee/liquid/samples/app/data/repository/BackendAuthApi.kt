@@ -8,6 +8,7 @@ import io.github.fletchmckee.liquid.samples.app.data.network.NativeHttpClient
 import io.github.fletchmckee.liquid.samples.app.data.network.retryNetworkRaw
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AppleSignInCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.AuthResponse
+import io.github.fletchmckee.liquid.samples.app.platform.GoogleSignInCredential
 import io.github.fletchmckee.liquid.samples.app.domain.entity.LoginCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.SignupCredentials
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
@@ -64,6 +65,16 @@ internal class BackendAuthApi(
     val device_id: String,
     val age_confirmed_over_13: Boolean,
     val timezone: String,
+  )
+
+  @Serializable
+  private data class BackendGoogleLoginRequest(
+    val credential: String,
+    val device_id: String,
+    val device_name: String? = null,
+    val device_type: String? = null,
+    val timezone: String,
+    val age_confirmed_over_13: Boolean,
   )
 
   @Serializable
@@ -154,6 +165,29 @@ internal class BackendAuthApi(
       userName = token.username ?: credentials.fullName,
       userEmail = credentials.email,
       message = "Apple Sign In successful",
+    )
+  }
+
+  suspend fun googleLogin(credential: GoogleSignInCredential): AuthResponse {
+    val request = BackendGoogleLoginRequest(
+      credential = credential.idToken,
+      device_id = DeviceInfo.getDeviceId(),
+      device_name = DeviceInfo.getDeviceName(),
+      device_type = DeviceInfo.getDeviceType(),
+      timezone = kotlinx.datetime.TimeZone.currentSystemDefault().id,
+      age_confirmed_over_13 = true,
+    )
+    val url = "${ApiConfig.AUTH_BASE_URL}/google/callback"
+    KlikLogger.d("AuthRepository", "Google Sign In: calling $url")
+    val token = postForToken(url, json.encodeToString(request), "Google Sign In")
+    return AuthResponse(
+      success = true,
+      userId = token.user_id,
+      accessToken = token.access_token,
+      refreshToken = token.refresh_token,
+      userName = token.username ?: credential.displayName,
+      userEmail = credential.email,
+      message = "Google Sign In successful",
     )
   }
 
