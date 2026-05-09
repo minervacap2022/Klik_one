@@ -78,3 +78,8 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# CocoaPods removed in favor of SPM (2026-05-09)
+samples/iosApp/Pods/
+samples/iosApp/Podfile.lock
+samples/iosApp/iosApp.xcworkspace/
