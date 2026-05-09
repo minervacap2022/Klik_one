@@ -1,15 +1,23 @@
 import SwiftUI
 import Foundation
 import UIKit
+import ComposeApp
 
 @main
 struct iOSApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+
+    init() {
+        // Configure GIDSignIn once at startup (clientID + serverClientID)
+        GoogleSignInProviderImpl.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .onOpenURL { url in
+                    // Let Google SDK handle its own redirect URL first
+                    if GoogleSignInProviderImpl.handle(url) { return }
                     handleUniversalLink(url)
                 }
         }
