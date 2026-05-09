@@ -213,6 +213,10 @@ object HttpClient {
     fieldName: String = "file",
     headers: Map<String, String> = emptyMap(),
   ): String? {
+    if (!CurrentUser.isLoggedIn) {
+      KlikLogger.i("HttpClient", "Skipping POST (multipart) $url — not authenticated")
+      return null
+    }
     ensureValidToken()
     val allHeaders = headers + CurrentUser.getAuthHeaders()
     KlikLogger.d("HTTP", "POST (multipart) $url, ${fileData.size} bytes")
@@ -254,6 +258,15 @@ object HttpClient {
     extraHeaders: Map<String, String>,
     body: String? = null,
   ): NativeHttpResponse {
+    // Gate authenticated calls on logged-in state. Without this, callers that fire on
+    // composition (preferences, /me, todos, notifications, subscription, …) hit the
+    // retry loop with `IllegalStateException: no access token` from getAuthHeaders(),
+    // which retryNetworkRaw catches and treats as a transient transport failure → 3
+    // pointless retries each, producing the warn-storm seen after a terminal refresh.
+    if (!CurrentUser.isLoggedIn) {
+      KlikLogger.i("HttpClient", "Skipping $method $url — not authenticated")
+      return NativeHttpResponse(0, null)
+    }
     ensureValidToken()
 
     val contentHeaders = if (body != null) {
@@ -310,6 +323,11 @@ object HttpClient {
     extraHeaders: Map<String, String>,
     body: String? = null,
   ): String? {
+    // Gate authenticated calls on logged-in state. See executeWithRetryResponse for why.
+    if (!CurrentUser.isLoggedIn) {
+      KlikLogger.i("HttpClient", "Skipping $method $url — not authenticated")
+      return null
+    }
     ensureValidToken()
 
     val contentHeaders = if (body != null) {
