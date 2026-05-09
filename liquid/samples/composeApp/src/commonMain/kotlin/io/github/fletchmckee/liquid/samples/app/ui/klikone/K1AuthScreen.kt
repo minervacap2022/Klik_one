@@ -133,7 +133,9 @@ fun K1AuthScreen(
           onForgot = viewModel::enterForgotPasswordMode,
         )
 
-        if (viewModel.isAppleSignInSupported()) {
+        val appleSupported = viewModel.isAppleSignInSupported()
+        val googleSupported = viewModel.isGoogleSignInSupported()
+        if (appleSupported || googleSupported) {
           Spacer(Modifier.height(K1Sp.m))
           Row(
             Modifier.fillMaxWidth(),
@@ -146,7 +148,13 @@ fun K1AuthScreen(
             Box(Modifier.weight(1f).height(0.5.dp).background(KlikLineHairline))
           }
           Spacer(Modifier.height(K1Sp.m))
-          AppleButton(onClick = viewModel::loginWithApple)
+          if (appleSupported) {
+            AppleButton(onClick = viewModel::loginWithApple)
+            if (googleSupported) Spacer(Modifier.height(K1Sp.s))
+          }
+          if (googleSupported) {
+            GoogleButton(onClick = viewModel::loginWithGoogle)
+          }
         }
       }
 
@@ -367,6 +375,31 @@ private fun KField(
         },
       ),
       modifier = Modifier.fillMaxWidth(),
+    )
+  }
+}
+
+@Composable
+private fun GoogleButton(onClick: () -> Unit) {
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .clip(K1R.pill)
+      .background(KlikPaperCard)
+      .border(0.5.dp, KlikLineHairline, K1R.pill)
+      .k1Clickable(onClick = onClick)
+      .padding(vertical = 14.dp),
+    horizontalArrangement = Arrangement.Center,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      "G",
+      style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontWeight = FontWeight.Bold),
+    )
+    Spacer(Modifier.width(8.dp))
+    Text(
+      "Continue with Google",
+      style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
     )
   }
 }
