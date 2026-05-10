@@ -2815,7 +2815,8 @@ fun MainApp() {
                                 if (m != null) {
                                     SessionDetailScreen(
                                         meeting = m,
-                                        tasks = reviewMetadata + pendingMetadata + completedMetadata,
+                                        tasks = reviewMetadata + pendingMetadata + completedMetadata +
+                                            kkExecSensitiveTodosState.value + kkExecDailyTodosState.value,
                                         allMeetings = meetings,
                                         projects = projectsState.value,
                                         people = peopleState.value,
@@ -2830,16 +2831,19 @@ fun MainApp() {
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
                                         onOpenTodoInMoves = { t ->
-                                            // Land on Moves with this task highlighted. We carry
-                                            // the id through highlightedMoveId so MovesScreen can
-                                            // visually flag the row when it lands.
                                             highlightedMoveId = t.id
+                                            sessionDetailMeeting = null
+                                            currentRoute = "function"
+                                        },
+                                        onOpenTranscriptTodoInMoves = {
                                             sessionDetailMeeting = null
                                             currentRoute = "function"
                                         },
                                     )
                                 } else {
-                                    LaunchedEffect(Unit) { currentRoute = "today" }
+                                    LaunchedEffect(Unit) {
+                                        if (currentRoute == "session_detail") currentRoute = "today"
+                                    }
                                 }
                             }
                             "task_detail" -> {

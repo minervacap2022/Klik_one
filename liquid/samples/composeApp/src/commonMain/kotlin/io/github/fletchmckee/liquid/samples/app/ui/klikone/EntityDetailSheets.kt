@@ -659,18 +659,25 @@ fun PersonDetailScreen(
   onEntityClick: (EntityNavigationData) -> Unit = {},
   onRename: ((String) -> Unit)? = null,
 ) {
-  val personMeetings = meetings.filter { m -> m.participants.any { it.id == person.id } }
-    .sortedByDescending { it.date }
-    .take(5)
-  val personTasks = tasks.filter { t -> t.relatedPeople.any { it.equals(person.name, true) } }.take(5)
-  val personProjects = projects.filter { p -> p.id in person.relatedProjects || p.relatedPeople.contains(person.name) }
-  val personOrgs = organizations.filter { o -> o.id in person.relatedOrganizations || o.employees.contains(person.name) }
+  val personDisplayName = person.canonicalName
+  val personMeetings = meetings.filter { m ->
+    m.id in person.relatedMeetings || m.participants.any { p -> p.id == person.id }
+  }.sortedByDescending { it.date }.take(5)
+  val personTasks = tasks.filter { t ->
+    t.relatedPeople.any { it == person.id }
+  }.take(5)
+  val personProjects = projects.filter { p ->
+    p.id in person.relatedProjects
+  }
+  val personOrgs = organizations.filter { o ->
+    o.id in person.relatedOrganizations
+  }
 
   var showRename by remember { mutableStateOf(false) }
 
   DetailScaffold(
     eyebrow = "Person",
-    title = person.name,
+    title = personDisplayName,
     onBack = onBack,
     onTitleLongPress = if (onRename != null) ({ showRename = true }) else null,
   ) {
@@ -679,7 +686,7 @@ fun PersonDetailScreen(
       Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      K1Avatar(initialsOf(person.name), size = 72.dp)
+      K1Avatar(initialsOf(personDisplayName), size = 72.dp)
       Spacer(Modifier.width(K1Sp.lg))
       Column(Modifier.weight(1f)) {
         val roleParts = listOfNotNull(
@@ -783,7 +790,7 @@ fun PersonDetailScreen(
       val seen = LinkedHashSet<String>()
       for (m in personMeetings) {
         for (p in m.participants) {
-          if (!p.name.equals(person.name, ignoreCase = true) && p.name.isNotBlank()) {
+          if (!p.name.equals(personDisplayName, ignoreCase = true) && !p.name.equals(person.name, ignoreCase = true) && p.name.isNotBlank()) {
             seen.add(p.name)
           }
         }
@@ -806,7 +813,7 @@ fun PersonDetailScreen(
   if (showRename && onRename != null) {
     RenameEntityDialog(
       kind = "person",
-      currentName = person.name,
+      currentName = personDisplayName,
       onCancel = { showRename = false },
       onSave = { newName ->
         onRename(newName)

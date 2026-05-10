@@ -77,6 +77,13 @@ internal fun resolveSpeakerName(
   return if (raw.isBlank() || raw.startsWith("Unknown Speaker", ignoreCase = true)) "Unknown" else raw
 }
 
+internal fun resolveVpLabels(text: String, speakerMap: Map<String, String>): String {
+  if (speakerMap.isEmpty() || !text.contains("VP_")) return text
+  var out = text
+  speakerMap.forEach { (vpId, name) -> out = out.replace(vpId, name) }
+  return out
+}
+
 /**
  * Klik One — Session Detail.
  *
@@ -104,6 +111,9 @@ fun SessionDetailScreen(
   // to the Moves tab and scroll-to / highlight that task. Falls back to a
   // task_detail navigation via onEntityClick when null.
   onOpenTodoInMoves: ((TaskMetadata) -> Unit)? = null,
+  // Tapping a transcript-only todo (no TaskMetadata) — caller navigates to
+  // Moves without highlighting a specific task.
+  onOpenTranscriptTodoInMoves: (() -> Unit)? = null,
   expandSegmentId: String? = null,
 ) {
   fun displayNameOf(p: io.github.fletchmckee.liquid.samples.app.domain.entity.Person): String =
@@ -296,6 +306,7 @@ fun SessionDetailScreen(
         actionItems = meeting.actionItems,
         onEntityClick = onEntityClick,
         onOpenInMoves = onOpenTodoInMoves,
+        onOpenInMovesSimple = onOpenTranscriptTodoInMoves,
       )
 
       SessionTab.Transcript -> TranscriptPanel(
@@ -367,7 +378,7 @@ private fun SummaryPanel(
       K1Eyebrow("In 3 lines")
       Spacer(Modifier.height(K1Sp.s))
       io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-        text = m.summary,
+        text = resolveVpLabels(m.summary, speakerMap),
         tasks = tasks,
         meetings = allMeetings,
         projects = projects,
@@ -386,7 +397,7 @@ private fun SummaryPanel(
       minute.items.take(8).forEach { item ->
         K1Card(soft = true) {
           io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-            text = item,
+            text = resolveVpLabels(item, speakerMap),
             tasks = tasks,
             meetings = allMeetings,
             projects = projects,
@@ -408,7 +419,7 @@ private fun SummaryPanel(
       m.actionItems.take(8).forEach { todo ->
         K1Card(soft = true) {
           io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
-            text = todo.text,
+            text = resolveVpLabels(todo.text, speakerMap),
             tasks = tasks,
             meetings = allMeetings,
             projects = projects,
@@ -466,6 +477,7 @@ private fun TodosPanel(
   actionItems: List<io.github.fletchmckee.liquid.samples.app.domain.entity.TodoItem> = emptyList(),
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
   onOpenInMoves: ((TaskMetadata) -> Unit)? = null,
+  onOpenInMovesSimple: (() -> Unit)? = null,
 ) {
   // Two sources of follow-ups:
   //   1. KK_exec todos linked to this meeting's session_id (`linked`).
@@ -527,7 +539,9 @@ private fun TodosPanel(
       Spacer(Modifier.height(K1Sp.s))
       transcriptOnly.forEach { item ->
         Row(
-          Modifier.fillMaxWidth().padding(vertical = 12.dp),
+          Modifier.fillMaxWidth()
+            .then(if (onOpenInMovesSimple != null) Modifier.k1Clickable { onOpenInMovesSimple() } else Modifier)
+            .padding(vertical = 12.dp),
           verticalAlignment = Alignment.Top,
         ) {
           Box(
