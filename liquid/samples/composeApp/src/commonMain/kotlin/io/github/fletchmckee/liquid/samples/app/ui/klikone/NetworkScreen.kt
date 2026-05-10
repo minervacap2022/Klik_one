@@ -621,7 +621,11 @@ private fun PersonRow(p: Person, onEntityClick: (EntityNavigationData) -> Unit) 
           style = K1Type.meta,
         )
       }
-      Text(p.lastInteraction.take(8), style = K1Type.metaSm)
+      Text(
+        if (p.lastInteraction.isBlank() || p.lastInteraction == "No recent contact") "—"
+        else p.lastInteraction,
+        style = K1Type.metaSm,
+      )
     }
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikPaperChip))
   }
