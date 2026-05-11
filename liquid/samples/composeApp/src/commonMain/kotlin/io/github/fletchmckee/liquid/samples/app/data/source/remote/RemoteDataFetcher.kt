@@ -1442,15 +1442,17 @@ data class TracedSegmentDto(
 @Serializable
 data class InsightsApiResponseDto(
   val insights: List<String> = emptyList(),
+  val decisions: List<String> = emptyList(),
   val sessions_analyzed: Int = 0,
   val language: String = "en",
   val traced_segments: List<TracedSegmentDto> = emptyList(),
 ) {
   fun toDomain(): Insights = Insights(
     // Join all insights into a single summary text
-    summary = insights.joinToString("\n\n"),
+    summary = insights.joinToString(" "),
     highlights = insights,
     recommendations = emptyList(),
+    decisions = decisions,
     tracedSegments = traced_segments.map { segment ->
       io.github.fletchmckee.liquid.samples.app.domain.entity.TracedSegment(
         sessionId = segment.session_id,

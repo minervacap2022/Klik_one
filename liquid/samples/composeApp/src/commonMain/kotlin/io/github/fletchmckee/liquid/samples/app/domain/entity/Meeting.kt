@@ -163,6 +163,7 @@ data class Insights(
   val summary: String,
   val highlights: List<String> = emptyList(),
   val recommendations: List<String> = emptyList(),
+  val decisions: List<String> = emptyList(),
   val tracedSegments: List<TracedSegment> = emptyList(),
   val generatedAt: Long = 0L,
 ) {

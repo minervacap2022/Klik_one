@@ -365,6 +365,43 @@ fun TodayScreen(
         Spacer(Modifier.height(K1Sp.xxl))
       }
 
+      // ── DECISIONS (previous-month log) ────────────────────────────────
+      // Bullet list of concrete decisions the user made during the analyzed
+      // window. Sits under Insights so the short read-out comes first, then
+      // the durable log.
+      val decisions = insights?.decisions.orEmpty()
+      if (decisions.isNotEmpty()) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
+          K1SectionHeader("Decisions", count = decisions.size)
+          Spacer(Modifier.height(K1Sp.s))
+          K1Card(soft = true) {
+            decisions.forEachIndexed { index, decision ->
+              if (index > 0) Spacer(Modifier.height(8.dp))
+              Row(verticalAlignment = Alignment.Top) {
+                Text(
+                  text = "•",
+                  style = K1Type.bodySm,
+                  color = KlikInkSecondary,
+                  modifier = Modifier.padding(end = 8.dp, top = 1.dp),
+                )
+                io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+                  text = decision,
+                  tasks = tasks,
+                  meetings = meetings,
+                  projects = projects,
+                  people = people,
+                  organizations = organizations,
+                  onEntityClick = onEntityClick,
+                  style = K1Type.bodySm,
+                  maxLines = Int.MAX_VALUE,
+                )
+              }
+            }
+          }
+        }
+        Spacer(Modifier.height(K1Sp.xxl))
+      }
+
       // ── DAY MEETINGS ──────────────────────────────────────────────────
       // While the initial meetings list is in flight, show a couple of
       // breathing rows so the page reads as "loading" instead of "empty".
