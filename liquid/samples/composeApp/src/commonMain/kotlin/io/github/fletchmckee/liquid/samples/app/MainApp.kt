@@ -1947,6 +1947,59 @@ fun MainApp() {
           }
       }
 
+      // Single source of truth for entity renames. Every long-press / detail-
+      // screen rename goes through these three actions so the optimistic state
+      // update (and the wire shape we send to KK_entity_feedback) can never
+      // drift between call sites.
+      val renamePersonAction: (String, String) -> Unit = { id, newName ->
+          appScope.launch {
+              val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                  .updatePersonEntity(personId = id, name = newName)
+              if (r.isSuccess) {
+                  peopleState.value = io.github.fletchmckee.liquid.samples.app.data
+                      .renamePersonInList(peopleState.value, id, newName)
+                  // Keep speakerMap consistent so transcript / summary renders
+                  // pick up the rename immediately, the way TaskDetail used to
+                  // do inline.
+                  speakerMap = speakerMap + (id to newName)
+              } else {
+                  KlikLogger.e("MainApp", "Person rename failed: ${r.exceptionOrNull()?.message}")
+              }
+          }
+      }
+      val renameProjectAction: (String, String) -> Unit = { id, newName ->
+          appScope.launch {
+              val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                  .updateProjectEntity(projectId = id, name = newName)
+              if (r.isSuccess) {
+                  projectsState.value = io.github.fletchmckee.liquid.samples.app.data
+                      .renameProjectInList(projectsState.value, id, newName)
+              } else {
+                  KlikLogger.e("MainApp", "Project rename failed: ${r.exceptionOrNull()?.message}")
+              }
+          }
+      }
+      val renameOrganizationAction: (String, String) -> Unit = { id, newName ->
+          appScope.launch {
+              val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                  .updateOrganizationEntity(orgId = id, name = newName)
+              if (r.isSuccess) {
+                  organizationsState.value = io.github.fletchmckee.liquid.samples.app.data
+                      .renameOrganizationInList(organizationsState.value, id, newName)
+              } else {
+                  KlikLogger.e("MainApp", "Org rename failed: ${r.exceptionOrNull()?.message}")
+              }
+          }
+      }
+      val renameRelatedEntityAction: (EntityType, String, String) -> Unit = { type, id, newName ->
+          when (type) {
+              EntityType.PERSON -> renamePersonAction(id, newName)
+              EntityType.PROJECT -> renameProjectAction(id, newName)
+              EntityType.ORGANIZATION -> renameOrganizationAction(id, newName)
+              else -> Unit
+          }
+      }
+
       AnimatedContent(
           targetState = appState,
           transitionSpec = {
@@ -2529,39 +2582,9 @@ fun MainApp() {
                                     upgradeModalFeatureName = featureName
                                     showUpgradeModal = true
                                 },
-                                onRenamePerson = { id, newName ->
-                                    appScope.launch {
-                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                            .updatePersonEntity(personId = id, name = newName)
-                                        if (r.isSuccess) {
-                                            peopleState.value = peopleState.value.map {
-                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
-                                            }
-                                        }
-                                    }
-                                },
-                                onRenameProject = { id, newName ->
-                                    appScope.launch {
-                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                            .updateProjectEntity(projectId = id, name = newName)
-                                        if (r.isSuccess) {
-                                            projectsState.value = projectsState.value.map {
-                                                if (it.id == id) it.copy(name = newName) else it
-                                            }
-                                        }
-                                    }
-                                },
-                                onRenameOrganization = { id, newName ->
-                                    appScope.launch {
-                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                            .updateOrganizationEntity(orgId = id, name = newName)
-                                        if (r.isSuccess) {
-                                            organizationsState.value = organizationsState.value.map {
-                                                if (it.id == id) it.copy(name = newName) else it
-                                            }
-                                        }
-                                    }
-                                },
+                                onRenamePerson = renamePersonAction,
+                                onRenameProject = renameProjectAction,
+                                onRenameOrganization = renameOrganizationAction,
                             )
                             "growth_tree" -> GrowthTreeScreen(
                                 onBack = {
@@ -2863,17 +2886,7 @@ fun MainApp() {
                                             sessionDetailMeeting = null
                                             currentRoute = "function"
                                         },
-                                        onRenameParticipant = { personId, newName ->
-                                            appScope.launch {
-                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                    .updatePersonEntity(personId = personId, name = newName)
-                                                if (r.isSuccess) {
-                                                    peopleState.value = peopleState.value.map {
-                                                        if (it.id == personId) it.copy(name = newName, canonicalName = newName) else it
-                                                    }
-                                                }
-                                            }
-                                        },
+                                        onRenameParticipant = renamePersonAction,
                                     )
                                 } else {
                                     LaunchedEffect(Unit) {
@@ -2994,53 +3007,7 @@ fun MainApp() {
                                                 currentRoute = "session_detail"
                                             }
                                         },
-                                        onRenameRelatedEntity = { type, id, newName ->
-                                            // Long-press a Related row → rename the linked entity.
-                                            // Routes to the per-type EntityFeedbackClient endpoint and
-                                            // optimistically updates the in-memory state so the row
-                                            // re-renders immediately. No silent fallback — failures
-                                            // surface in the log; UI shows the optimistic name until
-                                            // the next tasks/people refresh confirms or reverts.
-                                            appScope.launch {
-                                                when (type) {
-                                                    EntityType.PERSON -> {
-                                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                            .updatePersonEntity(personId = id, name = newName)
-                                                        if (r.isSuccess) {
-                                                            peopleState.value = peopleState.value.map {
-                                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
-                                                            }
-                                                            speakerMap = speakerMap + (id to newName)
-                                                        } else {
-                                                            KlikLogger.e("MainApp", "Person rename failed: ${r.exceptionOrNull()?.message}")
-                                                        }
-                                                    }
-                                                    EntityType.PROJECT -> {
-                                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                            .updateProjectEntity(projectId = id, name = newName)
-                                                        if (r.isSuccess) {
-                                                            projectsState.value = projectsState.value.map {
-                                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
-                                                            }
-                                                        } else {
-                                                            KlikLogger.e("MainApp", "Project rename failed: ${r.exceptionOrNull()?.message}")
-                                                        }
-                                                    }
-                                                    EntityType.ORGANIZATION -> {
-                                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                            .updateOrganizationEntity(orgId = id, name = newName)
-                                                        if (r.isSuccess) {
-                                                            organizationsState.value = organizationsState.value.map {
-                                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
-                                                            }
-                                                        } else {
-                                                            KlikLogger.e("MainApp", "Org rename failed: ${r.exceptionOrNull()?.message}")
-                                                        }
-                                                    }
-                                                    else -> Unit
-                                                }
-                                            }
-                                        },
+                                        onRenameRelatedEntity = renameRelatedEntityAction,
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -3061,17 +3028,7 @@ fun MainApp() {
                                             currentRoute = lastMainRoute
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
-                                        onRename = { newName ->
-                                            appScope.launch {
-                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                    .updatePersonEntity(personId = p.id, name = newName)
-                                                if (r.isSuccess) {
-                                                    peopleState.value = peopleState.value.map {
-                                                        if (it.id == p.id) it.copy(name = newName) else it
-                                                    }
-                                                }
-                                            }
-                                        },
+                                        onRename = { newName -> renamePersonAction(p.id, newName) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -3092,17 +3049,7 @@ fun MainApp() {
                                             currentRoute = lastMainRoute
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
-                                        onRename = { newName ->
-                                            appScope.launch {
-                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                    .updateProjectEntity(projectId = pr.id, name = newName)
-                                                if (r.isSuccess) {
-                                                    projectsState.value = projectsState.value.map {
-                                                        if (it.id == pr.id) it.copy(name = newName) else it
-                                                    }
-                                                }
-                                            }
-                                        },
+                                        onRename = { newName -> renameProjectAction(pr.id, newName) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
@@ -3121,17 +3068,7 @@ fun MainApp() {
                                             currentRoute = lastMainRoute
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
-                                        onRename = { newName ->
-                                            appScope.launch {
-                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
-                                                    .updateOrganizationEntity(orgId = o.id, name = newName)
-                                                if (r.isSuccess) {
-                                                    organizationsState.value = organizationsState.value.map {
-                                                        if (it.id == o.id) it.copy(name = newName) else it
-                                                    }
-                                                }
-                                            }
-                                        },
+                                        onRename = { newName -> renameOrganizationAction(o.id, newName) },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }
