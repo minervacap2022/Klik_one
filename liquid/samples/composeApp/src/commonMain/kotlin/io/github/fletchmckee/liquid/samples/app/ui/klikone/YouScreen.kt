@@ -112,7 +112,7 @@ fun YouScreen(
             if (selectedAvatarIdx >= 0) {
               K1AvatarIcon(selectedAvatarIdx, size = 56.dp)
             } else {
-              K1Avatar(initials, size = 56.dp)
+              K1Avatar(initials, size = 56.dp, idSeed = user?.id)
             }
           }
           Spacer(Modifier.width(K1Sp.m))

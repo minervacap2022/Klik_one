@@ -197,7 +197,7 @@ private fun TurnBubble(turn: LiveCaptureTurn) {
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-      K1Avatar(initials = turn.speakerInitials.take(2), size = 18.dp)
+      K1Avatar(initials = turn.speakerInitials.take(2), size = 18.dp, idSeed = turn.speakerLabel)
       Text(turn.speakerLabel, style = K1Type.bodySm.copy(fontWeight = FontWeight.Medium))
       Text(turn.time, style = K1Type.metaSm)
     }

@@ -748,17 +748,42 @@ fun K1SignalCard(
 private data class Quad(val a: Color, val b: Color, val c: Color, val d: Color)
 
 // ─── Avatar ───────────────────────────────────────────────────────────────
+//
+// Single rule for avatar colors across the app: the palette index is a
+// function of a STABLE id (person.id, project.id, org.id, user.id) and never
+// of the display name or initials. Renaming a person must never change their
+// color, and the same person rendered in two surfaces (stacked avatar +
+// expanded chip + transcript row + detail header) must always paint the
+// same. Initials remain only as the *display* text inside the disc.
+//
+// All avatar-coloured surfaces — full circles, chip leading dots, transcript
+// bubbles, project lead chips — must obtain their (bg, fg) pair through
+// k1AvatarColors(idSeed). The legacy `display.hashCode() % palette.size`
+// pattern is banned.
+
+/** One seed for one rendered avatar — initials are display-only; idSeed
+ *  drives the colour. Use [k1Seed] helpers to construct from domain types. */
+data class K1AvatarSeed(val initials: String, val idSeed: String?)
 
 /**
- * Deterministic avatar palette index. Spec v1.0 §6 says to hash the person's
+ * Deterministic avatar palette index. Spec v1.0 §6 — hash the person's
  * **canonical ID** (not display name — names change, ids don't). Callers that
- * only know initials still get a stable color for that spelling.
+ * have no id and pass only initials still get a stable color for that spelling,
+ * but two surfaces seeded with different inputs WILL diverge, which is the
+ * bug we want to make impossible everywhere we control.
  */
-private fun paletteIdx(seed: String): Int {
+internal fun paletteIdx(seed: String): Int {
   if (seed.isEmpty()) return 0
-  // Simple FNV-ish fold so the same seed always yields the same index.
   val n = seed.fold(0) { a, ch -> (a * 31 + ch.code) }
   return abs(n) % KlikAvatarBg.size
+}
+
+/** Public colour pair lookup — every non-`K1Avatar` surface that paints
+ *  an avatar-coloured dot (chip leading icon, transcript marker, etc.)
+ *  MUST go through this so the same seed always picks the same swatch. */
+fun k1AvatarColors(idSeed: String?): Pair<Color, Color> {
+  val i = paletteIdx(idSeed?.takeIf { it.isNotBlank() } ?: "")
+  return KlikAvatarBg[i] to KlikAvatarFg[i]
 }
 
 @Composable
@@ -766,14 +791,12 @@ fun K1Avatar(
   initials: String,
   size: Dp = 36.dp,
   modifier: Modifier = Modifier,
-  /** Prefer passing the person's canonical id (Person.id) as seed so the
-   *  avatar color stays stable across display-name edits. Falls back to
-   *  initials when caller doesn't have the id. */
+  /** Person.id / Project.id / Org.id / user_id. Without this the colour is
+   *  derived from initials and will not match other surfaces for the same
+   *  person — pass it. */
   idSeed: String? = null,
 ) {
-  val i = paletteIdx(idSeed?.takeIf { it.isNotBlank() } ?: initials)
-  val bg = KlikAvatarBg[i]
-  val fg = KlikAvatarFg[i]
+  val (bg, fg) = k1AvatarColors(idSeed?.takeIf { it.isNotBlank() } ?: initials)
   val fontSize = when {
     size <= 20.dp -> 9.sp
     size <= 28.dp -> 10.sp
@@ -795,20 +818,23 @@ fun K1Avatar(
 }
 
 @Composable
-fun K1AvatarStack(initialsList: List<String>, size: Dp = 24.dp, modifier: Modifier = Modifier) {
+fun K1AvatarStack(
+  seeds: List<K1AvatarSeed>,
+  size: Dp = 24.dp,
+  modifier: Modifier = Modifier,
+) {
   // Spec §6 stacking rule: overlap 30–35% with a 1.5px border matching the bg.
-  // Compose's padding modifier rejects negative values on Android (runtime
-  // crash `IllegalArgumentException: Padding must be non-negative`). Use
+  // Compose's padding modifier rejects negative values on Android, so we use
   // offset to pull each subsequent avatar back over the previous one.
   Row(modifier) {
-    initialsList.forEachIndexed { i, ini ->
+    seeds.forEachIndexed { i, seed ->
       Box(
         Modifier
           .then(if (i > 0) Modifier.offset(x = (size.value * -0.3f).dp) else Modifier)
           .size(size)
           .background(KlikPaperApp, CircleShape) // border color = bg per spec
           .padding(1.5.dp),
-      ) { K1Avatar(ini, size = size - 3.dp) }
+      ) { K1Avatar(seed.initials, size = size - 3.dp, idSeed = seed.idSeed) }
     }
   }
 }

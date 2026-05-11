@@ -551,7 +551,7 @@ private fun PeoplePanel(
             Modifier.width(72.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
           ) {
-            K1Avatar(initialsOfPerson(p), size = 56.dp)
+            K1Avatar(initialsOfPerson(p), size = 56.dp, idSeed = p.id)
             Spacer(Modifier.height(K1Sp.s))
             Text(
               firstName(p.name),
@@ -616,7 +616,7 @@ private fun NeedsAttentionRow(person: Person, lapsed: String) {
       .padding(horizontal = 14.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    K1Avatar(initialsOfPerson(person), size = 36.dp)
+    K1Avatar(initialsOfPerson(person), size = 36.dp, idSeed = person.id)
     Spacer(Modifier.width(K1Sp.m))
     Column(Modifier.weight(1f)) {
       Text(person.name, style = K1Type.bodyMd)
@@ -671,7 +671,7 @@ private fun PersonRow(
         .padding(vertical = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      K1Avatar(initialsOfPerson(p), size = 36.dp)
+      K1Avatar(initialsOfPerson(p), size = 36.dp, idSeed = p.id)
       Spacer(Modifier.width(K1Sp.m))
       Column(Modifier.weight(1f)) {
         Text(p.name, style = K1Type.bodyMd)
@@ -736,9 +736,13 @@ private fun ProjectsPanel(
           Spacer(Modifier.height(8.dp))
           Row(verticalAlignment = Alignment.CenterVertically) {
             K1AvatarStack(
-              initialsList = pr.teamMembers.take(3).map { n ->
-                n.trim().split(" ").filter { it.isNotEmpty() }
+              // teamMembers are free-text strings (no Person.id), so the name
+              // itself is the most stable seed available — same name → same
+              // colour across screens for the same lead.
+              seeds = pr.teamMembers.take(3).map { n ->
+                val initials = n.trim().split(" ").filter { it.isNotEmpty() }
                   .take(2).joinToString("") { it.take(1).uppercase() }
+                K1AvatarSeed(initials = initials, idSeed = n.trim())
               },
               size = 20.dp,
             )

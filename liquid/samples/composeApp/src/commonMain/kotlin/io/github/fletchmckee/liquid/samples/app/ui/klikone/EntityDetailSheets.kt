@@ -693,7 +693,7 @@ fun PersonDetailScreen(
       Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      K1Avatar(initialsOf(personDisplayName), size = 72.dp)
+      K1Avatar(initialsOf(personDisplayName), size = 72.dp, idSeed = person.id)
       Spacer(Modifier.width(K1Sp.lg))
       Column(Modifier.weight(1f)) {
         val roleParts = listOfNotNull(
@@ -920,7 +920,9 @@ fun ProjectDetailScreen(
         K1Card(soft = true) {
           if (project.lead.isNotBlank()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-              K1Avatar(initialsOf(project.lead), size = 32.dp)
+              // project.lead is a free-text name (no Person.id reachable
+              // here), so the trimmed name itself is the most stable seed.
+              K1Avatar(initialsOf(project.lead), size = 32.dp, idSeed = project.lead.trim())
               Spacer(Modifier.width(K1Sp.m))
               Column {
                 Text(project.lead, style = K1Type.bodyMd)
@@ -931,7 +933,9 @@ fun ProjectDetailScreen(
           }
           if (project.teamMembers.isNotEmpty()) {
             K1AvatarStack(
-              initialsList = project.teamMembers.take(6).map { initialsOf(it) },
+              seeds = project.teamMembers.take(6).map { n ->
+                K1AvatarSeed(initials = initialsOf(n), idSeed = n.trim())
+              },
               size = 24.dp,
             )
             Spacer(Modifier.height(4.dp))
@@ -1190,7 +1194,7 @@ fun OrgDetailScreen(
             Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.PERSON, p.id)) }.padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            K1Avatar(initialsOf(p.name), size = 32.dp)
+            K1Avatar(initialsOf(p.name), size = 32.dp, idSeed = p.id)
             Spacer(Modifier.width(K1Sp.m))
             Column(Modifier.weight(1f)) {
               Text(p.name, style = K1Type.bodyMd)
@@ -1467,7 +1471,9 @@ private fun K1RelatedSessionsCards(
             }
             if (m.participants.isNotEmpty()) {
               K1AvatarStack(
-                initialsList = m.participants.take(3).map { initialsOf(it.name) },
+                seeds = m.participants.take(3).map { p ->
+                  K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id)
+                },
                 size = 20.dp,
               )
             }

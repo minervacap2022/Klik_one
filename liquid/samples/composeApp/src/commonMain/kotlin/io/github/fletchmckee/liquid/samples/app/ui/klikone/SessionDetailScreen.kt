@@ -210,7 +210,9 @@ fun SessionDetailScreen(
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           K1AvatarStack(
-            initialsList = meeting.participants.take(4).map { p -> initialsOf(displayNameOf(p)) },
+            seeds = meeting.participants.take(4).map { p ->
+              K1AvatarSeed(initials = initialsOf(displayNameOf(p)), idSeed = p.id)
+            },
             size = 24.dp,
           )
           Spacer(Modifier.width(10.dp))
@@ -248,16 +250,15 @@ fun SessionDetailScreen(
                   null
                 },
                 leading = {
-                  val idx = display.hashCode().let { if (it < 0) -it else it }
+                  val (bg, fg) = k1AvatarColors(p.id)
                   Box(
-                    Modifier.size(14.dp).clip(CircleShape)
-                      .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
+                    Modifier.size(14.dp).clip(CircleShape).background(bg),
                     contentAlignment = Alignment.Center,
                   ) {
                     Text(
                       initialsOf(display),
                       style = K1Type.metaSm.copy(
-                        color = KlikAvatarFg[idx % KlikAvatarFg.size],
+                        color = fg,
                         fontSize = 7.sp,
                         fontWeight = FontWeight.Medium,
                       ),
@@ -471,18 +472,14 @@ private fun SummaryPanel(
               null
             },
             leading = {
-              val idx = display.hashCode().let { if (it < 0) -it else it }
+              val (bg, fg) = k1AvatarColors(p.id)
               Box(
-                Modifier.size(12.dp).clip(CircleShape)
-                  .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
+                Modifier.size(12.dp).clip(CircleShape).background(bg),
                 contentAlignment = Alignment.Center,
               ) {
                 Text(
                   initialsOf(display),
-                  style = K1Type.metaSm.copy(
-                    color = KlikAvatarFg[idx % KlikAvatarFg.size],
-                    fontSize = 6.sp,
-                  ),
+                  style = K1Type.metaSm.copy(color = fg, fontSize = 6.sp),
                 )
               }
             },
@@ -625,16 +622,19 @@ private fun TranscriptPanel(
       ) {
         Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
           if (showAvatar && speakerLabel.isNotBlank()) {
-            val idx = speakerLabel.hashCode().let { if (it < 0) -it else it }
+            // Seed on the raw VP id from the transcript, not the resolved
+            // label — that way an unresolved "Speaker 3" and a renamed
+            // "孙姐" still share the same colour as long as they're the
+            // same voiceprint cluster.
+            val (bg, fg) = k1AvatarColors(parsed.speaker)
             Box(
-              Modifier.size(22.dp).clip(CircleShape)
-                .background(KlikAvatarBg[idx % KlikAvatarBg.size]),
+              Modifier.size(22.dp).clip(CircleShape).background(bg),
               contentAlignment = Alignment.Center,
             ) {
               Text(
                 initialsOf(speakerLabel),
                 style = K1Type.metaSm.copy(
-                  color = KlikAvatarFg[idx % KlikAvatarFg.size],
+                  color = fg,
                   fontSize = 9.sp,
                   fontWeight = FontWeight.Medium,
                 ),
