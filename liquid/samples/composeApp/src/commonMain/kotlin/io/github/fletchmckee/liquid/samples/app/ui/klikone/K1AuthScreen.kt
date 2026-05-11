@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.ui.klikone
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +49,10 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
+import liquid_root.samples.composeapp.generated.resources.Res
+import liquid_root.samples.composeapp.generated.resources.provider_apple
+import liquid_root.samples.composeapp.generated.resources.provider_google
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun K1AuthScreen(
@@ -392,11 +397,12 @@ private fun GoogleButton(onClick: () -> Unit) {
     horizontalArrangement = Arrangement.Center,
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Text(
-      "G",
-      style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontWeight = FontWeight.Bold),
+    Image(
+      painter = painterResource(Res.drawable.provider_google),
+      contentDescription = null,
+      modifier = Modifier.size(18.dp),
     )
-    Spacer(Modifier.width(8.dp))
+    Spacer(Modifier.width(10.dp))
     Text(
       "Continue with Google",
       style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
@@ -416,11 +422,13 @@ private fun AppleButton(onClick: () -> Unit) {
     horizontalArrangement = Arrangement.Center,
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Text(
-      "",
-      style = K1Type.bodyMd.copy(color = Color.White, fontWeight = FontWeight.Medium),
+    Image(
+      painter = painterResource(Res.drawable.provider_apple),
+      contentDescription = null,
+      colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
+      modifier = Modifier.size(18.dp),
     )
-    Spacer(Modifier.width(8.dp))
+    Spacer(Modifier.width(10.dp))
     Text(
       "Continue with Apple",
       style = K1Type.bodyMd.copy(color = Color.White, fontWeight = FontWeight.Medium),

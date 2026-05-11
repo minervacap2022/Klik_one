@@ -63,6 +63,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
 import io.github.fletchmckee.liquid.samples.app.theme.KlikRunning
+import io.github.fletchmckee.liquid.samples.app.ui.components.K1ProviderIcon
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -314,6 +315,7 @@ fun YouScreen(
           ) {
             needsReconnect.forEachIndexed { i, info ->
               IntegrationRow(
+                providerId = info.providerId,
                 displayName = info.displayName,
                 state = "Reconnect",
                 stateColor = KlikAlert,
@@ -332,6 +334,7 @@ fun YouScreen(
           ) {
             connected.forEachIndexed { i, info ->
               IntegrationRow(
+                providerId = info.providerId,
                 displayName = info.displayName,
                 state = "Connected",
                 stateColor = KlikRunning,
@@ -349,6 +352,7 @@ fun YouScreen(
           ) {
             available.forEachIndexed { i, info ->
               IntegrationRow(
+                providerId = info.providerId,
                 displayName = info.displayName,
                 state = "Connect",
                 stateColor = KlikInkPrimary,
@@ -464,6 +468,7 @@ fun YouScreen(
 
 @Composable
 private fun IntegrationRow(
+  providerId: String,
   displayName: String,
   state: String,
   stateColor: Color,
@@ -476,15 +481,7 @@ private fun IntegrationRow(
       .padding(horizontal = 16.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Box(
-      Modifier.size(24.dp).clip(K1R.soft).background(KlikPaperSoft),
-      contentAlignment = Alignment.Center,
-    ) {
-      Text(
-        displayName.take(1).uppercase(),
-        style = K1Type.metaSm.copy(fontWeight = FontWeight.Medium),
-      )
-    }
+    K1ProviderIcon(providerId = providerId, size = 28.dp)
     Spacer(Modifier.width(K1Sp.m))
     Column(Modifier.weight(1f)) {
       Text(displayName, style = K1Type.bodySm)
