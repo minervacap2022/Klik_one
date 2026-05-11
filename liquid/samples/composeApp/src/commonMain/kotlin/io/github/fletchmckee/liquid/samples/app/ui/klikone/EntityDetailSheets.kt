@@ -104,14 +104,21 @@ private fun DetailScaffold(
     }
 
     // Hero — long-press the title to rename the entity (matches old liquid app).
+    // Hit area is the full row width + 12dp vertical padding so users don't
+    // have to land exactly on the glyphs of a 2-character name.
     Column(Modifier.padding(horizontal = 20.dp)) {
       K1Eyebrow(eyebrow)
       Spacer(Modifier.height(6.dp))
-      val titleMod = if (onTitleLongPress != null) {
-        Modifier.k1LongClickable(onLongClick = onTitleLongPress)
-      } else {
-        Modifier
-      }
+      val titleMod = Modifier
+        .fillMaxWidth()
+        .then(
+          if (onTitleLongPress != null) {
+            Modifier.k1LongClickable(onLongClick = onTitleLongPress)
+          } else {
+            Modifier
+          }
+        )
+        .padding(vertical = 8.dp)
       Text(title, style = K1Type.h2, modifier = titleMod)
     }
     Spacer(Modifier.height(K1Sp.lg))
