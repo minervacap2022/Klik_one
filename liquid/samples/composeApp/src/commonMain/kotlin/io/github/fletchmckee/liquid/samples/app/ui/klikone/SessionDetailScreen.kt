@@ -115,7 +115,12 @@ fun SessionDetailScreen(
   // Moves without highlighting a specific task.
   onOpenTranscriptTodoInMoves: (() -> Unit)? = null,
   expandSegmentId: String? = null,
+  // Long-press on a participant chip → rename that person. (personId, newName).
+  onRenameParticipant: ((String, String) -> Unit)? = null,
 ) {
+  var renameTarget by remember {
+    mutableStateOf<Pair<String, String>?>(null)
+  }
   fun displayNameOf(p: io.github.fletchmckee.liquid.samples.app.domain.entity.Person): String =
     resolveSpeakerName(p, speakerMap)
 
@@ -237,6 +242,11 @@ fun SessionDetailScreen(
                 } else {
                   null
                 },
+                onLongClick = if (onRenameParticipant != null && p.id.isNotBlank()) {
+                  { renameTarget = p.id to display }
+                } else {
+                  null
+                },
                 leading = {
                   val idx = display.hashCode().let { if (it < 0) -it else it }
                   Box(
@@ -320,6 +330,18 @@ fun SessionDetailScreen(
     }
 
     Spacer(Modifier.height(140.dp))
+  }
+
+  renameTarget?.let { (personId, currentName) ->
+    RenameEntityDialog(
+      kind = "person",
+      currentName = currentName,
+      onCancel = { renameTarget = null },
+      onSave = { newName ->
+        onRenameParticipant?.invoke(personId, newName)
+        renameTarget = null
+      },
+    )
   }
 }
 

@@ -2529,6 +2529,39 @@ fun MainApp() {
                                     upgradeModalFeatureName = featureName
                                     showUpgradeModal = true
                                 },
+                                onRenamePerson = { id, newName ->
+                                    appScope.launch {
+                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                            .updatePersonEntity(personId = id, name = newName)
+                                        if (r.isSuccess) {
+                                            peopleState.value = peopleState.value.map {
+                                                if (it.id == id) it.copy(name = newName, canonicalName = newName) else it
+                                            }
+                                        }
+                                    }
+                                },
+                                onRenameProject = { id, newName ->
+                                    appScope.launch {
+                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                            .updateProjectEntity(projectId = id, name = newName)
+                                        if (r.isSuccess) {
+                                            projectsState.value = projectsState.value.map {
+                                                if (it.id == id) it.copy(name = newName) else it
+                                            }
+                                        }
+                                    }
+                                },
+                                onRenameOrganization = { id, newName ->
+                                    appScope.launch {
+                                        val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                            .updateOrganizationEntity(orgId = id, name = newName)
+                                        if (r.isSuccess) {
+                                            organizationsState.value = organizationsState.value.map {
+                                                if (it.id == id) it.copy(name = newName) else it
+                                            }
+                                        }
+                                    }
+                                },
                             )
                             "growth_tree" -> GrowthTreeScreen(
                                 onBack = {
@@ -2829,6 +2862,17 @@ fun MainApp() {
                                         onOpenTranscriptTodoInMoves = {
                                             sessionDetailMeeting = null
                                             currentRoute = "function"
+                                        },
+                                        onRenameParticipant = { personId, newName ->
+                                            appScope.launch {
+                                                val r = io.github.fletchmckee.liquid.samples.app.data.network.EntityFeedbackClient
+                                                    .updatePersonEntity(personId = personId, name = newName)
+                                                if (r.isSuccess) {
+                                                    peopleState.value = peopleState.value.map {
+                                                        if (it.id == personId) it.copy(name = newName, canonicalName = newName) else it
+                                                    }
+                                                }
+                                            }
                                         },
                                     )
                                 } else {

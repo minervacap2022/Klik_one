@@ -1238,7 +1238,7 @@ fun OrgDetailScreen(
 // across sessions, moves and the network graph.
 
 @Composable
-private fun RenameEntityDialog(
+internal fun RenameEntityDialog(
   kind: String,
   currentName: String,
   onCancel: () -> Unit,

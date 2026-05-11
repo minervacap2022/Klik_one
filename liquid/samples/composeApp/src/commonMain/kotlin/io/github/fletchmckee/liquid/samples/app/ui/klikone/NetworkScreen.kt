@@ -101,7 +101,13 @@ fun NetworkScreen(
   onGrowthTreeClick: () -> Unit = {},
   subscriptionFeatures: SubscriptionFeatures? = null,
   onUpgradeRequired: (String) -> Unit = {},
+  onRenamePerson: ((String, String) -> Unit)? = null,
+  onRenameProject: ((String, String) -> Unit)? = null,
+  onRenameOrganization: ((String, String) -> Unit)? = null,
 ) {
+  var renameTarget by remember {
+    mutableStateOf<Triple<String, String, String>?>(null)
+  }
   val uiState by viewModel.state.collectAsState()
   var segment by remember { mutableStateOf("people") }
   var searchActive by remember { mutableStateOf(false) }
@@ -446,11 +452,32 @@ fun NetworkScreen(
           needsAttention = needsAttention,
           meetings = meetings,
           onEntityClick = onEntityClick,
+          onLongPressPerson = if (onRenamePerson != null) {
+            { p -> renameTarget = Triple("person", p.id, p.name) }
+          } else {
+            null
+          },
         )
 
-        "projects" -> ProjectsPanel(projects, onEntityClick)
+        "projects" -> ProjectsPanel(
+          projects = projects,
+          onEntityClick = onEntityClick,
+          onLongPressProject = if (onRenameProject != null) {
+            { pr -> renameTarget = Triple("project", pr.id, pr.name) }
+          } else {
+            null
+          },
+        )
 
-        else -> OrgsPanel(orgs, onEntityClick)
+        else -> OrgsPanel(
+          orgs = orgs,
+          onEntityClick = onEntityClick,
+          onLongPressOrg = if (onRenameOrganization != null) {
+            { org -> renameTarget = Triple("organization", org.id, org.name) }
+          } else {
+            null
+          },
+        )
       }
 
       if (isLoading) {
@@ -463,6 +490,22 @@ fun NetworkScreen(
       }
     }
   } // end PullToRefreshBox
+
+  renameTarget?.let { (kind, id, currentName) ->
+    io.github.fletchmckee.liquid.samples.app.ui.klikone.RenameEntityDialog(
+      kind = kind,
+      currentName = currentName,
+      onCancel = { renameTarget = null },
+      onSave = { newName ->
+        when (kind) {
+          "person" -> onRenamePerson?.invoke(id, newName)
+          "project" -> onRenameProject?.invoke(id, newName)
+          "organization" -> onRenameOrganization?.invoke(id, newName)
+        }
+        renameTarget = null
+      },
+    )
+  }
 }
 
 @Composable
@@ -493,6 +536,7 @@ private fun PeoplePanel(
   needsAttention: List<Triple<Person, String, String>>,
   meetings: List<Meeting>,
   onEntityClick: (EntityNavigationData) -> Unit,
+  onLongPressPerson: ((Person) -> Unit)? = null,
 ) {
   // Top voices — sourced from the backend voice-dimension ranking
   // (PersonRepository.getTopInfluencers). Previously mislabeled "Seen this
@@ -552,7 +596,13 @@ private fun PeoplePanel(
       },
     )
     Spacer(Modifier.height(K1Sp.s))
-    people.forEach { p -> PersonRow(p, onEntityClick) }
+    people.forEach { p ->
+      PersonRow(
+        p = p,
+        onEntityClick = onEntityClick,
+        onLongPress = onLongPressPerson?.let { handler -> { handler(p) } },
+      )
+    }
   }
 }
 
@@ -599,12 +649,22 @@ private fun KlikItButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun PersonRow(p: Person, onEntityClick: (EntityNavigationData) -> Unit) {
-  Column(
+private fun PersonRow(
+  p: Person,
+  onEntityClick: (EntityNavigationData) -> Unit,
+  onLongPress: (() -> Unit)? = null,
+) {
+  val rowMod = if (onLongPress != null) {
+    Modifier.k1LongClickable(
+      onClick = { onEntityClick(EntityNavigationData(EntityType.PERSON, p.id)) },
+      onLongClick = onLongPress,
+    )
+  } else {
     Modifier.k1Clickable {
       onEntityClick(EntityNavigationData(EntityType.PERSON, p.id))
-    },
-  ) {
+    }
+  }
+  Column(rowMod) {
     Row(
       Modifier
         .fillMaxWidth()
@@ -632,7 +692,11 @@ private fun PersonRow(p: Person, onEntityClick: (EntityNavigationData) -> Unit) 
 }
 
 @Composable
-private fun ProjectsPanel(projects: List<Project>, onEntityClick: (EntityNavigationData) -> Unit) {
+private fun ProjectsPanel(
+  projects: List<Project>,
+  onEntityClick: (EntityNavigationData) -> Unit,
+  onLongPressProject: ((Project) -> Unit)? = null,
+) {
   Column(Modifier.padding(horizontal = 20.dp)) {
     K1SectionHeader("All projects", count = projects.size, dotColor = KlikDotProject)
     Spacer(Modifier.height(K1Sp.s))
@@ -641,6 +705,7 @@ private fun ProjectsPanel(projects: List<Project>, onEntityClick: (EntityNavigat
         onClick = {
           onEntityClick(EntityNavigationData(EntityType.PROJECT, pr.id))
         },
+        onLongClick = onLongPressProject?.let { handler -> { handler(pr) } },
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Box(Modifier.size(6.dp).clip(CircleShape).background(KlikDotProject))
@@ -688,18 +753,33 @@ private fun ProjectsPanel(projects: List<Project>, onEntityClick: (EntityNavigat
 }
 
 @Composable
-private fun OrgsPanel(orgs: List<Organization>, onEntityClick: (EntityNavigationData) -> Unit) {
+private fun OrgsPanel(
+  orgs: List<Organization>,
+  onEntityClick: (EntityNavigationData) -> Unit,
+  onLongPressOrg: ((Organization) -> Unit)? = null,
+) {
   Column(Modifier.padding(horizontal = 20.dp)) {
     K1SectionHeader("Organizations", count = orgs.size, dotColor = KlikDotOrg)
     Spacer(Modifier.height(K1Sp.s))
     orgs.forEach { org ->
-      Row(
+      val rowMod = if (onLongPressOrg != null) {
+        Modifier
+          .fillMaxWidth()
+          .k1LongClickable(
+            onClick = { onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, org.id)) },
+            onLongClick = { onLongPressOrg(org) },
+          )
+          .padding(vertical = 12.dp)
+      } else {
         Modifier
           .fillMaxWidth()
           .k1Clickable {
             onEntityClick(EntityNavigationData(EntityType.ORGANIZATION, org.id))
           }
-          .padding(vertical = 12.dp),
+          .padding(vertical = 12.dp)
+      }
+      Row(
+        rowMod,
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Box(

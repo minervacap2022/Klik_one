@@ -495,16 +495,25 @@ fun K1Chip(
   label: String,
   selected: Boolean = false,
   onClick: (() -> Unit)? = null,
+  onLongClick: (() -> Unit)? = null,
   leading: @Composable (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
   val bg = if (selected) KlikInkPrimary else KlikPaperChip
   val fg = if (selected) KlikPaperCard else KlikInkSecondary
+  val gestureMod = when {
+    onLongClick != null -> Modifier.k1LongClickable(
+      onClick = onClick ?: {},
+      onLongClick = onLongClick,
+    )
+    onClick != null -> Modifier.k1Clickable(onClick = onClick)
+    else -> Modifier
+  }
   Row(
     modifier
       .clip(K1R.chip)
       .background(bg)
-      .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
+      .then(gestureMod)
       .padding(horizontal = 9.dp, vertical = 3.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -575,16 +584,25 @@ fun K1Card(
   soft: Boolean = true,
   focal: Boolean = false,
   onClick: (() -> Unit)? = null,
+  onLongClick: (() -> Unit)? = null,
   content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
   val bg = if (focal) KlikPaperFocal else KlikPaperSoft
   val shape = if (focal) K1R.tight else K1R.soft
   val pad = if (focal) 18.dp else 14.dp
+  val gestureMod = when {
+    onLongClick != null -> Modifier.k1LongClickable(
+      onClick = onClick ?: {},
+      onLongClick = onLongClick,
+    )
+    onClick != null -> Modifier.k1Clickable(onClick = onClick)
+    else -> Modifier
+  }
   Column(
     modifier
       .clip(shape)
       .background(bg)
-      .then(if (onClick != null) Modifier.k1Clickable(onClick = onClick) else Modifier)
+      .then(gestureMod)
       .padding(pad),
     content = content,
   )
