@@ -2877,15 +2877,6 @@ fun MainApp() {
                                             currentRoute = "today"
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
-                                        onOpenTodoInMoves = { t ->
-                                            highlightedMoveId = t.id
-                                            sessionDetailMeeting = null
-                                            currentRoute = "function"
-                                        },
-                                        onOpenTranscriptTodoInMoves = {
-                                            sessionDetailMeeting = null
-                                            currentRoute = "function"
-                                        },
                                         onRenameParticipant = renamePersonAction,
                                     )
                                 } else {

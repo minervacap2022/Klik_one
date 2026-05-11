@@ -107,13 +107,6 @@ fun SessionDetailScreen(
   onMore: () -> Unit = {},
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
   onSegmentClick: (io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation) -> Unit = {},
-  // Tapping a row in the To-dos panel routes here. Caller should switch
-  // to the Moves tab and scroll-to / highlight that task. Falls back to a
-  // task_detail navigation via onEntityClick when null.
-  onOpenTodoInMoves: ((TaskMetadata) -> Unit)? = null,
-  // Tapping a transcript-only todo (no TaskMetadata) — caller navigates to
-  // Moves without highlighting a specific task.
-  onOpenTranscriptTodoInMoves: (() -> Unit)? = null,
   expandSegmentId: String? = null,
   // Long-press on a participant chip → rename that person. (personId, newName).
   onRenameParticipant: ((String, String) -> Unit)? = null,
@@ -316,8 +309,6 @@ fun SessionDetailScreen(
         linked = linked,
         actionItems = meeting.actionItems,
         onEntityClick = onEntityClick,
-        onOpenInMoves = onOpenTodoInMoves,
-        onOpenInMovesSimple = onOpenTranscriptTodoInMoves,
       )
 
       SessionTab.Transcript -> TranscriptPanel(
@@ -414,19 +405,15 @@ private fun SummaryPanel(
     }
 
     // ── Meeting minutes by category (Discussion, Decisions, etc.) ────────
+    // Plain text — these are freeform sentences where entity auto-linking
+    // would surface phantom taps on common nouns.
     m.minutes.filter { it.items.isNotEmpty() }.forEach { minute ->
       K1SectionHeader(minute.category, count = minute.items.size)
       Spacer(Modifier.height(K1Sp.s))
       minute.items.take(8).forEach { item ->
         K1Card(soft = true) {
-          io.github.fletchmckee.liquid.samples.app.ui.components.EntityHighlightedText(
+          Text(
             text = resolveVpLabels(item, speakerMap),
-            tasks = tasks,
-            meetings = allMeetings,
-            projects = projects,
-            people = people,
-            organizations = organizations,
-            onEntityClick = onEntityClick,
             style = K1Type.caption,
           )
         }
@@ -495,17 +482,13 @@ private fun TodosPanel(
   linked: List<TaskMetadata>,
   actionItems: List<io.github.fletchmckee.liquid.samples.app.domain.entity.TodoItem> = emptyList(),
   onEntityClick: (io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData) -> Unit = {},
-  onOpenInMoves: ((TaskMetadata) -> Unit)? = null,
-  onOpenInMovesSimple: (() -> Unit)? = null,
 ) {
   // Two sources of follow-ups:
-  //   1. KK_exec todos linked to this meeting's session_id (`linked`).
-  //   2. Action items extracted from the transcript (`actionItems`) — these
-  //      always exist for meetings the AI summarised, even before any KK_exec
-  //      todo has been generated, so a freshly-recorded session never reads
-  //      as empty.
-  // We render KK_exec todos first (clickable into task_detail) and any
-  // remaining transcript-only items as plain rows below.
+  //   1. KK_exec todos linked to this meeting's session_id (`linked`) — these
+  //      have an id, so the row routes straight into task_detail.
+  //   2. Transcript-only action items — no backing task, so the row reads as
+  //      plain text. Tapping is intentionally a no-op: there is nothing to
+  //      open.
   val linkedTexts = linked.map { it.title.lowercase().trim() }.toSet()
   val transcriptOnly = actionItems.filter { it.text.lowercase().trim() !in linkedTexts }
 
@@ -525,15 +508,12 @@ private fun TodosPanel(
         Row(
           Modifier.fillMaxWidth()
             .k1Clickable {
-              // Prefer routing into Moves with this task highlighted (per
-              // user expectation: see the move in its full list context).
-              // Fall back to task_detail when no host-screen handler is
-              // wired — keeps the row useful in any embedding.
-              if (onOpenInMoves != null) {
-                onOpenInMoves(t)
-              } else {
-                onEntityClick(io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData(io.github.fletchmckee.liquid.samples.app.ui.components.EntityType.TASK, t.id))
-              }
+              onEntityClick(
+                io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData(
+                  io.github.fletchmckee.liquid.samples.app.ui.components.EntityType.TASK,
+                  t.id,
+                ),
+              )
             }
             .padding(vertical = 12.dp),
           verticalAlignment = Alignment.Top,
@@ -558,9 +538,7 @@ private fun TodosPanel(
       Spacer(Modifier.height(K1Sp.s))
       transcriptOnly.forEach { item ->
         Row(
-          Modifier.fillMaxWidth()
-            .then(if (onOpenInMovesSimple != null) Modifier.k1Clickable { onOpenInMovesSimple() } else Modifier)
-            .padding(vertical = 12.dp),
+          Modifier.fillMaxWidth().padding(vertical = 12.dp),
           verticalAlignment = Alignment.Top,
         ) {
           Box(
