@@ -293,8 +293,13 @@ fun NetworkScreen(
       // from goalsState (KK_goal API). Always render the section so the
       // user can never lose the entry point if the API blinks (NO SILENT
       // SWALLOW). Empty state = paper card with "(none yet)".
+      //
+      // Default state: surface only the top goal (KK_goal returns them
+      // ordered by priority). A tap row reveals the rest so the section
+      // scans short and the long tail stays one tap away.
       run {
         val goals = goalsData?.goals.orEmpty()
+        var goalsExpanded by remember { mutableStateOf(false) }
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader("Goals & Milestones", count = goals.size)
           Spacer(Modifier.height(K1Sp.s))
@@ -311,13 +316,35 @@ fun NetworkScreen(
                 style = K1Type.bodySm.copy(color = KlikInkTertiary),
               )
             } else {
-              goals.take(3).forEachIndexed { idx, g ->
+              val visible = if (goalsExpanded) goals else goals.take(1)
+              visible.forEachIndexed { idx, g ->
                 if (idx > 0) {
                   Spacer(Modifier.height(K1Sp.m))
                   Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
                   Spacer(Modifier.height(K1Sp.m))
                 }
                 K1GoalBlock(goal = g)
+              }
+              if (goals.size > 1) {
+                Spacer(Modifier.height(K1Sp.m))
+                Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
+                Spacer(Modifier.height(K1Sp.m))
+                Row(
+                  Modifier
+                    .fillMaxWidth()
+                    .k1Clickable { goalsExpanded = !goalsExpanded },
+                  verticalAlignment = Alignment.CenterVertically,
+                ) {
+                  Text(
+                    if (goalsExpanded) "Show less" else "Show ${goals.size - 1} more",
+                    style = K1Type.metaSm.copy(color = KlikInkTertiary),
+                  )
+                  Spacer(Modifier.weight(1f))
+                  Text(
+                    if (goalsExpanded) "▾" else "▸",
+                    style = K1Type.metaSm.copy(color = KlikInkTertiary),
+                  )
+                }
               }
             }
           }
