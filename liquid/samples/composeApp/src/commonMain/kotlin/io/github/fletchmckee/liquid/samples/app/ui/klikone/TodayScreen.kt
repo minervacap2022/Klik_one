@@ -372,7 +372,7 @@ fun TodayScreen(
       val decisions = insights?.decisions.orEmpty()
       if (decisions.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Decisions", count = decisions.size)
+          K1SectionHeader("Decision log", count = decisions.size)
           Spacer(Modifier.height(K1Sp.s))
           K1Card(soft = true) {
             decisions.forEachIndexed { index, decision ->
