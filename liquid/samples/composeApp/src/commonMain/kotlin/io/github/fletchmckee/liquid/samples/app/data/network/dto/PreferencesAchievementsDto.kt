@@ -20,10 +20,8 @@ data class RemoteLiquidGlassPreferencesDto(
 
 @Serializable
 data class RemoteUserPreferencesDto(
-  val selectedBackgroundIndex: Int = 0,
-  val selectedFontIndex: Int = 2,
+  val selectedFontIndex: Int = 0,
   val liquidGlassPreferences: RemoteLiquidGlassPreferencesDto = RemoteLiquidGlassPreferencesDto(),
-  val notificationsEnabled: Boolean = true,
   val darkModeEnabled: Boolean = false,
   val hapticFeedbackEnabled: Boolean = true,
 )

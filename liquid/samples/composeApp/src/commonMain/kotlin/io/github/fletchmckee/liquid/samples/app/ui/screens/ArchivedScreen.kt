@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.di.AppModule
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
+import io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState
 import io.github.fletchmckee.liquid.samples.app.model.allOrganizations
 import io.github.fletchmckee.liquid.samples.app.model.allPeople
 import io.github.fletchmckee.liquid.samples.app.model.allProjects
@@ -457,13 +458,13 @@ private fun SwipeToUnarchive(
     confirmValueChange = { v ->
       when (v) {
         SwipeToDismissBoxValue.StartToEnd -> {
-          HapticService.success()
+          if (hapticEnabledState.value) HapticService.success()
           onUnarchive()
           true
         }
 
         SwipeToDismissBoxValue.EndToStart -> {
-          HapticService.heavyImpact()
+          if (hapticEnabledState.value) HapticService.heavyImpact()
           onDelete()
           false
         }

@@ -128,6 +128,17 @@ fun LiquidTheme(
   // Use composable typography to load custom Google Fonts
   val typography = getTypographyForFontComposable(fontIndex)
 
+  // Drive the K1 palette + font-family states so non-Composable callers
+  // (e.g. Material color scheme initialisers, top-level lists) resolve to
+  // the user's pick. SideEffect runs after a successful composition so we
+  // don't write during composition.
+  val k1Palette = if (darkMode) K1PaletteDark else K1PaletteLight
+  val k1FontFamily = k1FontFamilyForIndex(fontIndex)
+  androidx.compose.runtime.SideEffect {
+    if (K1PaletteState.value !== k1Palette) K1PaletteState.value = k1Palette
+    if (K1FontFamilyState.value !== k1FontFamily) K1FontFamilyState.value = k1FontFamily
+  }
+
   MaterialTheme(
     colorScheme = if (darkMode) DarkColorScheme else LightColorScheme,
     typography = typography,

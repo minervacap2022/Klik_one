@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.data.network.dto.RemoteUserPreferencesDto
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.RemoteDataFetcher
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
+import io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState
+import io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState
+import io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkTertiary
@@ -46,15 +48,21 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
 import kotlinx.coroutines.launch
 
 /**
- * K1 — Preferences. Cross-device sync of UI prefs (background, font, dark
- * mode, notifications master switch, haptic). Reads + writes to `/api/v1/user/preferences`.
+ * K1 — Preferences. Cross-device sync of UI prefs (font family, dark mode,
+ * haptic feedback). Reads + writes `/api/v1/user/preferences`.
  *
- * Server is the source of truth. Each toggle change autosaves the full prefs
- * object via PUT. If save fails the toggle reverts and the failure surfaces
- * in the inline status row — no silent swallow.
+ * Each toggle change autosaves via PUT. If save fails the toggle reverts and
+ * the failure surfaces in the inline status row — no silent swallow.
+ *
+ * Notifications live on their own screen (see NotificationSettingsScreen) so
+ * we don't duplicate the canonical push/digest controls here — this row is a
+ * navigation, not a master toggle.
  */
 @Composable
-fun PreferencesScreen(onBack: () -> Unit) {
+fun PreferencesScreen(
+  onBack: () -> Unit,
+  onOpenNotifications: () -> Unit,
+) {
   var prefs by remember { mutableStateOf<RemoteUserPreferencesDto?>(null) }
   var error by remember { mutableStateOf<String?>(null) }
   var saving by remember { mutableStateOf(false) }
@@ -62,7 +70,9 @@ fun PreferencesScreen(onBack: () -> Unit) {
 
   LaunchedEffect(Unit) {
     try {
-      prefs = RemoteDataFetcher.fetchUserPreferences()
+      val loaded = RemoteDataFetcher.fetchUserPreferences()
+      prefs = loaded
+      applyToGlobals(loaded)
     } catch (e: Exception) {
       error = e.message ?: "Failed to load preferences"
       KlikLogger.e("Preferences", "load failed: ${e.message}", e)
@@ -73,13 +83,17 @@ fun PreferencesScreen(onBack: () -> Unit) {
     val current = prefs ?: return
     val next = transform(current)
     prefs = next
+    applyToGlobals(next)
     error = null
     saving = true
     scope.launch {
       try {
-        prefs = RemoteDataFetcher.updateUserPreferences(next)
+        val saved = RemoteDataFetcher.updateUserPreferences(next)
+        prefs = saved
+        applyToGlobals(saved)
       } catch (e: Exception) {
         prefs = current
+        applyToGlobals(current)
         error = e.message ?: "Save failed"
         KlikLogger.e("Preferences", "save failed: ${e.message}", e)
       } finally {
@@ -141,19 +155,9 @@ fun PreferencesScreen(onBack: () -> Unit) {
         Column(
           Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard).padding(vertical = 4.dp),
         ) {
-          Stepper(
-            label = "Background",
-            value = ui.selectedBackgroundIndex,
-            min = 0,
-            max = 30,
-            onChange = { v -> update { it.copy(selectedBackgroundIndex = v) } },
-          )
-          Divider()
-          Stepper(
+          FontPicker(
             label = "Font",
             value = ui.selectedFontIndex,
-            min = 0,
-            max = 7,
             onChange = { v -> update { it.copy(selectedFontIndex = v) } },
           )
           Divider()
@@ -170,11 +174,7 @@ fun PreferencesScreen(onBack: () -> Unit) {
         Column(
           Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard).padding(vertical = 4.dp),
         ) {
-          Toggle(
-            label = "Notifications",
-            value = ui.notificationsEnabled,
-            onChange = { v -> update { it.copy(notificationsEnabled = v) } },
-          )
+          NavRow(label = "Notifications", onClick = onOpenNotifications)
           Divider()
           Toggle(
             label = "Haptic feedback",
@@ -224,41 +224,61 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
   }
 }
 
+// K1FontIndex.kt — the three fonts the user can pick. Indexes are stable.
+private val K1_FONT_LABELS = listOf("System", "Serif", "Mono")
+
 @Composable
-private fun Stepper(
-  label: String,
-  value: Int,
-  min: Int,
-  max: Int,
-  onChange: (Int) -> Unit,
-) {
+private fun FontPicker(label: String, value: Int, onChange: (Int) -> Unit) {
+  val safeIndex = value.coerceIn(0, K1_FONT_LABELS.lastIndex)
   Row(
     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(label, style = K1Type.bodyMd.copy(color = KlikInkPrimary))
     Spacer(Modifier.weight(1f))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-      Box(
-        Modifier
-          .clip(CircleShape)
-          .background(KlikPaperChip)
-          .k1Clickable(enabled = value > min) { onChange((value - 1).coerceAtLeast(min)) }
-          .padding(horizontal = 12.dp, vertical = 6.dp),
-      ) { Text("−", style = K1Type.bodyMd.copy(color = KlikInkPrimary)) }
-      Text(
-        value.toString(),
-        style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
-        modifier = Modifier.padding(horizontal = 4.dp),
-      )
-      Box(
-        Modifier
-          .clip(CircleShape)
-          .background(KlikPaperChip)
-          .k1Clickable(enabled = value < max) { onChange((value + 1).coerceAtMost(max)) }
-          .padding(horizontal = 12.dp, vertical = 6.dp),
-      ) { Text("+", style = K1Type.bodyMd.copy(color = KlikInkPrimary)) }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      K1_FONT_LABELS.forEachIndexed { index, name ->
+        val selected = index == safeIndex
+        Box(
+          Modifier
+            .clip(K1R.pill)
+            .background(if (selected) KlikInkPrimary else KlikPaperChip)
+            .k1Clickable { onChange(index) }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+          Text(
+            name,
+            style = K1Type.metaSm.copy(
+              color = if (selected) KlikPaperCard else KlikInkSecondary,
+              fontWeight = FontWeight.Medium,
+            ),
+          )
+        }
+      }
     }
+  }
+}
+
+/**
+ * Push the persisted-prefs DTO into the three global state slots that the
+ * theme + haptic engine read. Keeping this in one place avoids the toggles
+ * drifting from the global state — every fetch + every save funnels here.
+ */
+private fun applyToGlobals(p: RemoteUserPreferencesDto) {
+  darkModeEnabledState.value = p.darkModeEnabled
+  selectedFontIndexState.value = p.selectedFontIndex
+  hapticEnabledState.value = p.hapticFeedbackEnabled
+}
+
+@Composable
+private fun NavRow(label: String, onClick: () -> Unit) {
+  Row(
+    Modifier.fillMaxWidth().k1Clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(label, style = K1Type.bodyMd.copy(color = KlikInkPrimary))
+    Spacer(Modifier.weight(1f))
+    Text("›", style = K1Type.bodyMd.copy(color = KlikInkTertiary))
   }
 }
 

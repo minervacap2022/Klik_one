@@ -247,6 +247,15 @@ val pinnedTaskIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
 val pinnedMeetingIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
 
 /**
+ * Live UI preferences. Hydrated from /api/v1/user/preferences on app launch
+ * and overwritten by PreferencesScreen on every successful save. MainApp
+ * pipes these into LiquidTheme; HapticService also reads `hapticEnabledState`.
+ */
+val darkModeEnabledState = mutableStateOf(false)
+val selectedFontIndexState = mutableStateOf(0)
+val hapticEnabledState = mutableStateOf(true)
+
+/**
  * Pinned entity IDs with timestamp - persists across refreshes
  */
 val pinnedProjectIdsState = mutableStateOf<Map<String, Long>>(emptyMap())

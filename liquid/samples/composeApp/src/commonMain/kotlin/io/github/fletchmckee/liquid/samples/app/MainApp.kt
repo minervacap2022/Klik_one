@@ -1811,6 +1811,23 @@ fun MainApp() {
     }
   }
 
+  // Hydrate K1 prefs (dark mode, font index, haptic) from the server on every
+  // auth-ready transition. PreferencesScreen also updates these on each save,
+  // but the cold-start path needs this so the toggle state survives relaunches.
+  LaunchedEffect(isAuthReady) {
+    if (!isAuthReady) return@LaunchedEffect
+    try {
+      val remotePrefs = RemoteDataFetcher.fetchUserPreferences()
+      io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState.value = remotePrefs.darkModeEnabled
+      io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState.value = remotePrefs.selectedFontIndex
+      io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState.value = remotePrefs.hapticFeedbackEnabled
+    } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
+      throw ce
+    } catch (t: Throwable) {
+      KlikLogger.e("MainApp", "User preferences hydration failed: ${t.message}", t)
+    }
+  }
+
   // Load initial preferences from local storage (for persisted defaults)
   val initialPrefs = remember { AppModule.getInitialPreferences() }
   val initialBackgroundIndex = initialPrefs?.defaultBackgroundIndex ?: 1
@@ -1835,7 +1852,10 @@ fun MainApp() {
   val klikAccentGradient = getKlikAccentGradient(backgroundIndex)
   val klikPrimaryColor = getKlikPrimaryColor(backgroundIndex)
 
+  val darkModeFromPrefs by io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState
+  val fontIndexFromPrefs by io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState
   LiquidTheme(
+    darkMode = darkModeFromPrefs,
     setBackgroundColor = { newOption ->
       backgroundOption = newOption
       backgroundIndex = BackgroundOptions.indexOf(newOption).coerceAtLeast(0)
@@ -1843,8 +1863,11 @@ fun MainApp() {
     liquidGlassSettings = liquidGlassSettings,
     setLiquidGlassSettings = { newSettings -> liquidGlassSettings = newSettings },
     backgroundIndex = backgroundIndex,
-    fontIndex = fontIndex,
-    setFontIndex = { newFontIndex -> fontIndex = newFontIndex },
+    fontIndex = fontIndexFromPrefs,
+    setFontIndex = { newFontIndex ->
+      fontIndex = newFontIndex
+      io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState.value = newFontIndex
+    },
     fontSizeScale = fontSizeScale,
     setFontSizeScale = { fontSizeScale = it },
     letterSpacingScale = letterSpacingScale,
@@ -2628,6 +2651,10 @@ fun MainApp() {
                             )
                             "preferences" -> io.github.fletchmckee.liquid.samples.app.ui.klikone.PreferencesScreen(
                                 onBack = { currentRoute = lastMainRoute },
+                                onOpenNotifications = {
+                                    lastMainRoute = currentRoute
+                                    currentRoute = "notification_settings"
+                                },
                             )
                             "achievements" -> io.github.fletchmckee.liquid.samples.app.ui.klikone.AchievementsScreen(
                                 onBack = { currentRoute = lastMainRoute },
