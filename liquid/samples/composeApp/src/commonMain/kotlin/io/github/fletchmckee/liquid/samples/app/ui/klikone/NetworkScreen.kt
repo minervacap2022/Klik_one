@@ -808,15 +808,12 @@ private fun firstName(full: String): String = full.trim().split(" ").firstOrNull
 
 @Composable
 private fun K1GoalBlock(goal: io.github.fletchmckee.liquid.samples.app.data.source.remote.GoalDto) {
+  // Editorial: just the goal title, its progress, and its milestones. The
+  // backend's category enum ("project", "process_improvement", …) and the
+  // target end date are wire-format metadata, not reader-facing copy.
   Column {
     Row(verticalAlignment = Alignment.CenterVertically) {
-      Column(Modifier.weight(1f)) {
-        if (goal.category.isNotBlank()) {
-          K1Eyebrow(goal.category.uppercase())
-          Spacer(Modifier.height(2.dp))
-        }
-        Text(goal.goal, style = K1Type.bodyMd)
-      }
+      Text(goal.goal, style = K1Type.bodyMd, modifier = Modifier.weight(1f))
       val pct = (goal.currentProgress * 100).toInt().coerceIn(0, 100)
       Text("$pct%", style = K1Type.bodyMd)
     }
@@ -835,19 +832,11 @@ private fun K1GoalBlock(goal: io.github.fletchmckee.liquid.samples.app.data.sour
           .background(KlikInkPrimary),
       )
     }
-    if (goal.targetEndDate.isNotBlank()) {
-      Spacer(Modifier.height(4.dp))
-      Text("Target · ${goal.targetEndDate}", style = K1Type.metaSm)
-    }
 
     if (goal.milestones.isNotEmpty()) {
       Spacer(Modifier.height(K1Sp.m))
       val sorted = goal.milestones.sortedBy { it.sequenceOrder }
-      sorted.take(4).forEach { m -> K1MilestoneRow(m) }
-      if (sorted.size > 4) {
-        Spacer(Modifier.height(4.dp))
-        Text("+${sorted.size - 4} more", style = K1Type.metaSm)
-      }
+      sorted.forEach { m -> K1MilestoneRow(m) }
     }
   }
 }
