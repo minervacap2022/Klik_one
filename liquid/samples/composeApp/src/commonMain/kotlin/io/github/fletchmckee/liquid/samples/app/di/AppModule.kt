@@ -262,7 +262,12 @@ object AppModule {
       val goalsDeferred = async {
         try {
           KlikLogger.d("AppModule", "Fetching goals from backend")
-          val goals = fetcher.fetchGoals(status = "active", limit = 10)
+          // Drop the status filter — server-side goal lifecycle keeps fresh
+          // goals as "pending_approval" until the user approves them, so an
+          // "active"-only filter hides every freshly generated goal from the
+          // UI. Approval surfaces and Decision-log flows live on the client;
+          // they need to see the full set, including pending ones.
+          val goals = fetcher.fetchGoals(status = null, limit = 50)
           io.github.fletchmckee.liquid.samples.app.model.goalsState.value = goals
           KlikLogger.i("AppModule", "Loaded ${goals?.goals?.size ?: 0} goals from API")
         } catch (e: Exception) {

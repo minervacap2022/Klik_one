@@ -1605,8 +1605,9 @@ fun MainApp() {
       LlmDataCache.worklifeData = fetchedWorklife
       worklifeData = fetchedWorklife
 
-      // Reload goals
-      val goals = fetcher.fetchGoals(status = "active", limit = 10)
+      // Reload goals — fetch the full set (see AppModule.kt: pending_approval
+      // goals would otherwise be invisible until the user approves them).
+      val goals = fetcher.fetchGoals(status = null, limit = 50)
       io.github.fletchmckee.liquid.samples.app.model.goalsState.value = goals
 
       KlikLogger.i("MainApp", "Growth data refreshed: ${projects.size} projects, ${orgs.size} orgs")
