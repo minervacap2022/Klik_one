@@ -1821,6 +1821,11 @@ fun MainApp() {
       io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState.value = remotePrefs.darkModeEnabled
       io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState.value = remotePrefs.selectedFontIndex
       io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState.value = remotePrefs.hapticFeedbackEnabled
+      KlikLogger.i(
+        "MainApp",
+        "User preferences hydrated: dark=${remotePrefs.darkModeEnabled}, " +
+          "font=${remotePrefs.selectedFontIndex}, haptic=${remotePrefs.hapticFeedbackEnabled}",
+      )
     } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
       throw ce
     } catch (t: Throwable) {
