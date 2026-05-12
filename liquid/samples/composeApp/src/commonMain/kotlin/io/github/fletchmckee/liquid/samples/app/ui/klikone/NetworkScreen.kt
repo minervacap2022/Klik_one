@@ -395,6 +395,39 @@ fun NetworkScreen(
         Spacer(Modifier.height(K1Sp.xl))
       }
 
+      // Goals list
+      goalsData?.goals?.takeIf { it.isNotEmpty() }?.let { goalList ->
+        Column(Modifier.padding(horizontal = 20.dp)) {
+          K1SectionHeader("Goals", count = goalList.size, dotColor = KlikCommitmentAccent)
+          Spacer(Modifier.height(K1Sp.s))
+          goalList.take(4).forEach { g ->
+            K1Card(soft = true) {
+              Text(g.goal.ifBlank { "Untitled goal" }, style = K1Type.bodyMd)
+              // GoalDto.currentProgress is 0..1 on the backend schema
+              val progress = g.currentProgress.coerceIn(0f, 1f)
+              if (g.category.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(g.category, style = K1Type.metaSm)
+              }
+              Spacer(Modifier.height(6.dp))
+              Box(
+                Modifier.fillMaxWidth().height(3.dp).clip(K1R.pill)
+                  .background(KlikLineHairline),
+              ) {
+                Box(
+                  Modifier.fillMaxHeight().fillMaxWidth(progress)
+                    .background(KlikInkPrimary),
+                )
+              }
+              Spacer(Modifier.height(4.dp))
+              Text("${(progress * 100).toInt()}%", style = K1Type.metaSm)
+            }
+            Spacer(Modifier.height(6.dp))
+          }
+        }
+        Spacer(Modifier.height(K1Sp.xl))
+      }
+
       // Segmented control: People / Projects / Orgs
       Row(
         Modifier
