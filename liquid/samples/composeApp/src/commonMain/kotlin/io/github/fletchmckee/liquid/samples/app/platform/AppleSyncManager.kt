@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -48,6 +50,11 @@ object AppleSyncManager {
   // renders immediately after data state is set.
   private val syncScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
+  // One mutex per sync type: serializes concurrent launches from initial load + foreground
+  // refresh so the dedup set is always fully written before the next sync reads it.
+  private val calendarMutex = Mutex()
+  private val reminderMutex = Mutex()
+
   // Sync dedup keys are scoped by userId so they survive token refresh/re-login for
   // the same account and are naturally isolated when a different user logs in.
   private val calendarKey: String
@@ -78,11 +85,11 @@ object AppleSyncManager {
     }
   }
 
-  private fun syncMeetingsInternal(meetings: List<Meeting>) {
+  private suspend fun syncMeetingsInternal(meetings: List<Meeting>) = calendarMutex.withLock {
     val permission = AppleIntegrationService.checkCalendarPermission()
     if (permission != ApplePermissionStatus.GRANTED) {
       KlikLogger.d(TAG, "Calendar permission not granted ($permission), skipping meeting sync")
-      return
+      return@withLock
     }
 
     val key = calendarKey
@@ -91,10 +98,14 @@ object AppleSyncManager {
 
     if (newMeetings.isEmpty()) {
       KlikLogger.d(TAG, "No new meetings to sync (${meetings.size} already synced)")
-      return
+      return@withLock
     }
 
     KlikLogger.i(TAG, "Syncing ${newMeetings.size} new meetings to Apple Calendar")
+
+    // Mark all IDs as synced upfront so concurrent calls (initial load + foreground refresh)
+    // see the full set immediately and don't re-sync the same meetings.
+    saveSyncedIds(key, syncedIds + newMeetings.map { it.id })
 
     for (meeting in newMeetings) {
       val eventData = meetingToCalendarEvent(meeting) ?: continue
@@ -103,7 +114,6 @@ object AppleSyncManager {
         when (result) {
           is AppleSaveResult.Success -> {
             KlikLogger.i(TAG, "Meeting synced to Calendar: id=${meeting.id}, title=${meeting.title}, calendarId=${result.identifier}")
-            addSyncedId(key, meeting.id)
           }
 
           is AppleSaveResult.Error -> {
@@ -137,11 +147,11 @@ object AppleSyncManager {
     }
   }
 
-  private fun syncTodosInternal(todos: List<TaskMetadata>) {
+  private suspend fun syncTodosInternal(todos: List<TaskMetadata>) = reminderMutex.withLock {
     val permission = AppleIntegrationService.checkRemindersPermission()
     if (permission != ApplePermissionStatus.GRANTED) {
       KlikLogger.d(TAG, "Reminders permission not granted ($permission), skipping todo sync")
-      return
+      return@withLock
     }
 
     val key = reminderKey
@@ -150,10 +160,14 @@ object AppleSyncManager {
 
     if (newTodos.isEmpty()) {
       KlikLogger.d(TAG, "No new todos to sync (${todos.size} already synced)")
-      return
+      return@withLock
     }
 
     KlikLogger.i(TAG, "Syncing ${newTodos.size} new todos to Apple Reminders")
+
+    // Mark all IDs as synced upfront so concurrent calls (initial load + foreground refresh)
+    // see the full set immediately and don't re-sync the same todos.
+    saveSyncedIds(key, syncedIds + newTodos.map { it.id })
 
     for (todo in newTodos) {
       val reminderData = todoToReminder(todo)
@@ -162,7 +176,6 @@ object AppleSyncManager {
         when (result) {
           is AppleSaveResult.Success -> {
             KlikLogger.i(TAG, "Todo synced to Reminders: id=${todo.id}, title=${todo.title}, reminderId=${result.identifier}")
-            addSyncedId(key, todo.id)
           }
 
           is AppleSaveResult.Error -> {
@@ -451,10 +464,8 @@ object AppleSyncManager {
     }
   }
 
-  private fun addSyncedId(key: String, id: String) {
-    val current = loadSyncedIds(key)
-    val updated = current + id
-    val jsonArray = JsonArray(updated.map { JsonPrimitive(it) })
+  private fun saveSyncedIds(key: String, ids: Set<String>) {
+    val jsonArray = JsonArray(ids.map { JsonPrimitive(it) })
     storage.saveString(key, jsonArray.toString())
   }
 }
