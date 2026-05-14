@@ -31,12 +31,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState
 import io.github.fletchmckee.liquid.samples.app.theme.K1FontFamilyState
+import io.github.fletchmckee.liquid.samples.app.theme.K1FontSizeState
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAvatarBg
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAvatarFg
@@ -180,44 +183,87 @@ fun Modifier.k1SwipeBack(onBack: () -> Unit): Modifier = this.pointerInput(onBac
 // so non-Composable callers still resolve at call time.
 object K1Type {
   // type/display — marketing / onboarding hero; not in the spec type table
-  val display: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 32.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = 38.sp, color = KlikInkPrimary)
+  val display: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (32 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = (32 * s * 1.2f).sp, color = KlikInkPrimary)
+  }
 
   // type/xxl — page title ("Today") — 28 / 500 / -0.8 / 1.2
-  val h1: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 28.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = (28 * 1.2f).sp, color = KlikInkPrimary)
+  val h1: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (28 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.8).sp, lineHeight = (28 * s * 1.2f).sp, color = KlikInkPrimary)
+  }
 
   // h2 — non-spec; kept as a deliberate mid-size for sub-page titles
-  val h2: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 22.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp, lineHeight = 28.sp, color = KlikInkPrimary)
+  val h2: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (22 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp, lineHeight = (22 * s * 1.3f).sp, color = KlikInkPrimary)
+  }
 
   // type/xl — meeting title, detail hero — 19 / 500 / -0.3 / 1.25
-  val h3: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 19.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.3).sp, lineHeight = (19 * 1.25f).sp, color = KlikInkPrimary)
+  val h3: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (19 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.3).sp, lineHeight = (19 * s * 1.25f).sp, color = KlikInkPrimary)
+  }
 
   // type/lg — card title ("Investor call") — 15 / 500 / 0 / 1.4
-  val cardTitle: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = (15 * 1.4f).sp, color = KlikInkPrimary)
+  val cardTitle: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (15 * s).sp, fontWeight = FontWeight.Medium, lineHeight = (15 * s * 1.4f).sp, color = KlikInkPrimary)
+  }
 
   // type/base — body — 13 / 400 / 0 / 1.55
-  val bodySm: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 13.sp, fontWeight = FontWeight.Normal, lineHeight = (13 * 1.55f).sp, color = KlikInkPrimary)
+  val bodySm: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (13 * s).sp, fontWeight = FontWeight.Normal, lineHeight = (13 * s * 1.55f).sp, color = KlikInkPrimary)
+  }
 
   // type/base-500 — row primary, list item title
-  val bodyMd: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = (13 * 1.4f).sp, color = KlikInkPrimary)
+  val bodyMd: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (13 * s).sp, fontWeight = FontWeight.Medium, lineHeight = (13 * s * 1.4f).sp, color = KlikInkPrimary)
+  }
 
   // body 14 — kept for long-form reading blocks that benefit from a hair more size
-  val body: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 14.sp, fontWeight = FontWeight.Normal, lineHeight = (14 * 1.55f).sp, color = KlikInkPrimary)
+  val body: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (14 * s).sp, fontWeight = FontWeight.Normal, lineHeight = (14 * s * 1.55f).sp, color = KlikInkPrimary)
+  }
 
   // type/sm — 12 / 400 / 0 / 1.55 — sub-tab + inline captions on white
-  val caption: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 12.sp, fontWeight = FontWeight.Normal, lineHeight = (12 * 1.55f).sp, color = KlikInkTertiary)
+  val caption: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (12 * s).sp, fontWeight = FontWeight.Normal, lineHeight = (12 * s * 1.55f).sp, color = KlikInkTertiary)
+  }
 
   // type/xs — 11 / 400 / 0 / 1.5 — chip text, row meta
-  val meta: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 11.sp, fontWeight = FontWeight.Normal, lineHeight = (11 * 1.5f).sp, color = KlikInkTertiary)
+  val meta: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (11 * s).sp, fontWeight = FontWeight.Normal, lineHeight = (11 * s * 1.5f).sp, color = KlikInkTertiary)
+  }
 
   // type/xxs — 10 / 400 / 0 / 1.5 — timestamps
-  val metaSm: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 10.sp, fontWeight = FontWeight.Normal, lineHeight = (10 * 1.5f).sp, color = KlikInkMuted)
+  val metaSm: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (10 * s).sp, fontWeight = FontWeight.Normal, lineHeight = (10 * s * 1.5f).sp, color = KlikInkMuted)
+  }
 
   // type/label — 9 / 500 / 0.8 — UPPERCASE section labels ("IN 3 LINES")
-  val eyebrow: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, color = KlikInkTertiary)
+  val eyebrow: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (9 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, color = KlikInkTertiary)
+  }
 
   // type/eyebrow — 11 / 500 / 1.2 — KLIK ONE brand eyebrow
-  val eyebrowLg: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp, color = KlikInkFaint)
-  val timer: TextStyle get() = TextStyle(fontFamily = K1FontFamilyState.value, fontSize = 36.sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp, color = KlikInkPrimary)
+  val eyebrowLg: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (11 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp, color = KlikInkFaint)
+  }
+
+  val timer: TextStyle get() {
+    val s = K1FontSizeState.value
+    return TextStyle(fontFamily = K1FontFamilyState.value, fontSize = (36 * s).sp, fontWeight = FontWeight.Medium, letterSpacing = (-1).sp, color = KlikInkPrimary)
+  }
 }
 
 // ─── Spacing ──────────────────────────────────────────────────────────────
@@ -620,20 +666,28 @@ fun K1Card(
 // ─── Skeleton (lazy / breathing) loaders ──────────────────────────────────
 // A single shimmering bar — used to compose larger skeleton blocks. Driven
 // by a 1300ms in/out tween so the page feels alive while real data lands.
+// Pass `alpha` explicitly when used inside K1SkeletonCard so all lines share
+// one transition and pulse in sync rather than independently.
 @Composable
 fun K1SkeletonLine(
   modifier: Modifier = Modifier,
   width: Dp? = null,
   height: Dp = 12.dp,
   shape: RoundedCornerShape = K1R.pill,
+  alpha: Float? = null,
 ) {
-  val infinite = rememberInfiniteTransition(label = "skel")
-  val a by infinite.animateFloat(
-    initialValue = 0.35f,
-    targetValue = 0.75f,
-    animationSpec = infiniteRepeatable(tween(1300), RepeatMode.Reverse),
-    label = "skelA",
-  )
+  val a = if (alpha != null) {
+    alpha
+  } else {
+    val infinite = rememberInfiniteTransition(label = "skel")
+    val v by infinite.animateFloat(
+      initialValue = 0.35f,
+      targetValue = 0.75f,
+      animationSpec = infiniteRepeatable(tween(1300), RepeatMode.Reverse),
+      label = "skelA",
+    )
+    v
+  }
   Box(
     modifier
       .then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
@@ -647,12 +701,21 @@ fun K1SkeletonLine(
  * Skeleton card matching K1Card's surface — three breathing lines (~85%, 100%,
  * 60%) inside a rounded paper-soft container. Use everywhere we'd otherwise
  * render an empty area while waiting on the network / LLM.
+ *
+ * One shared InfiniteTransition drives all lines so they pulse in sync.
  */
 @Composable
 fun K1SkeletonCard(
   modifier: Modifier = Modifier,
   lines: Int = 3,
 ) {
+  val infinite = rememberInfiniteTransition(label = "skel-card")
+  val a by infinite.animateFloat(
+    initialValue = 0.35f,
+    targetValue = 0.75f,
+    animationSpec = infiniteRepeatable(tween(1300), RepeatMode.Reverse),
+    label = "skelA",
+  )
   Column(
     modifier
       .fillMaxWidth()
@@ -663,7 +726,7 @@ fun K1SkeletonCard(
     val widths = listOf(0.85f, 1f, 0.6f, 0.9f, 0.5f)
     repeat(lines) { idx ->
       val frac = widths[idx % widths.size]
-      Box(Modifier.fillMaxWidth(frac)) { K1SkeletonLine() }
+      Box(Modifier.fillMaxWidth(frac)) { K1SkeletonLine(alpha = a) }
       if (idx < lines - 1) Spacer(Modifier.height(8.dp))
     }
   }
@@ -920,18 +983,21 @@ fun K1BottomNav(
           Box {
             item.iconPath()
             if (item.badgeCount > 0) {
+              val label = if (item.badgeCount > 99) "99+" else item.badgeCount.toString()
               Box(
                 Modifier
                   .align(Alignment.TopEnd)
-                  .padding(start = 12.dp)
-                  .size(14.dp)
-                  .background(KlikAlert, CircleShape),
+                  .offset(x = 9.dp, y = (-4).dp)
+                  .heightIn(min = 14.dp)
+                  .widthIn(min = 14.dp)
+                  .background(KlikAlert, RoundedCornerShape(50))
+                  .padding(horizontal = 4.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center,
               ) {
                 Text(
-                  item.badgeCount.toString(),
+                  label,
                   style = TextStyle(
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Medium,
                     color = KlikPaperCard,
                   ),
