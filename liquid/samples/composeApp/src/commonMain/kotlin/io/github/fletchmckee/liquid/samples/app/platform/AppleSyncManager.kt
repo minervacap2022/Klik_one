@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.samples.app.platform
 
+import io.github.fletchmckee.liquid.samples.app.data.network.CurrentUser
 import io.github.fletchmckee.liquid.samples.app.data.storage.AppleIntegrationStorageKeys
 import io.github.fletchmckee.liquid.samples.app.data.storage.SecureStorage
 import io.github.fletchmckee.liquid.samples.app.domain.entity.Meeting
 import io.github.fletchmckee.liquid.samples.app.domain.entity.MeetingSource
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -27,8 +32,11 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Manages automatic sync of meetings to Apple Calendar and tasks/todos to Apple Reminders.
- * Deduplicates using JSON-serialized sets of synced entity IDs stored in SecureStorage.
- * Only syncs when the user has granted the respective permissions.
+ * Deduplicates using JSON-serialized sets of synced entity IDs stored in SecureStorage,
+ * scoped per userId so sync state survives token refresh and is naturally isolated
+ * across accounts without requiring an explicit clear on logout.
+ *
+ * Sync work is dispatched to a background IO scope so callers never block the main thread.
  */
 object AppleSyncManager {
 
@@ -36,23 +44,49 @@ object AppleSyncManager {
   private val storage = SecureStorage()
   private val json = Json { ignoreUnknownKeys = true }
 
+  // Background scope for all EventKit I/O — keeps main thread free so Today screen
+  // renders immediately after data state is set.
+  private val syncScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+  // Sync dedup keys are scoped by userId so they survive token refresh/re-login for
+  // the same account and are naturally isolated when a different user logs in.
+  private val calendarKey: String
+    get() {
+      val uid = CurrentUser.userId
+      return if (uid != null) "${AppleIntegrationStorageKeys.SYNCED_CALENDAR_IDS}_$uid"
+      else AppleIntegrationStorageKeys.SYNCED_CALENDAR_IDS
+    }
+  private val reminderKey: String
+    get() {
+      val uid = CurrentUser.userId
+      return if (uid != null) "${AppleIntegrationStorageKeys.SYNCED_REMINDER_TODO_IDS}_$uid"
+      else AppleIntegrationStorageKeys.SYNCED_REMINDER_TODO_IDS
+    }
+
   // ==================== Meetings → Apple Calendar ====================
 
   /**
-   * Sync meetings to Apple Calendar. Only syncs new meetings that haven't been synced before.
+   * Sync meetings to Apple Calendar. Returns immediately; sync runs on a background thread.
+   * Only syncs new meetings that haven't been synced before (deduplication by userId-scoped key).
    * No-ops on non-iOS platforms or when calendar permission is not granted.
    */
   fun syncMeetingsToCalendar(meetings: List<Meeting>) {
     if (!AppleIntegrationService.isSupported()) return
     if (meetings.isEmpty()) return
+    syncScope.launch {
+      syncMeetingsInternal(meetings)
+    }
+  }
 
+  private fun syncMeetingsInternal(meetings: List<Meeting>) {
     val permission = AppleIntegrationService.checkCalendarPermission()
     if (permission != ApplePermissionStatus.GRANTED) {
       KlikLogger.d(TAG, "Calendar permission not granted ($permission), skipping meeting sync")
       return
     }
 
-    val syncedIds = loadSyncedIds(AppleIntegrationStorageKeys.SYNCED_CALENDAR_IDS)
+    val key = calendarKey
+    val syncedIds = loadSyncedIds(key)
     val newMeetings = meetings.filter { it.id !in syncedIds }
 
     if (newMeetings.isEmpty()) {
@@ -69,7 +103,7 @@ object AppleSyncManager {
         when (result) {
           is AppleSaveResult.Success -> {
             KlikLogger.i(TAG, "Meeting synced to Calendar: id=${meeting.id}, title=${meeting.title}, calendarId=${result.identifier}")
-            addSyncedId(AppleIntegrationStorageKeys.SYNCED_CALENDAR_IDS, meeting.id)
+            addSyncedId(key, meeting.id)
           }
 
           is AppleSaveResult.Error -> {
@@ -91,21 +125,27 @@ object AppleSyncManager {
   // ==================== KK_exec Todos → Apple Reminders ====================
 
   /**
-   * Sync KK_exec todos (as TaskMetadata) to Apple Reminders.
-   * Only syncs new todos that haven't been synced before.
+   * Sync KK_exec todos (as TaskMetadata) to Apple Reminders. Returns immediately;
+   * sync runs on a background thread. Only syncs new todos (deduplication by userId-scoped key).
    * Syncs ALL statuses (PENDING, IN_PROGRESS, COMPLETED, CANCELLED, FAILED).
    */
   fun syncTodosToReminders(todos: List<TaskMetadata>) {
     if (!AppleIntegrationService.isSupported()) return
     if (todos.isEmpty()) return
+    syncScope.launch {
+      syncTodosInternal(todos)
+    }
+  }
 
+  private fun syncTodosInternal(todos: List<TaskMetadata>) {
     val permission = AppleIntegrationService.checkRemindersPermission()
     if (permission != ApplePermissionStatus.GRANTED) {
       KlikLogger.d(TAG, "Reminders permission not granted ($permission), skipping todo sync")
       return
     }
 
-    val syncedIds = loadSyncedIds(AppleIntegrationStorageKeys.SYNCED_REMINDER_TODO_IDS)
+    val key = reminderKey
+    val syncedIds = loadSyncedIds(key)
     val newTodos = todos.filter { it.id !in syncedIds }
 
     if (newTodos.isEmpty()) {
@@ -122,7 +162,7 @@ object AppleSyncManager {
         when (result) {
           is AppleSaveResult.Success -> {
             KlikLogger.i(TAG, "Todo synced to Reminders: id=${todo.id}, title=${todo.title}, reminderId=${result.identifier}")
-            addSyncedId(AppleIntegrationStorageKeys.SYNCED_REMINDER_TODO_IDS, todo.id)
+            addSyncedId(key, todo.id)
           }
 
           is AppleSaveResult.Error -> {
@@ -144,12 +184,13 @@ object AppleSyncManager {
   // ==================== State Management ====================
 
   /**
-   * Clear all sync state. Call on logout to prevent state leaking across users.
+   * Clear sync state for the currently logged-in user. Not called on token expiry —
+   * userId-scoped keys naturally survive re-login for the same account.
    */
   fun clearSyncState() {
-    storage.remove(AppleIntegrationStorageKeys.SYNCED_CALENDAR_IDS)
-    storage.remove(AppleIntegrationStorageKeys.SYNCED_REMINDER_TODO_IDS)
-    KlikLogger.i(TAG, "Cleared all sync state for logout")
+    storage.remove(calendarKey)
+    storage.remove(reminderKey)
+    KlikLogger.i(TAG, "Cleared sync state for user=${CurrentUser.userId}")
   }
 
   // ==================== Apple Calendar → Klik (Read) ====================
@@ -188,7 +229,7 @@ object AppleSyncManager {
     val endMillis = endDate.atStartOfDayIn(tz).toEpochMilliseconds()
 
     // Load IDs of events that Klik already synced TO Apple Calendar (to avoid duplicates)
-    val klikSyncedCalendarIds = loadSyncedIds(AppleIntegrationStorageKeys.SYNCED_CALENDAR_IDS)
+    val klikSyncedCalendarIds = loadSyncedIds(calendarKey)
 
     AppleIntegrationService.fetchCalendarEvents(startMillis, endMillis) { appleEvents ->
       // Filter out events that Klik originally pushed to Apple Calendar

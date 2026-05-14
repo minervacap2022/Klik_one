@@ -155,7 +155,10 @@ import io.github.fletchmckee.liquid.samples.app.model.kkExecDailyTodosGroupedSta
 import io.github.fletchmckee.liquid.samples.app.model.executingTodoIdsState
 import io.github.fletchmckee.liquid.samples.app.model.recentlyCompletedCategoriesState
 import io.github.fletchmckee.liquid.samples.app.model.allKKExecTodosState
+import io.github.fletchmckee.liquid.samples.app.model.appLanguageState
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.klikStrings
 import io.github.fletchmckee.liquid.samples.app.model.projectsState
 import io.github.fletchmckee.liquid.samples.app.model.peopleState
 import io.github.fletchmckee.liquid.samples.app.model.projectsState
@@ -405,6 +408,14 @@ private object LlmDataCache {
 
 @Composable
 fun MainApp() {
+  val appLang by appLanguageState
+  CompositionLocalProvider(LocalKlikStrings provides klikStrings(appLang)) {
+  MainAppContent()
+  }
+}
+
+@Composable
+private fun MainAppContent() {
   val liquidState = rememberLiquidState()
   var currentRoute by remember { mutableStateOf("today") }
   var lastMainRoute by remember { mutableStateOf("today") } // Track last main screen for returning from explore
@@ -658,8 +669,8 @@ fun MainApp() {
     } else if (!authState.isLoggedIn && isAuthReady) {
       KlikLogger.i("MainApp", "Auth state cleared — resetting isAuthReady")
       isAuthReady = false
-      // Clear Apple sync state and calendar events on logout
-      AppleSyncManager.clearSyncState()
+      // userId-scoped sync keys in AppleSyncManager survive token refresh and
+      // isolate naturally across accounts — no explicit clear needed here.
       appleCalendarMeetings = emptyList()
       // Clear cached LLM data to prevent cross-user data leak
       LlmDataCache.insights = null
@@ -1821,6 +1832,7 @@ fun MainApp() {
       val remotePrefs = RemoteDataFetcher.fetchUserPreferences()
       io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState.value = remotePrefs.darkModeEnabled
       io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState.value = remotePrefs.selectedFontIndex
+      io.github.fletchmckee.liquid.samples.app.model.fontSizeIndexState.value = remotePrefs.fontSizeIndex
       io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState.value = remotePrefs.hapticFeedbackEnabled
       KlikLogger.i(
         "MainApp",
@@ -1860,6 +1872,7 @@ fun MainApp() {
 
   val darkModeFromPrefs by io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState
   val fontIndexFromPrefs by io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState
+  val fontSizeIndexFromPrefs by io.github.fletchmckee.liquid.samples.app.model.fontSizeIndexState
   LiquidTheme(
     darkMode = darkModeFromPrefs,
     setBackgroundColor = { newOption ->
@@ -1874,7 +1887,7 @@ fun MainApp() {
       fontIndex = newFontIndex
       io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState.value = newFontIndex
     },
-    fontSizeScale = fontSizeScale,
+    fontSizeScale = io.github.fletchmckee.liquid.samples.app.theme.fontSizeScaleFor(fontSizeIndexFromPrefs),
     setFontSizeScale = { fontSizeScale = it },
     letterSpacingScale = letterSpacingScale,
     setLetterSpacingScale = { letterSpacingScale = it },
@@ -2144,10 +2157,20 @@ fun MainApp() {
                           }
                           EntityType.MEETING -> {
                               val target = meetings.find { it.id == nav.entityId }
-                              if (target != null) {
-                                  sessionDetailMeeting = target
-                                  currentRoute = "session_detail"
-                              }
+                                  ?: meetings.find { it.sessionId == nav.entityId }
+                              sessionDetailMeeting = target ?: Meeting(
+                                  id = nav.entityId,
+                                  title = nav.entityId.removePrefix("SESSION_")
+                                      .replace(Regex("_(\\d{6})_.*"), "")
+                                      .replace("_", "-"),
+                                  date = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date,
+                                  time = "",
+                                  participants = emptyList(),
+                                  summary = "",
+                                  actionItems = emptyList(),
+                                  sessionId = nav.entityId.takeIf { it.startsWith("SESSION_") },
+                              )
+                              currentRoute = "session_detail"
                           }
                       }
                   }
@@ -3306,27 +3329,28 @@ fun MainApp() {
             kkExecSensitiveTodosState.value +
             kkExecDailyTodosState.value
           ).distinctBy { it.id }.count { it.id !in seenIds }
+        val navStrings = LocalKlikStrings.current
         io.github.fletchmckee.liquid.samples.app.ui.klikone.K1BottomNav(
           items = listOf(
             io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
               route = "today",
-              label = "Today",
+              label = navStrings.tabToday,
               iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconToday(active = currentRoute == "today") },
             ),
             io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
               route = "function",
-              label = "Moves",
+              label = navStrings.tabMoves,
               iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconMoves(active = currentRoute == "function") },
               badgeCount = unreadMovesCount,
             ),
             io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
               route = "growth",
-              label = "Network",
+              label = navStrings.tabNetwork,
               iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconNetwork(active = currentRoute == "growth") },
             ),
             io.github.fletchmckee.liquid.samples.app.ui.klikone.K1NavItem(
               route = "explore",
-              label = "You",
+              label = navStrings.tabYou,
               iconPath = { io.github.fletchmckee.liquid.samples.app.ui.klikone.K1IconYou(active = currentRoute == "explore") },
             ),
           ),
