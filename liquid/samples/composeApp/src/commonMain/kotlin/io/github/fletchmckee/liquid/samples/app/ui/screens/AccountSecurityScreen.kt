@@ -58,13 +58,14 @@ fun AccountSecurityScreen(
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .background(KlikPaperApp)
-      .statusBarsPadding()
-      .navigationBarsPadding(),
+      .background(KlikPaperApp),
   ) {
     // Top rail — K1 text-only chrome
     Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+      modifier = Modifier
+        .fillMaxWidth()
+        .statusBarsPadding()
+        .padding(horizontal = 20.dp, vertical = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
@@ -78,6 +79,7 @@ fun AccountSecurityScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
+        .navigationBarsPadding()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp),
     ) {

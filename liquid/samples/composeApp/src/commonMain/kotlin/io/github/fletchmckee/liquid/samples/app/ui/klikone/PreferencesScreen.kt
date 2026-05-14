@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import io.github.fletchmckee.liquid.samples.app.data.network.dto.RemoteUserPreferencesDto
 import io.github.fletchmckee.liquid.samples.app.data.source.remote.RemoteDataFetcher
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
+import io.github.fletchmckee.liquid.samples.app.model.appLanguageState
 import io.github.fletchmckee.liquid.samples.app.model.darkModeEnabledState
+import io.github.fletchmckee.liquid.samples.app.model.fontSizeIndexState
 import io.github.fletchmckee.liquid.samples.app.model.hapticEnabledState
 import io.github.fletchmckee.liquid.samples.app.model.selectedFontIndexState
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
@@ -63,6 +65,7 @@ fun PreferencesScreen(
   onBack: () -> Unit,
   onOpenNotifications: () -> Unit,
 ) {
+  val s = LocalKlikStrings.current
   var prefs by remember { mutableStateOf<RemoteUserPreferencesDto?>(null) }
   var error by remember { mutableStateOf<String?>(null) }
   var saving by remember { mutableStateOf(false) }
@@ -121,12 +124,12 @@ fun PreferencesScreen(
     }
 
     Column(Modifier.padding(horizontal = 20.dp)) {
-      K1Eyebrow("Settings")
+      K1Eyebrow(s.settings)
       Spacer(Modifier.height(6.dp))
-      Text("Preferences", style = K1Type.h2)
+      Text(s.preferences, style = K1Type.h2)
       Spacer(Modifier.height(4.dp))
       Text(
-        "Sync your appearance and feedback settings across devices.",
+        s.preferencesSubtitle,
         style = K1Type.bodySm.copy(color = KlikInkSecondary),
       )
     }
@@ -141,7 +144,7 @@ fun PreferencesScreen(
       Column(Modifier.padding(20.dp)) {
         K1Card(soft = true) {
           Text(
-            "Couldn't load preferences",
+            s.couldntLoadPreferences,
             style = K1Type.bodyMd.copy(color = KlikInkPrimary, fontWeight = FontWeight.Medium),
           )
           Spacer(Modifier.height(4.dp))
@@ -150,34 +153,51 @@ fun PreferencesScreen(
       }
     } else {
       Column(Modifier.padding(horizontal = 20.dp)) {
-        K1Eyebrow("Appearance")
+        K1Eyebrow(s.appearance)
         Spacer(Modifier.height(K1Sp.s))
         Column(
           Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard).padding(vertical = 4.dp),
         ) {
           FontPicker(
-            label = "Font",
+            label = s.font,
             value = ui.selectedFontIndex,
             onChange = { v -> update { it.copy(selectedFontIndex = v) } },
           )
           Divider()
+          FontSizePicker(
+            value = ui.fontSizeIndex,
+            onChange = { v -> update { it.copy(fontSizeIndex = v) } },
+          )
+          Divider()
           Toggle(
-            label = "Dark mode",
+            label = s.darkMode,
             value = ui.darkModeEnabled,
             onChange = { v -> update { it.copy(darkModeEnabled = v) } },
           )
         }
 
         Spacer(Modifier.height(K1Sp.xxl))
-        K1Eyebrow("Feedback")
+        K1Eyebrow(s.language)
         Spacer(Modifier.height(K1Sp.s))
         Column(
           Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard).padding(vertical = 4.dp),
         ) {
-          NavRow(label = "Notifications", onClick = onOpenNotifications)
+          LanguagePicker(
+            value = ui.language,
+            onChange = { v -> update { it.copy(language = v) } },
+          )
+        }
+
+        Spacer(Modifier.height(K1Sp.xxl))
+        K1Eyebrow(s.feedback)
+        Spacer(Modifier.height(K1Sp.s))
+        Column(
+          Modifier.fillMaxWidth().clip(K1R.card).background(KlikPaperCard).padding(vertical = 4.dp),
+        ) {
+          NavRow(label = s.notifications, onClick = onOpenNotifications)
           Divider()
           Toggle(
-            label = "Haptic feedback",
+            label = s.hapticFeedback,
             value = ui.hapticFeedbackEnabled,
             onChange = { v -> update { it.copy(hapticFeedbackEnabled = v) } },
           )
@@ -187,8 +207,8 @@ fun PreferencesScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
           val statusText = when {
             error != null -> error.orEmpty()
-            saving -> "Saving…"
-            else -> "Synced across devices"
+            saving -> s.savingEllipsis
+            else -> s.syncedAcrossDevices
           }
           val statusColor = if (error != null) KlikInkPrimary else KlikInkTertiary
           Text(statusText, style = K1Type.metaSm.copy(color = statusColor))
@@ -259,6 +279,40 @@ private fun FontPicker(label: String, value: Int, onChange: (Int) -> Unit) {
   }
 }
 
+private val K1_SIZE_LABELS = listOf("S", "M", "L", "XL")
+
+@Composable
+private fun FontSizePicker(value: Int, onChange: (Int) -> Unit) {
+  val safeIndex = value.coerceIn(0, K1_SIZE_LABELS.lastIndex)
+  Row(
+    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(LocalKlikStrings.current.textSize, style = K1Type.bodyMd.copy(color = KlikInkPrimary))
+    Spacer(Modifier.weight(1f))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      K1_SIZE_LABELS.forEachIndexed { index, label ->
+        val selected = index == safeIndex
+        Box(
+          Modifier
+            .clip(K1R.pill)
+            .background(if (selected) KlikInkPrimary else KlikPaperChip)
+            .k1Clickable { onChange(index) }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+          Text(
+            label,
+            style = K1Type.metaSm.copy(
+              color = if (selected) KlikPaperCard else KlikInkSecondary,
+              fontWeight = FontWeight.Medium,
+            ),
+          )
+        }
+      }
+    }
+  }
+}
+
 /**
  * Push the persisted-prefs DTO into the three global state slots that the
  * theme + haptic engine read. Keeping this in one place avoids the toggles
@@ -267,7 +321,10 @@ private fun FontPicker(label: String, value: Int, onChange: (Int) -> Unit) {
 private fun applyToGlobals(p: RemoteUserPreferencesDto) {
   darkModeEnabledState.value = p.darkModeEnabled
   selectedFontIndexState.value = p.selectedFontIndex
+  fontSizeIndexState.value = p.fontSizeIndex
   hapticEnabledState.value = p.hapticFeedbackEnabled
+  appLanguageState.value = p.language
+  RemoteDataFetcher.currentLanguage = p.language
 }
 
 @Composable
@@ -305,5 +362,68 @@ private fun K1BackChevronGlyph() {
       start = Offset(5.5.dp.toPx(), 8.dp.toPx()),
       end = Offset(10.dp.toPx(), 12.5.dp.toPx()),
     )
+  }
+}
+
+private val K1_LANG_OPTIONS = listOf(
+  "en" to "English",
+  "zh" to "中文",
+  "es" to "Español",
+  "fr" to "Français",
+  "de" to "Deutsch",
+  "ja" to "日本語",
+  "ko" to "한국어",
+  "pt" to "Português",
+)
+
+@Composable
+private fun LanguagePicker(value: String, onChange: (String) -> Unit) {
+  val safeLang = if (K1_LANG_OPTIONS.any { it.first == value }) value else "en"
+  Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      K1_LANG_OPTIONS.take(4).forEach { (code, label) ->
+        val selected = code == safeLang
+        Box(
+          Modifier
+            .weight(1f)
+            .clip(K1R.pill)
+            .background(if (selected) KlikInkPrimary else KlikPaperChip)
+            .k1Clickable { onChange(code) }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+          contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+          Text(
+            label,
+            style = K1Type.metaSm.copy(
+              color = if (selected) KlikPaperCard else KlikInkSecondary,
+              fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            ),
+          )
+        }
+      }
+    }
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      K1_LANG_OPTIONS.drop(4).forEach { (code, label) ->
+        val selected = code == safeLang
+        Box(
+          Modifier
+            .weight(1f)
+            .clip(K1R.pill)
+            .background(if (selected) KlikInkPrimary else KlikPaperChip)
+            .k1Clickable { onChange(code) }
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+          contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+          Text(
+            label,
+            style = K1Type.metaSm.copy(
+              color = if (selected) KlikPaperCard else KlikInkSecondary,
+              fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            ),
+          )
+        }
+      }
+    }
   }
 }

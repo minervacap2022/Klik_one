@@ -5,7 +5,6 @@ package io.github.fletchmckee.liquid.samples.app.ui.klikone
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,14 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.fletchmckee.liquid.samples.app.core.rememberViewModel
@@ -49,7 +43,6 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.Subscription
 import io.github.fletchmckee.liquid.samples.app.presentation.profile.ProfileViewModel
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAvatarBg
-import io.github.fletchmckee.liquid.samples.app.theme.KlikAvatarFg
 import io.github.fletchmckee.liquid.samples.app.theme.KlikDecisionAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikDecisionSubtext
 import io.github.fletchmckee.liquid.samples.app.theme.KlikDecisionText
@@ -63,9 +56,9 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
 import io.github.fletchmckee.liquid.samples.app.theme.KlikRunning
+import io.github.fletchmckee.liquid.samples.app.ui.components.AvatarImage
 import io.github.fletchmckee.liquid.samples.app.ui.components.K1ProviderIcon
-import kotlin.math.cos
-import kotlin.math.sin
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
 
 /** Klik One — You. Drop-in replacement for `ProfileScreen`. */
 @Composable
@@ -81,6 +74,7 @@ fun YouScreen(
   onNavigateToPreferences: () -> Unit = {},
   onNavigateToAchievements: () -> Unit = {},
 ) {
+  val s = LocalKlikStrings.current
   val ui by viewModel.state.collectAsState()
   val user = ui.user
   val devices = ui.connectedDevices
@@ -96,8 +90,6 @@ fun YouScreen(
     Spacer(Modifier.height(K1Sp.md))
 
     // Identity card
-    var showAvatarPicker by remember { mutableStateOf(false) }
-    var selectedAvatarIdx by remember { mutableIntStateOf(-1) } // -1 = show initials
     Column(Modifier.padding(horizontal = 20.dp)) {
       K1Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -107,14 +99,16 @@ fun YouScreen(
             ?.joinToString("") { it.take(1).uppercase() }
             ?: "—"
           Box(
-            Modifier.size(56.dp).k1Clickable { showAvatarPicker = true },
+            Modifier.size(56.dp).k1Clickable { viewModel.pickAndUploadAvatar() },
             contentAlignment = Alignment.Center,
           ) {
-            if (selectedAvatarIdx >= 0) {
-              K1AvatarIcon(selectedAvatarIdx, size = 56.dp)
-            } else {
-              K1Avatar(initials, size = 56.dp, idSeed = user?.id)
-            }
+            AvatarImage(
+              avatarUrl = user?.avatarUrl,
+              initials = initials,
+              size = 56.dp,
+              backgroundColor = KlikAvatarBg.firstOrNull() ?: KlikPaperCard,
+              initialsColor = KlikInkPrimary,
+            )
           }
           Spacer(Modifier.width(K1Sp.m))
           Column(Modifier.weight(1f)) {
@@ -122,26 +116,16 @@ fun YouScreen(
             Spacer(Modifier.height(2.dp))
             Text(user?.email ?: "—", style = K1Type.caption)
           }
-          K1Chip(label = "Edit", onClick = { viewModel.showEditProfile() })
+          K1Chip(label = s.edit, onClick = { viewModel.showEditProfile() })
         }
       }
-    }
-    if (showAvatarPicker) {
-      AvatarPickerOverlay(
-        selectedIdx = selectedAvatarIdx,
-        onSelect = { idx ->
-          selectedAvatarIdx = idx
-          showAvatarPicker = false
-        },
-        onDismiss = { showAvatarPicker = false },
-      )
     }
 
     Spacer(Modifier.height(K1Sp.xxl))
 
     // Plan
     Column(Modifier.padding(horizontal = 20.dp)) {
-      K1SectionHeader("Plan")
+      K1SectionHeader(s.plan)
       Spacer(Modifier.height(K1Sp.s))
       val planName = subscription?.displayName ?: (user?.planType?.label ?: "Starter")
       val isPro = planName.contains("pro", ignoreCase = true) ||
@@ -250,7 +234,7 @@ fun YouScreen(
     // Devices
     if (devices.isNotEmpty()) {
       Column(Modifier.padding(horizontal = 20.dp)) {
-        K1SectionHeader("Devices", count = devices.size)
+        K1SectionHeader(s.devices, count = devices.size)
         Spacer(Modifier.height(K1Sp.s))
         devices.forEach { d ->
           Row(
@@ -266,7 +250,7 @@ fun YouScreen(
               Text(d.name, style = K1Type.bodySm)
               Spacer(Modifier.height(2.dp))
               Text(
-                if (d.isConnected) "Connected" else "Offline",
+                if (d.isConnected) s.connected else s.offline,
                 style = K1Type.metaSm,
               )
             }
@@ -292,7 +276,7 @@ fun YouScreen(
       val connected = integrations.filter { it.connected }
       val available = integrations.filter { !it.connected && !it.needsReconnect }
       Column(Modifier.padding(horizontal = 20.dp)) {
-        K1SectionHeader("Connectors", count = integrations.size)
+        K1SectionHeader(s.connectors, count = integrations.size)
         Spacer(Modifier.height(K1Sp.s))
         if (integrations.isEmpty()) {
           Box(
@@ -317,9 +301,9 @@ fun YouScreen(
               IntegrationRow(
                 providerId = info.providerId,
                 displayName = info.displayName,
-                state = "Reconnect",
+                state = s.reconnect,
                 stateColor = KlikAlert,
-                detail = info.invalidReason ?: "Connection expired",
+                detail = info.invalidReason ?: s.connectionExpired,
                 onClick = { viewModel.authorizeIntegration(info.providerId) },
               )
               if (i < needsReconnect.size - 1) Divider()
@@ -336,7 +320,7 @@ fun YouScreen(
               IntegrationRow(
                 providerId = info.providerId,
                 displayName = info.displayName,
-                state = "Connected",
+                state = s.connected,
                 stateColor = KlikRunning,
                 onClick = { viewModel.disconnectIntegration(info.providerId) },
               )
@@ -354,7 +338,7 @@ fun YouScreen(
               IntegrationRow(
                 providerId = info.providerId,
                 displayName = info.displayName,
-                state = "Connect",
+                state = s.connect,
                 stateColor = KlikInkPrimary,
                 onClick = { viewModel.authorizeIntegration(info.providerId) },
               )
@@ -368,7 +352,7 @@ fun YouScreen(
 
     // Settings list
     Column(Modifier.padding(horizontal = 20.dp)) {
-      K1SectionHeader("Settings")
+      K1SectionHeader(s.settings)
       Spacer(Modifier.height(K1Sp.s))
       var showImportSheet by remember { mutableStateOf(false) }
       Column(
@@ -378,23 +362,23 @@ fun YouScreen(
           .background(KlikPaperCard)
           .padding(vertical = 4.dp),
       ) {
-        SettingsRow("Achievements", onClick = onNavigateToAchievements)
+        SettingsRow(s.achievements, onClick = onNavigateToAchievements)
         Divider()
-        SettingsRow("Preferences", onClick = onNavigateToPreferences)
+        SettingsRow(s.preferences, onClick = onNavigateToPreferences)
         Divider()
-        SettingsRow("Archived sessions", onClick = onNavigateToArchived)
+        SettingsRow(s.archivedSessions, onClick = onNavigateToArchived)
         Divider()
-        SettingsRow("Notifications", onClick = onNavigateToNotificationSettings)
+        SettingsRow(s.notifications, onClick = onNavigateToNotificationSettings)
         Divider()
-        SettingsRow("Privacy", onClick = onNavigateToPrivacy)
+        SettingsRow(s.privacy, onClick = onNavigateToPrivacy)
         Divider()
-        SettingsRow("Account & security", onClick = onNavigateToAccountSecurity)
+        SettingsRow(s.accountAndSecurity, onClick = onNavigateToAccountSecurity)
         Divider()
-        SettingsRow("Import from Agent", onClick = { showImportSheet = true })
+        SettingsRow(s.importFromAgent, onClick = { showImportSheet = true })
         Divider()
-        SettingsRow("Plans", onClick = onNavigateToPricing)
+        SettingsRow(s.plans, onClick = onNavigateToPricing)
         Divider()
-        SettingsRow("XP logs", onClick = onNavigateToXpLogs)
+        SettingsRow(s.xpLogs, onClick = onNavigateToXpLogs)
         Divider()
         // About row — last in the settings card. Trailing label shows the
         // marketing version + build. Read at runtime from AppVersion (iOS:
@@ -432,7 +416,7 @@ fun YouScreen(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Text(
-          "Sign out",
+          s.signOut,
           style = K1Type.bodyMd.copy(
             color = KlikAlert,
             fontWeight = FontWeight.Medium,
@@ -504,6 +488,7 @@ private fun EditProfileDialog(
   onCancel: () -> Unit,
   onSave: () -> Unit,
 ) {
+  val s = LocalKlikStrings.current
   Box(
     Modifier.fillMaxSize()
       .background(Color.Black.copy(alpha = 0.45f))
@@ -519,9 +504,9 @@ private fun EditProfileDialog(
         .k1Clickable(enabled = false) {}
         .padding(24.dp),
     ) {
-      Text("Edit profile", style = K1Type.h3)
+      Text(s.editProfile, style = K1Type.h3)
       Spacer(Modifier.height(K1Sp.xl))
-      Text("Name", style = K1Type.metaSm)
+      Text(s.nameLabel, style = K1Type.metaSm)
       Spacer(Modifier.height(4.dp))
       Box(
         Modifier
@@ -539,7 +524,7 @@ private fun EditProfileDialog(
         )
       }
       Spacer(Modifier.height(K1Sp.m))
-      Text("Email", style = K1Type.metaSm)
+      Text(s.emailLabel, style = K1Type.metaSm)
       Spacer(Modifier.height(4.dp))
       Box(
         Modifier
@@ -562,7 +547,7 @@ private fun EditProfileDialog(
           Modifier.weight(1f).clip(K1R.pill).background(KlikPaperChip)
             .k1Clickable(onClick = onCancel).padding(vertical = 14.dp),
           contentAlignment = Alignment.Center,
-        ) { Text("Cancel", style = K1Type.bodyMd) }
+        ) { Text(s.cancel, style = K1Type.bodyMd) }
         Box(
           Modifier.weight(1f).clip(K1R.pill)
             .background(if (isSaving) KlikInkMuted else KlikInkPrimary)
@@ -570,7 +555,7 @@ private fun EditProfileDialog(
           contentAlignment = Alignment.Center,
         ) {
           Text(
-            if (isSaving) "Saving…" else "Save",
+            if (isSaving) s.savingEllipsis else s.save,
             style = K1Type.bodyMd.copy(
               color = KlikPaperCard,
               fontWeight = FontWeight.Medium,
@@ -584,6 +569,7 @@ private fun EditProfileDialog(
 
 @Composable
 private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
+  val s = LocalKlikStrings.current
   Box(
     Modifier
       .fillMaxSize()
@@ -600,10 +586,10 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
         .k1Clickable(enabled = false) {} // absorb taps on card
         .padding(24.dp),
     ) {
-      Text("Sign out of Klik?", style = K1Type.h3)
+      Text(s.signOutOfKlik, style = K1Type.h3)
       Spacer(Modifier.height(K1Sp.s))
       Text(
-        "You'll need to sign in again to pick up where you left off.",
+        s.signOutConfirmation,
         style = K1Type.bodySm.copy(color = KlikInkSecondary),
       )
       Spacer(Modifier.height(K1Sp.xl))
@@ -617,7 +603,7 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
             .padding(vertical = 14.dp),
           contentAlignment = Alignment.Center,
         ) {
-          Text("Cancel", style = K1Type.bodyMd)
+          Text(s.cancel, style = K1Type.bodyMd)
         }
         Box(
           Modifier
@@ -629,7 +615,7 @@ private fun SignOutConfirmDialog(onCancel: () -> Unit, onConfirm: () -> Unit) {
           contentAlignment = Alignment.Center,
         ) {
           Text(
-            "Sign out",
+            s.signOut,
             style = K1Type.bodyMd.copy(
               color = KlikPaperCard,
               fontWeight = FontWeight.Medium,
@@ -680,168 +666,3 @@ private fun Divider() {
   )
 }
 
-
-// ── Avatar pool: 10 K1-aesthetic geometric icons ─────────────────────────
-private val AVATAR_POOL_SIZE = 10
-
-@Composable
-fun K1AvatarIcon(index: Int, size: Dp = 40.dp, modifier: Modifier = Modifier) {
-  val bg = KlikAvatarBg[index % KlikAvatarBg.size]
-  val ink = KlikInkPrimary
-  Box(
-    modifier.size(size).clip(CircleShape).background(bg),
-    contentAlignment = Alignment.Center,
-  ) {
-    Canvas(Modifier.size(size * 0.6f)) {
-      val w = this.size.width * 0.09f
-      val r = this.size.width * 0.4f
-      val pi = 3.14159265f
-      when (index % AVATAR_POOL_SIZE) {
-        0 -> drawCircle(color = ink, radius = r, style = Stroke(w, cap = StrokeCap.Round))
-
-        1 -> {
-          val h = r * 1.1f
-          drawLine(ink, Offset(center.x - h, center.y), Offset(center.x + h, center.y), w, StrokeCap.Round)
-          drawLine(ink, Offset(center.x, center.y - h), Offset(center.x, center.y + h), w, StrokeCap.Round)
-        }
-
-        2 -> {
-          drawPath(
-            Path().apply {
-              moveTo(center.x, center.y - r)
-              lineTo(center.x + r * 0.866f, center.y + r * 0.5f)
-              lineTo(center.x - r * 0.866f, center.y + r * 0.5f)
-              close()
-            },
-            color = ink,
-            style = Stroke(w, cap = StrokeCap.Round),
-          )
-        }
-
-        3 -> {
-          drawPath(
-            Path().apply {
-              moveTo(center.x, center.y - r)
-              lineTo(center.x + r * 0.7f, center.y)
-              lineTo(center.x, center.y + r)
-              lineTo(center.x - r * 0.7f, center.y)
-              close()
-            },
-            color = ink,
-            style = Stroke(w, cap = StrokeCap.Round),
-          )
-        }
-
-        4 -> {
-          drawCircle(color = ink, radius = r, style = Stroke(w))
-          drawCircle(color = ink, radius = r * 0.5f, style = Stroke(w))
-        }
-
-        5 -> {
-          drawPath(
-            Path().apply {
-              moveTo(center.x - r, center.y)
-              cubicTo(center.x - r * 0.5f, center.y - r * 0.7f, center.x + r * 0.5f, center.y + r * 0.7f, center.x + r, center.y)
-            },
-            color = ink,
-            style = Stroke(w, cap = StrokeCap.Round),
-          )
-        }
-
-        6 -> {
-          drawPath(
-            Path().apply {
-              for (i in 0..5) {
-                val angle = pi / 180f * (60 * i - 30)
-                val x = center.x + r * cos(angle)
-                val y = center.y + r * sin(angle)
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-              }
-              close()
-            },
-            color = ink,
-            style = Stroke(w, cap = StrokeCap.Round),
-          )
-        }
-
-        7 -> {
-          for (i in 0..5) {
-            val angle = pi / 180f * (60 * i)
-            drawLine(
-              ink,
-              Offset(center.x + r * 0.25f * cos(angle), center.y + r * 0.25f * sin(angle)),
-              Offset(center.x + r * cos(angle), center.y + r * sin(angle)),
-              w,
-              StrokeCap.Round,
-            )
-          }
-        }
-
-        8 -> {
-          val half = r * 0.78f
-          drawRect(color = ink, topLeft = Offset(center.x - half, center.y - half), size = Size(half * 2, half * 2), style = Stroke(w))
-        }
-
-        else -> {
-          drawLine(ink, Offset(center.x - r * 0.7f, center.y + r * 0.7f), Offset(center.x + r * 0.7f, center.y - r * 0.7f), w, StrokeCap.Round)
-          drawLine(ink, Offset(center.x - r * 0.2f, center.y + r * 0.8f), Offset(center.x + r * 0.8f, center.y - r * 0.2f), w, StrokeCap.Round)
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun AvatarPickerOverlay(
-  selectedIdx: Int,
-  onSelect: (Int) -> Unit,
-  onDismiss: () -> Unit,
-) {
-  Box(
-    Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).k1Clickable(onClick = onDismiss),
-    contentAlignment = Alignment.Center,
-  ) {
-    Column(
-      Modifier
-        .padding(32.dp)
-        .clip(K1R.card)
-        .background(KlikPaperCard)
-        .k1Clickable { } // absorb taps
-        .padding(20.dp),
-    ) {
-      K1Eyebrow("Choose your icon")
-      Spacer(Modifier.height(K1Sp.m))
-      // Non-lazy grid — only 10 avatars; chunk into rows of 5 to avoid the
-      // LazyVerticalGrid + verticalScroll infinite-constraints crash.
-      Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        (0 until AVATAR_POOL_SIZE).chunked(5).forEach { row ->
-          Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            row.forEach { idx ->
-              Box(
-                Modifier
-                  .size(48.dp)
-                  .then(
-                    if (idx == selectedIdx) {
-                      Modifier.border(2.dp, KlikInkPrimary, CircleShape)
-                    } else {
-                      Modifier
-                    },
-                  )
-                  .k1Clickable { onSelect(idx) },
-                contentAlignment = Alignment.Center,
-              ) {
-                K1AvatarIcon(idx, size = 48.dp)
-              }
-            }
-          }
-        }
-      }
-      Spacer(Modifier.height(K1Sp.m))
-      Text(
-        "Tap your icon to select",
-        style = K1Type.caption.copy(color = KlikInkTertiary),
-        modifier = Modifier.fillMaxWidth(),
-      )
-    }
-  }
-}

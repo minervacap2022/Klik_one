@@ -18,6 +18,7 @@ import io.github.fletchmckee.liquid.samples.app.platform.OAUTH_CALLBACK_SCHEME
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthBrowser
 import io.github.fletchmckee.liquid.samples.app.platform.OAuthSessionResult
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
+import io.github.fletchmckee.liquid.samples.app.platform.ImagePicker
 
 /**
  * Profile section tabs
@@ -642,6 +643,17 @@ class ProfileViewModel(
      */
     fun hasUnconnectedIntegrations(): Boolean {
         return getUnconnectedIntegrations().isNotEmpty()
+    }
+
+    fun pickAndUploadAvatar() {
+        launch {
+            val image = ImagePicker.pickAvatar() ?: return@launch
+            when (val r = authRepository.uploadAvatar(image)) {
+                is Result.Success -> updateState { copy(user = user?.copy(avatarUrl = r.data)) }
+                is Result.Error -> KlikLogger.e("ProfileViewModel", "uploadAvatar failed: ${r.exception.message}", r.exception)
+                is Result.Loading -> {}
+            }
+        }
     }
 }
 

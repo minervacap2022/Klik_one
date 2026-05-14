@@ -73,6 +73,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
 
 /** Klik One — Network. Drop-in replacement for `WorkLifeScreen`. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +106,7 @@ fun NetworkScreen(
   onRenameProject: ((String, String) -> Unit)? = null,
   onRenameOrganization: ((String, String) -> Unit)? = null,
 ) {
+  val s = LocalKlikStrings.current
   var renameTarget by remember {
     mutableStateOf<Triple<String, String, String>?>(null)
   }
@@ -301,7 +303,7 @@ fun NetworkScreen(
         val goals = goalsData?.goals.orEmpty()
         var goalsExpanded by remember { mutableStateOf(false) }
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Goals & Milestones", count = goals.size)
+          K1SectionHeader(s.goalsAndMilestones, count = goals.size)
           Spacer(Modifier.height(K1Sp.s))
           Column(
             Modifier
@@ -312,7 +314,7 @@ fun NetworkScreen(
           ) {
             if (goals.isEmpty()) {
               Text(
-                "No goals yet. Klik will surface them here as you record more sessions.",
+                s.noGoalsYet,
                 style = K1Type.bodySm.copy(color = KlikInkTertiary),
               )
             } else {
@@ -336,7 +338,7 @@ fun NetworkScreen(
                   verticalAlignment = Alignment.CenterVertically,
                 ) {
                   Text(
-                    if (goalsExpanded) "Show less" else "Show ${goals.size - 1} more",
+                    if (goalsExpanded) s.showLess else "Show ${goals.size - 1} more",
                     style = K1Type.metaSm.copy(color = KlikInkTertiary),
                   )
                   Spacer(Modifier.weight(1f))
@@ -362,7 +364,7 @@ fun NetworkScreen(
         ?.takeIf { it.isNotEmpty() }
       if (encourageMsg == null && recommendations == null && isLlmDataLoading) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Highlights")
+          K1SectionHeader(s.highlights)
           Spacer(Modifier.height(K1Sp.s))
           K1SkeletonCard(lines = 3)
         }
@@ -370,7 +372,7 @@ fun NetworkScreen(
       }
       if (encourageMsg != null || recommendations != null) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Highlights")
+          K1SectionHeader(s.highlights)
           Spacer(Modifier.height(K1Sp.s))
           // Encourage + worklife recommendations can run multiple
           // paragraphs — collapse behind a tap so the section header
@@ -532,12 +534,13 @@ private fun PeoplePanel(
   onEntityClick: (EntityNavigationData) -> Unit,
   onLongPressPerson: ((Person) -> Unit)? = null,
 ) {
+  val s = LocalKlikStrings.current
   // Top voices — sourced from the backend voice-dimension ranking
   // (PersonRepository.getTopInfluencers). Previously mislabeled "Seen this
   // week" — that was a lie since no time filter was ever applied.
   if (topInfluencers.isNotEmpty()) {
     Column(Modifier.padding(horizontal = 20.dp)) {
-      K1SectionHeader("Top voices", count = topInfluencers.size)
+      K1SectionHeader(s.topVoices, count = topInfluencers.size)
       Spacer(Modifier.height(K1Sp.m))
       LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items(topInfluencers.take(8)) { p ->
@@ -570,7 +573,7 @@ private fun PeoplePanel(
   // NEEDS ATTENTION — amber cards, matches reference
   if (needsAttention.isNotEmpty()) {
     Column(Modifier.padding(horizontal = 20.dp)) {
-      K1SectionHeader("Needs attention", count = needsAttention.size, dotColor = KlikWarn)
+      K1SectionHeader(s.needsAttention, count = needsAttention.size, dotColor = KlikWarn)
       Spacer(Modifier.height(K1Sp.s))
       needsAttention.forEach { (person, _, lapsed) ->
         NeedsAttentionRow(person, lapsed)
@@ -583,7 +586,7 @@ private fun PeoplePanel(
   // ALL PEOPLE
   Column(Modifier.padding(horizontal = 20.dp)) {
     K1SectionHeader(
-      "All people",
+      s.allPeople,
       count = people.size,
       trailing = {
         Text("Sort ↓", style = K1Type.metaSm.copy(color = KlikInkTertiary))
@@ -623,6 +626,7 @@ private fun NeedsAttentionRow(person: Person, lapsed: String) {
 
 @Composable
 private fun KlikItButton(onClick: () -> Unit) {
+  val s = LocalKlikStrings.current
   Box(
     Modifier
       .clip(K1R.chip)
@@ -632,7 +636,7 @@ private fun KlikItButton(onClick: () -> Unit) {
     contentAlignment = Alignment.Center,
   ) {
     Text(
-      "Klik it",
+      s.klikIt,
       style = K1Type.meta.copy(
         color = KlikPaperCard,
         fontWeight = FontWeight.Medium,
@@ -691,8 +695,9 @@ private fun ProjectsPanel(
   onEntityClick: (EntityNavigationData) -> Unit,
   onLongPressProject: ((Project) -> Unit)? = null,
 ) {
+  val s = LocalKlikStrings.current
   Column(Modifier.padding(horizontal = 20.dp)) {
-    K1SectionHeader("All projects", count = projects.size, dotColor = KlikDotProject)
+    K1SectionHeader(s.allProjects, count = projects.size, dotColor = KlikDotProject)
     Spacer(Modifier.height(K1Sp.s))
     projects.forEach { pr ->
       K1Card(
@@ -756,8 +761,9 @@ private fun OrgsPanel(
   onEntityClick: (EntityNavigationData) -> Unit,
   onLongPressOrg: ((Organization) -> Unit)? = null,
 ) {
+  val s = LocalKlikStrings.current
   Column(Modifier.padding(horizontal = 20.dp)) {
-    K1SectionHeader("Organizations", count = orgs.size, dotColor = KlikDotOrg)
+    K1SectionHeader(s.organizations, count = orgs.size, dotColor = KlikDotOrg)
     Spacer(Modifier.height(K1Sp.s))
     orgs.forEach { org ->
       val rowMod = if (onLongPressOrg != null) {

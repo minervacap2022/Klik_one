@@ -121,6 +121,9 @@ data class TaskMetadata(
   val reauthInfo: ReauthInfo? = null,
   // ISO 8601 timestamp when the todo was created — used to sort Moves newest-first.
   val createdAt: String? = null,
+  // ISO 8601 timestamp when the todo reached a terminal done state (COMPLETED/APPROVED).
+  // Null for tasks from non-KK_exec paths or tasks not yet completed.
+  val completedAt: String? = null,
 ) {
   /**
    * Check if this task is from KK_exec (has KK_exec integration fields).
@@ -253,7 +256,9 @@ val pinnedMeetingIdsState = mutableStateOf<Map<String, Long>>(emptyMap())
  */
 val darkModeEnabledState = mutableStateOf(false)
 val selectedFontIndexState = mutableStateOf(0)
+val fontSizeIndexState = mutableStateOf(1) // 0=S, 1=M (default), 2=L, 3=XL
 val hapticEnabledState = mutableStateOf(true)
+val appLanguageState = mutableStateOf("en")
 
 /**
  * Pinned entity IDs with timestamp - persists across refreshes

@@ -137,6 +137,7 @@ fun LiquidTheme(
   androidx.compose.runtime.SideEffect {
     if (K1PaletteState.value !== k1Palette) K1PaletteState.value = k1Palette
     if (K1FontFamilyState.value !== k1FontFamily) K1FontFamilyState.value = k1FontFamily
+    if (K1FontSizeState.value != fontSizeScale) K1FontSizeState.value = fontSizeScale
   }
 
   MaterialTheme(

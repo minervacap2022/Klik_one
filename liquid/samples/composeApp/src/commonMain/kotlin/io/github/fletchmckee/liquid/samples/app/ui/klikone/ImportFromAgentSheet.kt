@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,14 +69,23 @@ fun ImportFromAgentSheet(
       .k1Clickable(onClick = onDismiss),
     contentAlignment = Alignment.BottomCenter,
   ) {
-    Column(
-      Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-        .background(KlikPaperCard)
-        .k1Clickable(enabled = false) {}
-        .padding(horizontal = 24.dp, vertical = 24.dp),
-    ) {
+    // Wrapper: corner-fill rect + rounded sheet stacked. The 20dp rect covers
+    // the triangular gaps where the rounded clip would expose the scrim.
+    Box(Modifier.fillMaxWidth()) {
+      Box(
+        Modifier
+          .fillMaxWidth()
+          .height(20.dp)
+          .background(KlikPaperCard),
+      )
+      Column(
+        Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+          .background(KlikPaperCard)
+          .k1Clickable(enabled = false) {}
+          .padding(horizontal = 24.dp, vertical = 24.dp),
+      ) {
       Box(
         Modifier
           .padding(bottom = K1Sp.m)
@@ -85,8 +95,8 @@ fun ImportFromAgentSheet(
         Box(
           Modifier
             .height(4.dp)
-            .background(KlikInkMuted.copy(alpha = 0.35f), K1R.pill)
-            .padding(horizontal = 28.dp),
+            .width(56.dp)
+            .background(KlikInkMuted.copy(alpha = 0.35f), K1R.pill),
         )
       }
       Text("Import from Agent", style = K1Type.h3)
@@ -223,6 +233,7 @@ fun ImportFromAgentSheet(
       }
       Spacer(Modifier.height(K1Sp.lg))
     }
+    } // wrapper Box
   }
 }
 

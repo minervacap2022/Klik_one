@@ -106,4 +106,21 @@ fun k1FontFamilyForIndex(index: Int): FontFamily = when (index) {
   else -> FontFamily.Default
 }
 
+/** Global font-size multiplier driven by the user's font-size preference. */
+internal val K1FontSizeState = mutableStateOf(1f)
+
+/**
+ * Maps the stable wire index to a size multiplier applied to all K1Type styles.
+ *
+ *  0 → S (0.85)   1 → M (1.00, default)   2 → L (1.15)   3 → XL (1.30)
+ *
+ * Any out-of-range index clamps to the nearest bound.
+ */
+fun fontSizeScaleFor(index: Int): Float = when (index.coerceIn(0, 3)) {
+  0 -> 0.85f
+  1 -> 1.0f
+  2 -> 1.15f
+  else -> 1.3f
+}
+
 internal val LocalK1FontFamily = staticCompositionLocalOf { FontFamily.Default }

@@ -72,6 +72,10 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 /** Klik One — Moves. Drop-in replacement for `EventsScreen`. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,6 +101,7 @@ fun MovesScreen(
   onEntityClick: (EntityNavigationData) -> Unit = {},
   onSegmentClick: (TracedSegmentNavigation) -> Unit = {},
 ) {
+  val s = LocalKlikStrings.current
   var filter by remember { mutableStateOf("all") }
   var searchActive by remember { mutableStateOf(false) }
   var searchQuery by remember { mutableStateOf("") }
@@ -138,9 +143,13 @@ fun MovesScreen(
   val running = active
     .filter { it.id !in doneIds && it.id !in failedIds }
     .sortedWith(pinComparator.thenByDescending(recencyKey))
-  val done = active
+  val todayStr = Clock.System.todayIn(TimeZone.currentSystemDefault()).toString() // "YYYY-MM-DD"
+  val allDone = active
     .filter { it.id in doneIds }
     .sortedWith(pinComparator.thenByDescending(recencyKey))
+  val doneToday = allDone.filter { t -> t.completedAt?.startsWith(todayStr) == true }
+  val doneEarlier = allDone.filter { t -> t.completedAt?.startsWith(todayStr) != true }
+  val done = allDone
   val failed = active
     .filter { it.id in failedIds }
     .sortedWith(pinComparator.thenByDescending(recencyKey))
@@ -210,7 +219,7 @@ fun MovesScreen(
               modifier = Modifier.fillMaxWidth(),
               decorationBox = { inner ->
                 if (searchQuery.isEmpty()) {
-                  Text("Search moves…", style = K1Type.bodyMd.copy(color = KlikInkMuted))
+                  Text(s.searchMoves, style = K1Type.bodyMd.copy(color = KlikInkMuted))
                 }
                 inner()
               },
@@ -218,7 +227,7 @@ fun MovesScreen(
           }
           Spacer(Modifier.width(12.dp))
           Text(
-            "Cancel",
+            s.cancel,
             style = K1Type.bodySm.copy(color = KlikInkSecondary),
             modifier = Modifier.k1Clickable {
               searchActive = false
@@ -246,29 +255,29 @@ fun MovesScreen(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
       ) {
         K1Chip(
-          label = "All · $totalAll",
+          label = "${s.all} · $totalAll",
           selected = filter == "all",
           onClick = { filter = "all" },
         )
         K1Chip(
-          label = "Needs attention · ${needsOk.size}",
+          label = "${s.needsAttention} · ${needsOk.size}",
           selected = filter == "needs",
           onClick = { filter = "needs" },
         )
         K1Chip(
-          label = "Running · ${running.size}",
+          label = "${s.running} · ${running.size}",
           selected = filter == "running",
           onClick = { filter = "running" },
         )
         if (failed.isNotEmpty()) {
           K1Chip(
-            label = "Failed · ${failed.size}",
+            label = "${s.failed} · ${failed.size}",
             selected = filter == "failed",
             onClick = { filter = "failed" },
           )
         }
         K1Chip(
-          label = "Done",
+          label = s.done,
           selected = filter == "done",
           onClick = { filter = "done" },
         )
@@ -280,7 +289,7 @@ fun MovesScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
           val needsUnread = needsOk.count(::unread)
           K1SectionHeader(
-            "Needs your OK",
+            s.needsYourOK,
             count = needsOk.size,
             dotColor = KlikWarn,
             trailing = if (needsUnread > 0) ({ UnreadCountLabel(needsUnread) }) else null,
@@ -329,7 +338,7 @@ fun MovesScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
           val runningUnread = running.count(::unread)
           K1SectionHeader(
-            "Running",
+            s.running,
             count = running.size,
             dotColor = KlikRunning,
             trailing = if (runningUnread > 0) ({ UnreadCountLabel(runningUnread) }) else null,
@@ -338,7 +347,7 @@ fun MovesScreen(
           grouped.entries.forEach { (groupLabel, tasks) ->
             TaskCategoryGroup(
               label = if (groupLabel == "Uncategorized") {
-                "Uncategorized"
+                s.uncategorized
               } else {
                 groupLabel.split(", ").joinToString(" + ") { cat ->
                   cat.split("_").joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
@@ -370,7 +379,7 @@ fun MovesScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
           val failedUnread = failed.count(::unread)
           K1SectionHeader(
-            "Failed",
+            s.failed,
             count = failed.size,
             dotColor = KlikAlert,
             trailing = if (failedUnread > 0) ({ UnreadCountLabel(failedUnread) }) else null,
@@ -403,18 +412,45 @@ fun MovesScreen(
 
       if ((filter == "all" || filter == "done") && done.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Done today", count = done.size)
-          Spacer(Modifier.height(K1Sp.s))
-          done.forEach { t ->
-            K1SwipeRow(
-              isPinned = t.id in pinnedTaskIds,
-              onPin = { toggleTaskPin(t.id) },
-              onArchive = {
-                archiveTask(t.id, t)
-                onArchiveTaskOnBackend(t.id)
-              },
-            ) {
-              DoneRow(t = t, onRetry = { onRetryTask(t.id) })
+          if (doneToday.isNotEmpty()) {
+            K1SectionHeader(s.doneToday, count = doneToday.size)
+            Spacer(Modifier.height(K1Sp.s))
+            doneToday.forEach { t ->
+              K1SwipeRow(
+                isPinned = t.id in pinnedTaskIds,
+                onPin = { toggleTaskPin(t.id) },
+                onArchive = {
+                  archiveTask(t.id, t)
+                  onArchiveTaskOnBackend(t.id)
+                },
+              ) {
+                DoneRow(
+                  t = t,
+                  onRetry = { onRetryTask(t.id) },
+                  onClick = { onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+                )
+              }
+            }
+          }
+          if (doneEarlier.isNotEmpty()) {
+            if (doneToday.isNotEmpty()) Spacer(Modifier.height(K1Sp.m))
+            K1SectionHeader(s.done, count = doneEarlier.size)
+            Spacer(Modifier.height(K1Sp.s))
+            doneEarlier.forEach { t ->
+              K1SwipeRow(
+                isPinned = t.id in pinnedTaskIds,
+                onPin = { toggleTaskPin(t.id) },
+                onArchive = {
+                  archiveTask(t.id, t)
+                  onArchiveTaskOnBackend(t.id)
+                },
+              ) {
+                DoneRow(
+                  t = t,
+                  onRetry = { onRetryTask(t.id) },
+                  onClick = { onEntityClick(EntityNavigationData(EntityType.TASK, t.id)) },
+                )
+              }
             }
           }
         }
@@ -428,9 +464,9 @@ fun MovesScreen(
         ) {
           K1Waveform(heights = listOf(6f, 10f, 5f, 8f), color = KlikInkMuted)
           Spacer(Modifier.height(K1Sp.s))
-          Text("You're clear.", style = K1Type.h3)
+          Text(s.youAreClear, style = K1Type.h3)
           Spacer(Modifier.height(4.dp))
-          Text("Klik is watching for more.", style = K1Type.caption)
+          Text(s.klikIsWatching, style = K1Type.caption)
         }
       }
     }
@@ -493,10 +529,11 @@ private fun NeedsOkCard(
     Spacer(Modifier.height(10.dp))
 
     // Action row
+    val btnS = LocalKlikStrings.current
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-      ActionButton("Approve & send", primary = true) { onApprove(t.id) }
-      ActionButton("Edit", primary = false) { /* edit */ }
-      ActionButton("Skip", primary = false, muted = true) { onArchive(t.id) }
+      ActionButton(btnS.approveAndSend, primary = true) { onApprove(t.id) }
+      ActionButton(btnS.edit, primary = false) { /* edit */ }
+      ActionButton(btnS.skip, primary = false, muted = true) { onArchive(t.id) }
     }
 
     // Source link — "From Product sync · 9:22"
@@ -889,9 +926,9 @@ private fun UnreadCountLabel(count: Int) {
 }
 
 @Composable
-private fun DoneRow(t: TaskMetadata, onRetry: () -> Unit = {}) {
+private fun DoneRow(t: TaskMetadata, onRetry: () -> Unit = {}, onClick: () -> Unit = {}) {
   Row(
-    Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
+    Modifier.fillMaxWidth().k1Clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 4.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     // Check-in-circle
@@ -1001,7 +1038,7 @@ private fun LinkChainIcon() {
 private fun execStageLabel(rawStatus: String?): String {
   val s = rawStatus?.uppercase()?.trim().orEmpty()
   return when (s) {
-    "PENDING", "QUEUED" -> "Queued"
+    "PENDING", "QUEUED" -> "Starting"
     "EVALUATING" -> "Evaluating"
     "RUNNING", "IN_PROGRESS" -> "Running"
     "IN_REVIEW" -> "Needs your OK"

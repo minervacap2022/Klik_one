@@ -134,13 +134,14 @@ fun ArchivedScreen(
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .background(KlikPaperApp)
-      .statusBarsPadding()
-      .navigationBarsPadding(),
+      .background(KlikPaperApp),
   ) {
     Column(modifier = Modifier.fillMaxSize()) {
       Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+        modifier = Modifier
+          .fillMaxWidth()
+          .statusBarsPadding()
+          .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Text(
@@ -250,7 +251,9 @@ private fun ArchivedTasksList(
     return
   }
   LazyColumn(
-    modifier = Modifier.fillMaxSize(),
+    modifier = Modifier
+      .fillMaxSize()
+      .navigationBarsPadding(),
     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
@@ -290,7 +293,9 @@ private fun ArchivedSessionsList(
     return
   }
   LazyColumn(
-    modifier = Modifier.fillMaxSize(),
+    modifier = Modifier
+      .fillMaxSize()
+      .navigationBarsPadding(),
     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
@@ -347,7 +352,9 @@ private fun ArchivedEntitiesList(
     return
   }
   LazyColumn(
-    modifier = Modifier.fillMaxSize(),
+    modifier = Modifier
+      .fillMaxSize()
+      .navigationBarsPadding(),
     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {

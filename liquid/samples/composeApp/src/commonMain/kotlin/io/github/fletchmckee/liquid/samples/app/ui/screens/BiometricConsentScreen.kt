@@ -58,14 +58,13 @@ fun BiometricConsentScreen(
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .background(KlikPaperApp)
-      .statusBarsPadding()
-      .navigationBarsPadding(),
+      .background(KlikPaperApp),
   ) {
     // Top rail — K1 editorial text-only chrome
     Row(
       modifier = Modifier
         .fillMaxWidth()
+        .statusBarsPadding()
         .padding(horizontal = 20.dp, vertical = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -91,6 +90,7 @@ fun BiometricConsentScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
+        .navigationBarsPadding()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp, vertical = 8.dp),
     ) {

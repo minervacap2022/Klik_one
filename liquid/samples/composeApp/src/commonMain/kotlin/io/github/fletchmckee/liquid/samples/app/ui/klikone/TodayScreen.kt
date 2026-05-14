@@ -61,6 +61,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
 import io.github.fletchmckee.liquid.samples.app.theme.KlikWarn
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationData
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
+import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
@@ -116,6 +117,7 @@ fun TodayScreen(
   onOpenLiveRecording: () -> Unit = {},
   onCalendarToggle: () -> Unit = {},
 ) {
+  val s = LocalKlikStrings.current
   val scroll = rememberScrollState()
   val todayDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
   // Picker view state — tracks the displayed month/year separately from selectedDate
@@ -318,7 +320,7 @@ fun TodayScreen(
       if (isTodaySelected) {
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader(
-            "Right now",
+            s.rightNow,
             dotColor = if (isRecording) KlikAlert else KlikLineMute,
           )
           Spacer(Modifier.height(K1Sp.s))
@@ -341,7 +343,7 @@ fun TodayScreen(
       val hasInsights = !insights?.summary.isNullOrBlank()
       if (hasInsights || isLlmDataLoading || isLoading) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Insights")
+          K1SectionHeader(s.insights)
           Spacer(Modifier.height(K1Sp.s))
           if (hasInsights) {
             val ins = insights!!
@@ -372,7 +374,7 @@ fun TodayScreen(
       val decisions = insights?.decisions.orEmpty()
       if (decisions.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Decision log", count = decisions.size)
+          K1SectionHeader(s.decisionLog, count = decisions.size)
           Spacer(Modifier.height(K1Sp.s))
           K1Card(soft = true) {
             decisions.forEachIndexed { index, decision ->
@@ -407,7 +409,7 @@ fun TodayScreen(
       // breathing rows so the page reads as "loading" instead of "empty".
       if (isLoading && dayMeetings.isEmpty() && mergedMeetings.isEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader(if (isTodaySelected) "Sessions" else "Scheduled")
+          K1SectionHeader(if (isTodaySelected) s.sessions else s.scheduled)
           Spacer(Modifier.height(K1Sp.s))
           repeat(3) {
             K1SkeletonCard(lines = 2)
@@ -433,7 +435,7 @@ fun TodayScreen(
 
           if (processed.isNotEmpty()) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-              K1SectionHeader("Processed", count = processed.size, dotColor = KlikCommitmentAccent)
+              K1SectionHeader(s.processed, count = processed.size, dotColor = KlikCommitmentAccent)
               Spacer(Modifier.height(K1Sp.s))
               processed.forEach { m ->
                 SwipeableMeetingRow(
@@ -449,7 +451,7 @@ fun TodayScreen(
 
           if (upcoming.isNotEmpty()) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-              K1SectionHeader("Up next", count = upcoming.size)
+              K1SectionHeader(s.upNext, count = upcoming.size)
               Spacer(Modifier.height(K1Sp.s))
               upcoming.forEach { m ->
                 SwipeableMeetingRow(
@@ -471,7 +473,7 @@ fun TodayScreen(
           if (dayMeetings.isNotEmpty()) {
             val ordered = dayMeetings.sortedByDescending { pinnedMeetingIds[it.id] ?: 0L }
             Column(Modifier.padding(horizontal = 20.dp)) {
-              K1SectionHeader("Sessions", count = ordered.size, dotColor = KlikCommitmentAccent)
+              K1SectionHeader(s.sessions, count = ordered.size, dotColor = KlikCommitmentAccent)
               Spacer(Modifier.height(K1Sp.s))
               ordered.forEach { m ->
                 SwipeableMeetingRow(
@@ -490,7 +492,7 @@ fun TodayScreen(
           if (dayMeetings.isNotEmpty()) {
             val ordered = dayMeetings.sortedByDescending { pinnedMeetingIds[it.id] ?: 0L }
             Column(Modifier.padding(horizontal = 20.dp)) {
-              K1SectionHeader("Scheduled", count = ordered.size)
+              K1SectionHeader(s.scheduled, count = ordered.size)
               Spacer(Modifier.height(K1Sp.s))
               ordered.forEach { m ->
                 SwipeableMeetingRow(
@@ -515,7 +517,7 @@ fun TodayScreen(
         .take(3)
       if (pending.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
-          K1SectionHeader("Moves for you", count = pending.size, dotColor = KlikWarn)
+          K1SectionHeader(s.movesForYou, count = pending.size, dotColor = KlikWarn)
           Spacer(Modifier.height(K1Sp.s))
           pending.forEach { t ->
             K1SwipeRow(
@@ -539,6 +541,7 @@ fun TodayScreen(
 
 @Composable
 private fun LiveSessionCard(m: Meeting, onClick: () -> Unit = {}) {
+  val s = LocalKlikStrings.current
   // Focal card per spec §2 / §7 — Today's primary session uses #F6F7F9
   // with radius 14 and padding 18 to separate it from the raised rows below.
   K1Card(focal = true, onClick = onClick) {
@@ -546,7 +549,7 @@ private fun LiveSessionCard(m: Meeting, onClick: () -> Unit = {}) {
       K1RecDot()
       Spacer(Modifier.width(8.dp))
       Column(Modifier.weight(1f)) {
-        Text(m.title.ifBlank { "In conversation" }, style = K1Type.bodyMd)
+        Text(m.title.ifBlank { s.inConversation }, style = K1Type.bodyMd)
         Spacer(Modifier.height(2.dp))
         Text(
           "${m.participants.size} speakers · ${m.time}",
@@ -560,6 +563,7 @@ private fun LiveSessionCard(m: Meeting, onClick: () -> Unit = {}) {
 
 @Composable
 private fun QuietCard(onStart: () -> Unit) {
+  val s = LocalKlikStrings.current
   K1Card(soft = true, onClick = onStart) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       K1Waveform(
@@ -570,9 +574,9 @@ private fun QuietCard(onStart: () -> Unit) {
       )
       Spacer(Modifier.width(14.dp))
       Column(Modifier.weight(1f)) {
-        Text("Quiet.", style = K1Type.bodyMd)
+        Text(s.quiet, style = K1Type.bodyMd)
         Spacer(Modifier.height(2.dp))
-        Text("Tap to start listening.", style = K1Type.caption)
+        Text(s.tapToStartListening, style = K1Type.caption)
       }
       // Record dot glyph — tap-hint
       Box(
@@ -602,13 +606,14 @@ private fun RecordingActiveCard(
   onOpen: () -> Unit,
   onStop: () -> Unit,
 ) {
+  val s = LocalKlikStrings.current
   K1Card(onClick = onOpen) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       K1RecDot()
       Spacer(Modifier.width(10.dp))
       Column(Modifier.weight(1f)) {
         Text(
-          "RECORDING",
+          s.recordingEyebrow,
           style = K1Type.eyebrow.copy(
             color = KlikAlert,
             letterSpacing = 0.6.sp,
@@ -616,7 +621,7 @@ private fun RecordingActiveCard(
           ),
         )
         Spacer(Modifier.height(2.dp))
-        Text("Tap to open live view", style = K1Type.caption)
+        Text(s.tapToOpenLiveView, style = K1Type.caption)
       }
       K1WaveformLive(Modifier.size(width = 48.dp, height = 28.dp))
       Spacer(Modifier.width(10.dp))
@@ -630,7 +635,7 @@ private fun RecordingActiveCard(
         contentAlignment = Alignment.Center,
       ) {
         Text(
-          "Stop",
+          s.stop,
           style = K1Type.meta.copy(
             color = io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
@@ -740,6 +745,7 @@ private fun SwipeableMeetingRow(
 
 @Composable
 private fun MoveMiniCard(t: TaskMetadata) {
+  val s = LocalKlikStrings.current
   K1Card(soft = true) {
     Column {
       Text(t.title, style = K1Type.bodyMd)
@@ -753,9 +759,9 @@ private fun MoveMiniCard(t: TaskMetadata) {
       }
       Spacer(Modifier.height(K1Sp.s))
       Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        K1Chip(label = "Approve", selected = true, onClick = {})
-        K1Chip(label = "Edit", onClick = {})
-        K1Chip(label = "Skip", onClick = {})
+        K1Chip(label = s.approve, selected = true, onClick = {})
+        K1Chip(label = s.edit, onClick = {})
+        K1Chip(label = s.skip, onClick = {})
       }
     }
   }

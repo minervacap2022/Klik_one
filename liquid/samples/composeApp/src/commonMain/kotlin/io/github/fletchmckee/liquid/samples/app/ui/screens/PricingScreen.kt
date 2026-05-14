@@ -65,12 +65,13 @@ fun PricingScreen(
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(KlikPaperApp)
-      .statusBarsPadding()
-      .navigationBarsPadding(),
+      .background(KlikPaperApp),
   ) {
     Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+      modifier = Modifier
+        .fillMaxWidth()
+        .statusBarsPadding()
+        .padding(horizontal = 20.dp, vertical = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
@@ -82,7 +83,9 @@ fun PricingScreen(
     }
 
     LazyColumn(
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier
+        .fillMaxSize()
+        .navigationBarsPadding(),
       contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
     ) {
       item {

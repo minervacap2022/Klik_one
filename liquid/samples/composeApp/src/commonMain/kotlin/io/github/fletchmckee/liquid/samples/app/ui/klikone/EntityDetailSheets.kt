@@ -176,9 +176,8 @@ fun TaskDetailScreen(
   var showRejectReasonDialog by remember { mutableStateOf(false) }
   var rejectReason by remember { mutableStateOf("") }
   var showRename by remember { mutableStateOf(false) }
-  // Active rename target: (entityType, entityId, currentName). Null when no
-  // rename dialog is open.
   var relatedRenameTarget by remember { mutableStateOf<Triple<EntityType, String, String>?>(null) }
+  var expandedSteps by remember { mutableStateOf(emptySet<Int>()) }
   DetailScaffold(
     eyebrow = "Move",
     title = task.title,
@@ -233,54 +232,7 @@ fun TaskDetailScreen(
         }
       }
 
-      // Execution steps
-      if (task.executionSteps.isNotEmpty()) {
-        Spacer(Modifier.height(K1Sp.xl))
-        K1SectionHeader("Execution", count = task.executionSteps.size, dotColor = KlikRunning)
-        Spacer(Modifier.height(K1Sp.s))
-        task.executionSteps.forEach { step ->
-          Row(
-            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            verticalAlignment = Alignment.Top,
-          ) {
-            val dotColor = when {
-              !step.success -> KlikRiskAccent
-              else -> KlikCommitmentAccent
-            }
-            Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
-            Spacer(Modifier.width(K1Sp.m))
-            Column(Modifier.weight(1f)) {
-              Text(
-                "Step ${step.stepNumber} · ${step.toolName}",
-                style = K1Type.bodySm,
-              )
-              val rawDetail = step.errorMessage ?: step.output
-              val detail = rawDetail?.let { normalizeMarkdown(it) }
-              if (!detail.isNullOrBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Markdown(
-                  content = detail,
-                  colors = markdownColor(
-                    text = if (step.success) KlikInkTertiary else KlikRiskSubtext,
-                    codeBackground = KlikPaperChip,
-                  ),
-                  typography = markdownTypography(
-                    paragraph = K1Type.metaSm,
-                    code = K1Type.metaSm,
-                    list = K1Type.metaSm,
-                  ),
-                )
-              }
-              step.durationMs?.let {
-                Spacer(Modifier.height(2.dp))
-                Text("$it ms", style = K1Type.metaSm)
-              }
-            }
-          }
-        }
-      }
-
-      // Task result / outcome
+      // Task result / outcome — above execution so users see the answer first
       if (!task.taskResult.isNullOrBlank()) {
         Spacer(Modifier.height(K1Sp.xl))
         K1Eyebrow("Result")
@@ -291,6 +243,60 @@ fun TaskDetailScreen(
             colors = markdownColor(text = KlikInkPrimary, codeBackground = KlikPaperChip),
             typography = markdownTypography(paragraph = K1Type.bodySm, list = K1Type.bodySm),
           )
+        }
+      }
+
+      // Execution steps — collapsed by default, tap each step to expand
+      if (task.executionSteps.isNotEmpty()) {
+        Spacer(Modifier.height(K1Sp.xl))
+        K1SectionHeader("Execution", count = task.executionSteps.size, dotColor = KlikRunning)
+        Spacer(Modifier.height(K1Sp.s))
+        task.executionSteps.forEach { step ->
+          val isExpanded = step.stepNumber in expandedSteps
+          val dotColor = if (!step.success) KlikRiskAccent else KlikCommitmentAccent
+          Column(
+            Modifier
+              .fillMaxWidth()
+              .k1Clickable {
+                expandedSteps = if (isExpanded) expandedSteps - step.stepNumber
+                else expandedSteps + step.stepNumber
+              }
+              .padding(vertical = 8.dp),
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(Modifier.size(6.dp).clip(CircleShape).background(dotColor))
+              Spacer(Modifier.width(K1Sp.m))
+              Text(
+                "Step ${step.stepNumber} · ${step.toolName}",
+                style = K1Type.bodySm,
+                modifier = Modifier.weight(1f),
+              )
+              step.durationMs?.let { ms ->
+                Text("$ms ms", style = K1Type.metaSm.copy(color = KlikInkMuted))
+              }
+            }
+            if (isExpanded) {
+              val rawDetail = step.errorMessage ?: step.output
+              val detail = rawDetail?.let { normalizeMarkdown(it) }
+              if (!detail.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.fillMaxWidth().padding(start = 14.dp)) {
+                  Markdown(
+                    content = detail,
+                    colors = markdownColor(
+                      text = if (step.success) KlikInkTertiary else KlikRiskSubtext,
+                      codeBackground = KlikPaperChip,
+                    ),
+                    typography = markdownTypography(
+                      paragraph = K1Type.metaSm,
+                      code = K1Type.metaSm,
+                      list = K1Type.metaSm,
+                    ),
+                  )
+                }
+              }
+            }
+          }
         }
       }
 
@@ -401,7 +407,7 @@ fun TaskDetailScreen(
       // jumps the Transcript tab to that line.
       val sessionId = task.relatedMeetingId
       if (!sessionId.isNullOrBlank()) {
-        val meetingMatch = meetings.find { it.id == sessionId }
+        val meetingMatch = meetings.find { it.todoLinkId == sessionId || it.id == sessionId }
         Spacer(Modifier.height(K1Sp.xl))
         K1Eyebrow("Source session")
         Spacer(Modifier.height(K1Sp.s))
@@ -420,7 +426,7 @@ fun TaskDetailScreen(
           },
         ) {
           Text(
-            meetingMatch?.title?.ifBlank { null } ?: sessionId.take(24),
+            meetingMatch?.title?.ifBlank { null } ?: formatSessionId(sessionId),
             style = K1Type.bodyMd,
           )
           if (meetingMatch != null) {
@@ -1336,6 +1342,30 @@ private fun normalizeMarkdown(raw: String): String {
 
 private fun initialsOf(name: String): String = name.trim().split(" ").filter { it.isNotEmpty() }.take(2)
   .joinToString("") { it.take(1).uppercase() }
+
+/** Converts a raw session ID like SESSION_20260513_131314_abc to "Session · May 13, 13:13". */
+private fun formatSessionId(sessionId: String): String {
+  // Expected format: SESSION_YYYYMMDD_HHMMSS_...
+  val parts = sessionId.removePrefix("SESSION_").split("_")
+  if (parts.size < 2) return sessionId.take(24)
+  val datePart = parts[0]
+  val timePart = parts[1]
+  if (datePart.length < 8 || timePart.length < 4) return sessionId.take(24)
+  return try {
+    val month = when (datePart.substring(4, 6)) {
+      "01" -> "Jan"; "02" -> "Feb"; "03" -> "Mar"; "04" -> "Apr"
+      "05" -> "May"; "06" -> "Jun"; "07" -> "Jul"; "08" -> "Aug"
+      "09" -> "Sep"; "10" -> "Oct"; "11" -> "Nov"; "12" -> "Dec"
+      else -> datePart.substring(4, 6)
+    }
+    val day = datePart.substring(6, 8).trimStart('0').ifEmpty { "0" }
+    val hour = timePart.substring(0, 2)
+    val min = timePart.substring(2, 4)
+    "Session · $month $day, $hour:$min"
+  } catch (e: Exception) {
+    sessionId.take(24)
+  }
+}
 
 /** Returns (Simple Icons CDN URL, display label) for a backend tool category slug.
  *  Icons served from cdn.simpleicons.org — real brand logos in SVG. */

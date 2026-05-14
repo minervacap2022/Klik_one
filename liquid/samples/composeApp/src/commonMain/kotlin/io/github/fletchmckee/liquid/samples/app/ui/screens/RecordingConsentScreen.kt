@@ -64,14 +64,13 @@ fun RecordingConsentScreen(
   Column(
     modifier = Modifier
       .fillMaxSize()
-      .background(KlikPaperApp)
-      .statusBarsPadding()
-      .navigationBarsPadding(),
+      .background(KlikPaperApp),
   ) {
     // Top rail — editorial. No chrome buttons; text-only affordances.
     Row(
       modifier = Modifier
         .fillMaxWidth()
+        .statusBarsPadding()
         .padding(horizontal = 20.dp, vertical = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -97,6 +96,7 @@ fun RecordingConsentScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
+        .navigationBarsPadding()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp, vertical = 8.dp),
     ) {

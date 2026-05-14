@@ -2188,6 +2188,8 @@ data class KKExecTodoItem(
     },
     reauthInfo = reauthInfo,
     createdAt = createdAt,
+    completedAt = if (status in setOf(KKExecStatus.COMPLETED, KKExecStatus.APPROVED) ||
+      executionStatus?.uppercase() in setOf("COMPLETED", "APPROVED")) updatedAt else null,
   )
 }
 // Goal/Level DTOs

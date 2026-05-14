@@ -25,6 +25,7 @@ data class RemoteUserPreferencesDto(
   val liquidGlassPreferences: RemoteLiquidGlassPreferencesDto = RemoteLiquidGlassPreferencesDto(),
   val darkModeEnabled: Boolean = false,
   val hapticFeedbackEnabled: Boolean = true,
+  val language: String = "en",
 )
 
 /**

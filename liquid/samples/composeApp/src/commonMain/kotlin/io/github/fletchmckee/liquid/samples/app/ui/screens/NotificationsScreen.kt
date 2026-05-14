@@ -63,12 +63,13 @@ fun NotificationsScreen(
   Column(
     modifier = modifier
       .fillMaxSize()
-      .background(KlikPaperApp)
-      .statusBarsPadding()
-      .navigationBarsPadding(),
+      .background(KlikPaperApp),
   ) {
     Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+      modifier = Modifier
+        .fillMaxWidth()
+        .statusBarsPadding()
+        .padding(horizontal = 20.dp, vertical = 16.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
@@ -127,7 +128,9 @@ fun NotificationsScreen(
           isRefreshing = isRefreshing,
           state = pullRefreshState,
           onRefresh = onRefresh,
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .navigationBarsPadding(),
           indicator = {
             K1PullRefreshIndicator(
               state = pullRefreshState,
@@ -196,7 +199,7 @@ private fun K1NotificationCard(
         verticalAlignment = Alignment.Top,
       ) {
         Text(
-          text = notification.title.orEmpty(),
+          text = eventTypePrefix(notification.eventType) + notification.title.orEmpty(),
           style = K1Type.bodyMd.copy(
             color = KlikInkPrimary,
             fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.Medium,
@@ -232,6 +235,103 @@ private fun K1NotificationCard(
         style = K1Type.metaSm.copy(color = KlikInkTertiary),
       )
     }
+  }
+}
+
+/** Subject prefix in the user's language, prepended to notification title text. */
+private fun eventTypePrefix(eventType: String): String {
+  val lang = io.github.fletchmckee.liquid.samples.app.data.source.remote.RemoteDataFetcher.currentLanguage
+  val session = when (lang) {
+    "zh" -> "会话: "
+    "es" -> "Sesión: "
+    "fr" -> "Session: "
+    "de" -> "Sitzung: "
+    "ja" -> "セッション: "
+    "ko" -> "세션: "
+    "pt" -> "Sessão: "
+    "ru" -> "Сессия: "
+    "ar" -> "جلسة: "
+    "hi" -> "सत्र: "
+    "it" -> "Sessione: "
+    "nl" -> "Sessie: "
+    "th" -> "เซสชัน: "
+    "vi" -> "Phiên: "
+    "id", "ms" -> "Sesi: "
+    "tr" -> "Oturum: "
+    "pl" -> "Sesja: "
+    "sv" -> "Session: "
+    else -> "Session: "
+  }
+  val task = when (lang) {
+    "zh" -> "任务: "
+    "es" -> "Tarea: "
+    "fr" -> "Tâche: "
+    "de" -> "Aufgabe: "
+    "ja" -> "タスク: "
+    "ko" -> "작업: "
+    "pt" -> "Tarefa: "
+    "ru" -> "Задача: "
+    "ar" -> "مهمة: "
+    "hi" -> "कार्य: "
+    "it" -> "Attività: "
+    "nl" -> "Taak: "
+    "th" -> "งาน: "
+    "vi" -> "Nhiệm vụ: "
+    "id", "ms" -> "Tugas: "
+    "tr" -> "Görev: "
+    "pl" -> "Zadanie: "
+    "sv" -> "Uppgift: "
+    else -> "Task: "
+  }
+  val insight = when (lang) {
+    "zh" -> "洞察: "
+    "es" -> "Perspectiva: "
+    "fr" -> "Insight: "
+    "de" -> "Erkenntnis: "
+    "ja" -> "インサイト: "
+    "ko" -> "인사이트: "
+    "pt" -> "Insight: "
+    "ru" -> "Инсайт: "
+    "ar" -> "رؤية: "
+    "hi" -> "अंतर्दृष्टि: "
+    "it" -> "Intuizione: "
+    "nl" -> "Inzicht: "
+    "th" -> "ข้อมูลเชิงลึก: "
+    "vi" -> "Thông tin: "
+    "id", "ms" -> "Wawasan: "
+    "tr" -> "Bilgi: "
+    "pl" -> "Spostrzeżenie: "
+    "sv" -> "Insikt: "
+    else -> "Insight: "
+  }
+  val goal = when (lang) {
+    "zh" -> "目标: "
+    "es" -> "Meta: "
+    "fr" -> "Objectif: "
+    "de" -> "Ziel: "
+    "ja" -> "目標: "
+    "ko" -> "목표: "
+    "pt" -> "Meta: "
+    "ru" -> "Цель: "
+    "ar" -> "هدف: "
+    "hi" -> "लक्ष्य: "
+    "it" -> "Obiettivo: "
+    "nl" -> "Doel: "
+    "th" -> "เป้าหมาย: "
+    "vi" -> "Mục tiêu: "
+    "id", "ms" -> "Tujuan: "
+    "tr" -> "Hedef: "
+    "pl" -> "Cel: "
+    "sv" -> "Mål: "
+    else -> "Goal: "
+  }
+  return when (eventType) {
+    "meeting_generated" -> session
+    "sensitive_task_created", "daily_task_created",
+    "daily_task_completed", "daily_task_cannot_do" -> task
+    "insight_generated" -> insight
+    "goal_updated", "goal_created" -> goal
+    else -> ""
   }
 }
 
