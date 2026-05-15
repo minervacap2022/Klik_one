@@ -1164,7 +1164,7 @@ data class MeetingDto(
         MeetingMinute(
           category = "Discussions",
           items = discussions.map {
-            if (it.speaker != null) {
+            if (it.speaker != null && it.speaker.isNotBlank()) {
               "${it.speaker}: ${it.content}"
             } else {
               it.content

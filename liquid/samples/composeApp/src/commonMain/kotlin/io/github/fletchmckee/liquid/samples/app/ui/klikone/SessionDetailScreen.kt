@@ -60,9 +60,10 @@ private enum class SessionTab { Summary, Todos, Transcript, Highlights }
 
 /**
  * Resolve a Person to its best available display name. Order:
- *   1. caller-supplied speakerMap (server-side canonical, freshest signal
- *      after a rename / voiceprint match);
- *   2. person.canonicalName if non-blank;
+ *   1. person.canonicalName (from meeting participants API — session-specific
+ *      and always correct after Phase 6 remap);
+ *   2. caller-supplied speakerMap (global people cache — used as fallback only
+ *      because it may contain stale placeholder names);
  *   3. person.name if it doesn't look like the "Unknown Speaker VP_…"
  *      placeholder the backend emits before voiceprint resolution;
  *   4. "Unknown" fallback.
@@ -71,8 +72,8 @@ internal fun resolveSpeakerName(
   p: io.github.fletchmckee.liquid.samples.app.domain.entity.Person,
   speakerMap: Map<String, String>,
 ): String {
-  speakerMap[p.id]?.takeIf { it.isNotBlank() }?.let { return it }
   p.canonicalName.takeIf { it.isNotBlank() }?.let { return it }
+  speakerMap[p.id]?.takeIf { it.isNotBlank() }?.let { return it }
   val raw = p.name.trim()
   return if (raw.isBlank() || raw.startsWith("Unknown Speaker", ignoreCase = true)) "Unknown" else raw
 }

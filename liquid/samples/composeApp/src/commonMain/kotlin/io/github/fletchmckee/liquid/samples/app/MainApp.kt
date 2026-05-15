@@ -2924,7 +2924,9 @@ private fun MainAppContent() {
                                         projects = projectsState.value,
                                         people = peopleState.value,
                                         organizations = organizationsState.value,
-                                        speakerMap = speakerMap,
+                                        speakerMap = speakerMap + m.participants
+                                            .filter { it.canonicalName.isNotBlank() }
+                                            .associate { it.id to it.canonicalName },
                                         expandSegmentId = expandSegmentText,
                                         onBack = {
                                             sessionDetailMeeting = null
