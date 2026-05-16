@@ -326,7 +326,7 @@ fun MovesScreen(
         Column(Modifier.padding(horizontal = 20.dp)) {
           val needsUnread = needsOk.count(::unread)
           K1SectionHeader(
-            s.needsYourOK,
+            s.needsAttention,
             count = needsOk.size,
             dotColor = KlikWarn,
             trailing = if (needsUnread > 0) ({ UnreadCountLabel(needsUnread) }) else null,
