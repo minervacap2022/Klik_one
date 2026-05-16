@@ -163,7 +163,7 @@ fun MovesScreen(
   fun unread(t: TaskMetadata): Boolean = t.id !in seenIds
 
   val baseFiltered = when (filter) {
-    "needs" -> featured + needsOk
+    "needs" -> needsOk
     "running" -> running
     "failed" -> failed
     "done" -> done
@@ -264,7 +264,7 @@ fun MovesScreen(
           onClick = { filter = "all" },
         )
         K1Chip(
-          label = "${s.needsAttention} · ${featured.size + needsOk.size}",
+          label = "${s.needsAttention} · ${needsOk.size}",
           selected = filter == "needs",
           onClick = { filter = "needs" },
         )
@@ -289,7 +289,7 @@ fun MovesScreen(
 
       Spacer(Modifier.height(K1Sp.xl))
 
-      if ((filter == "all" || filter == "needs") && featured.isNotEmpty()) {
+      if (filter == "all" && featured.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader(
             s.aiSuggested,
