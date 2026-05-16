@@ -416,6 +416,14 @@ object RemoteDataFetcher {
     return decodeJsonResponse<TaskSummary>(response, "task-summary")
   }
 
+  suspend fun fetchFeaturedTasks(timezone: String): List<UITaskMetadata> {
+    val url = "${ApiConfig.SUGGEST_BASE_URL}${ApiConfig.Endpoints.FEATURED_TASKS}?tz=${timezone}"
+    val response = HttpClient.getUrl(url)
+        ?: throw IllegalStateException("Featured tasks fetch returned null response")
+    return decodeJsonResponse<List<TaskMetadataDto>>(response, "featured-tasks")
+        .map { it.toTaskMetadata() }
+  }
+
   // ==================== Fixed Session Audio ====================
 
   /**
@@ -2622,3 +2630,35 @@ data class NotificationPreferencesDto(
   @SerialName("insights_digest") val insightsDigest: Boolean = true,
   @SerialName("push_enabled") val pushEnabled: Boolean = true,
 )
+
+// ==================== KK_suggest Featured Tasks DTOs ====================
+
+@Serializable
+data class TaskMetadataDto(
+  val id: String,
+  val title: String,
+  val subtitle: String = "",
+  val context: String = "",
+  @SerialName("related_project") val relatedProject: String = "",
+  @SerialName("related_people") val relatedPeople: List<String> = emptyList(),
+  @SerialName("due_info") val dueInfo: String = "",
+  val priority: String = "Normal",
+  @SerialName("is_pinned") val isPinned: Boolean = false,
+  val description: String? = null,
+  @SerialName("suggestion_text") val suggestionText: String? = null,
+) {
+  fun toTaskMetadata(): UITaskMetadata = UITaskMetadata(
+    id = id,
+    title = title,
+    subtitle = subtitle,
+    context = context,
+    relatedProject = relatedProject,
+    relatedPeople = relatedPeople,
+    dueInfo = dueInfo,
+    priority = priority,
+    isPinned = isPinned,
+    description = description,
+    isNew = true,
+    suggestionText = suggestionText,
+  )
+}

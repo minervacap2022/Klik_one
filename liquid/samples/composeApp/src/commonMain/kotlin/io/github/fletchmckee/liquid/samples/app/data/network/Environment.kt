@@ -40,6 +40,7 @@ object Environment {
     val complianceBaseUrl: String,
     val bugReportBaseUrl: String,
     val logsBaseUrl: String,
+    val suggestBaseUrl: String,
     val webBaseUrl: String,
     val useHttps: Boolean = true,
   )
@@ -71,6 +72,7 @@ object Environment {
     complianceBaseUrl = "https://staging.hiklik.ai/api/compliance",
     bugReportBaseUrl = "https://staging.hiklik.ai/api/bug-report",
     logsBaseUrl = "https://staging.hiklik.ai/api/logs",
+    suggestBaseUrl = "https://staging.hiklik.ai/api/suggest",
     webBaseUrl = "https://staging.hiklik.ai",
     useHttps = true,
   )
@@ -93,6 +95,7 @@ object Environment {
     complianceBaseUrl = "https://hiklik.ai/api/compliance",
     bugReportBaseUrl = "https://hiklik.ai/api/bug-report",
     logsBaseUrl = "https://hiklik.ai/api/logs",
+    suggestBaseUrl = "https://hiklik.ai/api/suggest",
     webBaseUrl = "https://hiklik.ai",
     useHttps = true,
   )

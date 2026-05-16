@@ -150,6 +150,7 @@ import io.github.fletchmckee.liquid.samples.app.model.reviewMetadata
 import io.github.fletchmckee.liquid.samples.app.model.pendingMetadata
 import io.github.fletchmckee.liquid.samples.app.model.completedMetadata
 import io.github.fletchmckee.liquid.samples.app.model.kkExecSensitiveTodosState
+import io.github.fletchmckee.liquid.samples.app.model.reviewMetadataState
 import io.github.fletchmckee.liquid.samples.app.model.kkExecDailyTodosState
 import io.github.fletchmckee.liquid.samples.app.model.kkExecDailyTodosGroupedState
 import io.github.fletchmckee.liquid.samples.app.model.executingTodoIdsState
@@ -1843,6 +1844,22 @@ private fun MainAppContent() {
       throw ce
     } catch (t: Throwable) {
       KlikLogger.e("MainApp", "User preferences hydration failed: ${t.message}", t)
+    }
+  }
+
+  // Load featured tasks predicted by KK_suggest for today
+  LaunchedEffect(isAuthReady) {
+    if (!isAuthReady) return@LaunchedEffect
+    try {
+      val tz = TimeZone.currentSystemDefault().id
+      val featured = RemoteDataFetcher.fetchFeaturedTasks(tz)
+      reviewMetadataState.value = featured
+      KlikLogger.i("MainApp", "Featured tasks loaded: ${featured.size} items")
+    } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
+      throw ce
+    } catch (t: Throwable) {
+      KlikLogger.e("MainApp", "Featured tasks load failed: ${t.message}", t)
+      throw t
     }
   }
 

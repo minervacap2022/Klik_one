@@ -28,6 +28,7 @@ object ApiConfig {
   val COMPLIANCE_BASE_URL: String get() = Environment.current().complianceBaseUrl
   val BUG_REPORT_BASE_URL: String get() = Environment.current().bugReportBaseUrl
   val LOGS_BASE_URL: String get() = Environment.current().logsBaseUrl
+  val SUGGEST_BASE_URL: String get() = Environment.current().suggestBaseUrl
   val WEB_BASE_URL: String get() = Environment.current().webBaseUrl
   val PRIVACY_URL: String get() = "${WEB_BASE_URL}/privacy"
   val TERMS_URL: String get() = "${WEB_BASE_URL}/terms"
@@ -190,6 +191,9 @@ object ApiConfig {
 
     // Notification Preferences (uses AUTH_BASE_URL)
     const val NOTIFICATION_PREFERENCES = "/user/notification-preferences" // GET/PUT
+
+    // KK_suggest Featured Tasks (uses SUGGEST_BASE_URL)
+    const val FEATURED_TASKS = "/v1/featured"
   }
 
   // Header keys
