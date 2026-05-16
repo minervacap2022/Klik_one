@@ -416,11 +416,11 @@ object RemoteDataFetcher {
     return decodeJsonResponse<TaskSummary>(response, "task-summary")
   }
 
-  suspend fun fetchFeaturedTasks(timezone: String): List<UITaskMetadata> {
+  suspend fun fetchFeaturedTasks(timezone: String): List<io.github.fletchmckee.liquid.samples.app.model.TaskMetadata> {
     val url = "${ApiConfig.SUGGEST_BASE_URL}${ApiConfig.Endpoints.FEATURED_TASKS}?tz=${timezone}"
     val response = HttpClient.getUrl(url)
         ?: throw IllegalStateException("Featured tasks fetch returned null response")
-    return decodeJsonResponse<List<TaskMetadataDto>>(response, "featured-tasks")
+    return decodeJsonResponse<List<FeaturedTaskDto>>(response, "featured-tasks")
         .map { it.toTaskMetadata() }
   }
 
@@ -2634,31 +2634,29 @@ data class NotificationPreferencesDto(
 // ==================== KK_suggest Featured Tasks DTOs ====================
 
 @Serializable
-data class TaskMetadataDto(
-  val id: String,
+data class FeaturedTaskDto(
   val title: String,
-  val subtitle: String = "",
-  val context: String = "",
-  @SerialName("related_project") val relatedProject: String = "",
-  @SerialName("related_people") val relatedPeople: List<String> = emptyList(),
-  @SerialName("due_info") val dueInfo: String = "",
-  val priority: String = "Normal",
-  @SerialName("is_pinned") val isPinned: Boolean = false,
-  val description: String? = null,
-  @SerialName("suggestion_text") val suggestionText: String? = null,
+  val description: String,
+  val category: String,
+  val priority: String,
 ) {
-  fun toTaskMetadata(): UITaskMetadata = UITaskMetadata(
-    id = id,
-    title = title,
-    subtitle = subtitle,
-    context = context,
-    relatedProject = relatedProject,
-    relatedPeople = relatedPeople,
-    dueInfo = dueInfo,
-    priority = priority,
-    isPinned = isPinned,
-    description = description,
-    isNew = true,
-    suggestionText = suggestionText,
-  )
+  fun toTaskMetadata(): io.github.fletchmckee.liquid.samples.app.model.TaskMetadata =
+    io.github.fletchmckee.liquid.samples.app.model.TaskMetadata(
+      id = title.hashCode().toString(),
+      title = title,
+      subtitle = description,
+      context = category,
+      relatedProject = "",
+      relatedPeople = emptyList(),
+      dueInfo = "",
+      priority = when (priority.uppercase()) {
+        "HIGH" -> "High"
+        "LOW" -> "Low"
+        else -> "Normal"
+      },
+      isPinned = false,
+      description = description,
+      isNew = true,
+      kkExecCategory = category,
+    )
 }
