@@ -57,6 +57,7 @@ import io.github.fletchmckee.liquid.samples.app.model.pinnedTaskIdsState
 import io.github.fletchmckee.liquid.samples.app.model.seenTaskIdsState
 import io.github.fletchmckee.liquid.samples.app.model.toggleTaskPin
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
+import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
@@ -134,7 +135,10 @@ fun MovesScreen(
   val pinnedTaskIds by pinnedTaskIdsState
   val pinComparator = compareByDescending<TaskMetadata> { pinnedTaskIds[it.id] ?: 0L }
 
-  val needsOk = (featuredTasks + sensitiveTasks)
+  val featured = featuredTasks
+    .filter { it.id !in archivedTaskIds }
+    .sortedWith(pinComparator.thenByDescending(recencyKey))
+  val needsOk = sensitiveTasks
     .filter { it.id !in archivedTaskIds }
     .sortedWith(pinComparator.thenByDescending(recencyKey))
   val active = dailyTasks.filter { it.id !in archivedTaskIds }
@@ -153,17 +157,17 @@ fun MovesScreen(
   val failed = active
     .filter { it.id in failedIds }
     .sortedWith(pinComparator.thenByDescending(recencyKey))
-  val totalAll = needsOk.size + running.size + done.size + failed.size
+  val totalAll = featured.size + needsOk.size + running.size + done.size + failed.size
 
   val seenIds by seenTaskIdsState
   fun unread(t: TaskMetadata): Boolean = t.id !in seenIds
 
   val baseFiltered = when (filter) {
-    "needs" -> needsOk
+    "needs" -> featured + needsOk
     "running" -> running
     "failed" -> failed
     "done" -> done
-    else -> needsOk + running + failed + done
+    else -> featured + needsOk + running + failed + done
   }
   val filteredAll = if (searchQuery.isBlank()) {
     baseFiltered
@@ -260,7 +264,7 @@ fun MovesScreen(
           onClick = { filter = "all" },
         )
         K1Chip(
-          label = "${s.needsAttention} · ${needsOk.size}",
+          label = "${s.needsAttention} · ${featured.size + needsOk.size}",
           selected = filter == "needs",
           onClick = { filter = "needs" },
         )
@@ -284,6 +288,39 @@ fun MovesScreen(
       }
 
       Spacer(Modifier.height(K1Sp.xl))
+
+      if ((filter == "all" || filter == "needs") && featured.isNotEmpty()) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
+          K1SectionHeader(
+            s.aiSuggested,
+            count = featured.size,
+            dotColor = KlikCommitmentAccent,
+          )
+          Spacer(Modifier.height(K1Sp.s))
+          featured.forEach { t ->
+            K1SwipeRow(
+              isPinned = t.id in pinnedTaskIds,
+              onPin = { toggleTaskPin(t.id) },
+              onArchive = {
+                archiveTask(t.id, t)
+                onArchiveTaskOnBackend(t.id)
+              },
+            ) {
+              FeaturedCard(
+                t = t,
+                onStart = { onApproveTask(t.id) },
+                onSkip = { onArchiveTaskOnBackend(t.id) },
+                onOpen = {
+                  markTaskSeen(t.id)
+                  onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
+                },
+              )
+            }
+            Spacer(Modifier.height(8.dp))
+          }
+        }
+        Spacer(Modifier.height(K1Sp.xxl))
+      }
 
       if ((filter == "all" || filter == "needs") && needsOk.isNotEmpty()) {
         Column(Modifier.padding(horizontal = 20.dp)) {
@@ -552,6 +589,39 @@ private fun NeedsOkCard(
           style = K1Type.metaSm.copy(color = KlikInkTertiary),
         )
       }
+    }
+  }
+}
+
+@Composable
+private fun FeaturedCard(
+  t: TaskMetadata,
+  onStart: () -> Unit,
+  onSkip: () -> Unit,
+  onOpen: () -> Unit = {},
+) {
+  K1Card(soft = true, onClick = onOpen) {
+    Row(verticalAlignment = Alignment.Top) {
+      Column(Modifier.weight(1f)) {
+        Text(t.title, style = K1Type.bodyMd)
+        if (t.subtitle.isNotBlank()) {
+          Spacer(Modifier.height(3.dp))
+          Text(t.subtitle, style = K1Type.caption)
+        }
+      }
+      if (t.context.isNotBlank()) {
+        Spacer(Modifier.width(K1Sp.s))
+        Text(
+          t.context,
+          style = K1Type.metaSm.copy(color = KlikCommitmentAccent),
+        )
+      }
+    }
+    Spacer(Modifier.height(10.dp))
+    val btnS = LocalKlikStrings.current
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      ActionButton(btnS.start, primary = true) { onStart() }
+      ActionButton(btnS.skip, primary = false, muted = true) { onSkip() }
     }
   }
 }
