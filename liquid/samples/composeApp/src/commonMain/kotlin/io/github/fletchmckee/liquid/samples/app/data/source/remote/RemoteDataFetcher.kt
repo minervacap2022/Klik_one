@@ -2639,6 +2639,8 @@ data class FeaturedTaskDto(
   val description: String,
   val category: String,
   val priority: String,
+  @SerialName("rule_id") val ruleId: String? = null,
+  @SerialName("trigger_label") val triggerLabel: String? = null,
 ) {
   fun toTaskMetadata(): io.github.fletchmckee.liquid.samples.app.model.TaskMetadata =
     io.github.fletchmckee.liquid.samples.app.model.TaskMetadata(
@@ -2658,5 +2660,7 @@ data class FeaturedTaskDto(
       description = description,
       isNew = true,
       kkExecCategory = category,
+      ruleId = ruleId,
+      triggerLabel = triggerLabel,
     )
 }

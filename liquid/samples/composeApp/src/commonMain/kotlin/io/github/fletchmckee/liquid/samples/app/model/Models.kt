@@ -124,6 +124,10 @@ data class TaskMetadata(
   // ISO 8601 timestamp when the todo reached a terminal done state (COMPLETED/APPROVED).
   // Null for tasks from non-KK_exec paths or tasks not yet completed.
   val completedAt: String? = null,
+  // Rule ID that produced this Featured card (null for Klik-inferred daily cards).
+  val ruleId: String? = null,
+  // Human-readable trigger label (e.g. "Daily 8am") shown under Featured card titles.
+  val triggerLabel: String? = null,
 ) {
   /**
    * Check if this task is from KK_exec (has KK_exec integration fields).

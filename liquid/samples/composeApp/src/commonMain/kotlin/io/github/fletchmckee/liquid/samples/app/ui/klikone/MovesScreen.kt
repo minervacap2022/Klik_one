@@ -604,6 +604,10 @@ private fun FeaturedCard(
     Row(verticalAlignment = Alignment.Top) {
       Column(Modifier.weight(1f)) {
         Text(t.title, style = K1Type.bodyMd)
+        if (!t.triggerLabel.isNullOrBlank()) {
+          Spacer(Modifier.height(3.dp))
+          Text(t.triggerLabel, style = K1Type.metaSm.copy(color = KlikInkTertiary))
+        }
         if (t.subtitle.isNotBlank()) {
           Spacer(Modifier.height(3.dp))
           Text(t.subtitle, style = K1Type.caption)
