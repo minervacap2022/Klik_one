@@ -33,9 +33,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +51,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.fletchmckee.liquid.samples.app.di.AppModule
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
+import io.github.fletchmckee.liquid.samples.app.presentation.rules.NewRuleEvent
+import io.github.fletchmckee.liquid.samples.app.presentation.rules.NewRuleViewModel
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
 import io.github.fletchmckee.liquid.samples.app.model.archiveTask
 import io.github.fletchmckee.liquid.samples.app.model.archivedTaskIdsState
@@ -106,6 +112,22 @@ fun MovesScreen(
   var filter by remember { mutableStateOf("all") }
   var searchActive by remember { mutableStateOf(false) }
   var searchQuery by remember { mutableStateOf("") }
+
+  // "Teach Klik a rule" sheet — opened from the "+" in the Featured header.
+  // The VM is created once per composition; persisted state survives config
+  // changes via rememberSaveable on the open flag.
+  var showNewRuleSheet by rememberSaveable { mutableStateOf(false) }
+  val newRuleVm = remember { NewRuleViewModel(AppModule.rulesRepository) }
+  val newRuleEvent by newRuleVm.events.collectAsState()
+  // When the VM signals Dismiss (i.e. rule persisted), close the sheet and
+  // trigger a featured refresh so the new rule's first card appears.
+  LaunchedEffect(newRuleEvent) {
+    if (newRuleEvent is NewRuleEvent.Dismiss) {
+      showNewRuleSheet = false
+      newRuleVm.consumeEvent()
+      onRefresh()
+    }
+  }
 
   // Auto-clear the deep-link highlight after a short dwell so the row
   // doesn't keep tinting across navigations the user makes later.
@@ -180,6 +202,7 @@ fun MovesScreen(
   }
 
   val ptrState = rememberPullToRefreshState()
+  Box(Modifier.fillMaxSize()) {
   PullToRefreshBox(
     isRefreshing = isRefreshing,
     state = ptrState,
@@ -289,12 +312,23 @@ fun MovesScreen(
 
       Spacer(Modifier.height(K1Sp.xl))
 
-      if (filter == "all" && featured.isNotEmpty()) {
+      if (filter == "all") {
         Column(Modifier.padding(horizontal = 20.dp)) {
           K1SectionHeader(
             s.aiSuggested,
-            count = featured.size,
+            count = featured.size.takeIf { it > 0 },
             dotColor = KlikCommitmentAccent,
+            trailing = {
+              // "+" — opens NewRuleSheet so the user can teach Klik a new
+              // recurring/contextual rule that surfaces here.
+              Text(
+                "+",
+                style = K1Type.h3.copy(color = KlikInkSecondary),
+                modifier = Modifier
+                  .k1Clickable { showNewRuleSheet = true }
+                  .padding(horizontal = 8.dp, vertical = 2.dp),
+              )
+            },
           )
           Spacer(Modifier.height(K1Sp.s))
           featured.forEach { t ->
@@ -508,6 +542,24 @@ fun MovesScreen(
       }
     }
   } // end PullToRefreshBox
+
+    if (showNewRuleSheet) {
+      K1BottomSheet(
+        onDismiss = {
+          showNewRuleSheet = false
+          onRefresh()
+        },
+      ) {
+        NewRuleSheet(
+          viewModel = newRuleVm,
+          onDismiss = {
+            showNewRuleSheet = false
+            onRefresh()
+          },
+        )
+      }
+    }
+  } // end overlay Box
 }
 
 @Composable
