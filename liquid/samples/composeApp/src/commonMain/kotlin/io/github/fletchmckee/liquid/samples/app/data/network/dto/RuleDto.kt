@@ -14,6 +14,7 @@ data class RuleDto(
     val status: String,
     @SerialName("is_recurring") val isRecurring: Boolean,
     @SerialName("last_fired_at") val lastFiredAt: String? = null,
+    @SerialName("snoozed_until") val snoozedUntil: String? = null,
 )
 
 @Serializable

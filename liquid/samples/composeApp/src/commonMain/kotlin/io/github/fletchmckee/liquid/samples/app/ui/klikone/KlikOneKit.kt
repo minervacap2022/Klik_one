@@ -45,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1755,6 +1756,38 @@ fun K1ConfirmDialog(
           )
         }
       }
+    }
+  }
+}
+
+// ─── K1 Toast ─────────────────────────────────────────────────────────────
+// Tiny pill anchored to the bottom of the screen. Used to surface success
+// and error feedback from fire-and-forget rule actions (Pause / Delete /
+// Accept / Decline / Snooze). Auto-dismisses after 2.5s; tap to dismiss
+// early. K1 ink-on-paper inverted — dark pill, light text — matching the
+// primary button in K1ConfirmDialog.
+@Composable
+fun K1Toast(message: String?, onDismiss: () -> Unit) {
+  if (message == null) return
+  LaunchedEffect(message) {
+    kotlinx.coroutines.delay(2500)
+    onDismiss()
+  }
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(bottom = 96.dp),
+    contentAlignment = Alignment.BottomCenter,
+  ) {
+    Row(
+      modifier = Modifier
+        .clip(RoundedCornerShape(999.dp))
+        .background(KlikInkPrimary)
+        .k1Clickable(onClick = onDismiss)
+        .padding(horizontal = 16.dp, vertical = 10.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(message, style = K1Type.bodySm.copy(color = KlikPaperCard))
     }
   }
 }

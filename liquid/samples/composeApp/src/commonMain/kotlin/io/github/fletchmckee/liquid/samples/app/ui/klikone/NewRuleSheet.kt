@@ -54,9 +54,14 @@ fun NewRuleSheet(
       .navigationBarsPadding(),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
-    Text("Teach Klik a rule", style = K1Type.h2)
+    val editing = ui.existingRuleId != null
+    Text(if (editing) "Edit this rule" else "Teach Klik a rule", style = K1Type.h2)
     Text(
-      "Klik will run this for you on schedule or in context. Write it like you'd ask a teammate.",
+      if (editing) {
+        "Klik will re-parse and re-bind the signal when you save."
+      } else {
+        "Klik will run this for you on schedule or in context. Write it like you'd ask a teammate."
+      },
       style = K1Type.bodySm.copy(color = KlikInkTertiary),
     )
 
@@ -121,7 +126,16 @@ fun NewRuleSheet(
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       K1ButtonGhost(label = "Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
-      if (ui.preview == null) {
+      // In edit mode the user already has a parsed rule; we don't need to
+      // gate Save behind a preview round-trip — the backend re-parses on PATCH.
+      if (editing) {
+        K1ButtonPrimary(
+          label = "Save changes",
+          enabled = !ui.isLoading && ui.nlText.trim().isNotEmpty(),
+          onClick = { viewModel.confirm() },
+          modifier = Modifier.weight(1f),
+        )
+      } else if (ui.preview == null) {
         K1ButtonPrimary(
           label = if (ui.isLoading) "Parsing…" else "Preview",
           enabled = !ui.isLoading && ui.nlText.trim().isNotEmpty(),

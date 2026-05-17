@@ -86,7 +86,9 @@ import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavig
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 
 /** Klik One — Moves. Drop-in replacement for `EventsScreen`. */
@@ -129,6 +131,9 @@ fun MovesScreen(
   var showMenuForRuleId by remember { mutableStateOf<String?>(null) }
   var confirmDeleteRuleId by remember { mutableStateOf<String?>(null) }
   val ruleActionScope = rememberCoroutineScope()
+  // Surfaces success/error feedback for fire-and-forget rule mutations
+  // (Pause / Delete / Accept / Decline / Snooze). Null = no toast showing.
+  var toastMessage by remember { mutableStateOf<String?>(null) }
   val newRuleEvent by newRuleVm.events.collectAsState()
   // When the VM signals Dismiss (i.e. rule persisted), close the sheet and
   // trigger a featured refresh so the new rule's first card appears.
@@ -138,6 +143,12 @@ fun MovesScreen(
       newRuleVm.consumeEvent()
       onRefresh()
     }
+  }
+  // When the sheet closes for any reason (confirm, cancel, scrim tap), reset
+  // the VM so the next "+" tap starts in create mode rather than the
+  // previous edit's state.
+  LaunchedEffect(showNewRuleSheet) {
+    if (!showNewRuleSheet) newRuleVm.reset()
   }
 
   // T22: pending rules — Klik's daily-inferred suggestions awaiting user
@@ -374,14 +385,22 @@ fun MovesScreen(
               rule = rule,
               onAccept = {
                 ruleActionScope.launch {
-                  AppModule.rulesRepository.accept(rule.id)
+                  when (val r = AppModule.rulesRepository.accept(rule.id)) {
+                    is Result.Success -> toastMessage = "Added to Featured"
+                    is Result.Error -> toastMessage = "Couldn't accept: ${r.exception.message}"
+                    is Result.Loading -> Unit
+                  }
                   pendingRulesRefreshKey++
                   onRefresh()
                 }
               },
               onDecline = {
                 ruleActionScope.launch {
-                  AppModule.rulesRepository.edit(rule.id, status = "archived")
+                  when (val r = AppModule.rulesRepository.edit(rule.id, status = "archived")) {
+                    is Result.Success -> toastMessage = "Dismissed"
+                    is Result.Error -> toastMessage = "Couldn't dismiss: ${r.exception.message}"
+                    is Result.Loading -> Unit
+                  }
                   pendingRulesRefreshKey++
                   onRefresh()
                 }
@@ -636,7 +655,7 @@ fun MovesScreen(
               is Result.Success -> {
                 val rule = r.data.firstOrNull { it.id == openMenuRuleId }
                 if (rule != null) {
-                  newRuleVm.updateNl(rule.nlText)
+                  newRuleVm.beginEdit(rule)
                   showNewRuleSheet = true
                 } else {
                   KlikLogger.w("MovesScreen", "Edit: rule $openMenuRuleId not in list")
@@ -653,7 +672,11 @@ fun MovesScreen(
         K1MenuItem(label = "Pause") {
           showMenuForRuleId = null
           ruleActionScope.launch {
-            AppModule.rulesRepository.edit(openMenuRuleId, status = "paused")
+            when (val r = AppModule.rulesRepository.edit(openMenuRuleId, status = "paused")) {
+              is Result.Success -> toastMessage = "Paused"
+              is Result.Error -> toastMessage = "Couldn't pause: ${r.exception.message}"
+              is Result.Loading -> Unit
+            }
             onRefresh()
           }
         }
@@ -661,14 +684,22 @@ fun MovesScreen(
           confirmDeleteRuleId = openMenuRuleId
           showMenuForRuleId = null
         }
-        // Snooze 7d — intentionally stubbed for v1. Documented gap: server
-        // doesn't yet accept a snooze_until field on RulesRepository.edit().
         K1MenuItem(label = "Snooze 7d") {
-          KlikLogger.i(
-            "MovesScreen",
-            "Snooze 7d requested for rule $openMenuRuleId (not yet implemented)",
-          )
           showMenuForRuleId = null
+          ruleActionScope.launch {
+            // ISO-8601 UTC string 7 days in the future. Backend PR #743
+            // accepts `snoozed_until` on PATCH /rules/{id} and hides
+            // firings until the deadline passes.
+            val sevenDaysOut = Clock.System.now()
+              .plus(7, DateTimeUnit.DAY, TimeZone.UTC)
+              .toString()
+            when (val r = AppModule.rulesRepository.edit(openMenuRuleId, snoozedUntil = sevenDaysOut)) {
+              is Result.Success -> toastMessage = "Snoozed for 7 days"
+              is Result.Error -> toastMessage = "Couldn't snooze: ${r.exception.message}"
+              is Result.Loading -> Unit
+            }
+            onRefresh()
+          }
         }
       }
     }
@@ -682,13 +713,21 @@ fun MovesScreen(
         onConfirm = {
           confirmDeleteRuleId = null
           ruleActionScope.launch {
-            AppModule.rulesRepository.delete(deleteRuleId)
+            when (val r = AppModule.rulesRepository.delete(deleteRuleId)) {
+              is Result.Success -> toastMessage = "Deleted"
+              is Result.Error -> toastMessage = "Couldn't delete: ${r.exception.message}"
+              is Result.Loading -> Unit
+            }
             onRefresh()
           }
         },
         onDismiss = { confirmDeleteRuleId = null },
       )
     }
+
+    // Toast pill — sits above everything else (sheets, menus, dialogs)
+    // so feedback from fire-and-forget rule actions is always visible.
+    K1Toast(message = toastMessage, onDismiss = { toastMessage = null })
   } // end overlay Box
 }
 

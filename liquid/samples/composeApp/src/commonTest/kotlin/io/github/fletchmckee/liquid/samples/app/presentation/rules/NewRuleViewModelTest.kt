@@ -11,6 +11,8 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -36,8 +38,13 @@ private class FakeRulesRepo(private val preview: RulePreviewDto) : RulesReposito
       ),
     )
   override suspend fun list() = Result.Success(emptyList<RuleDto>())
-  override suspend fun edit(id: String, nlText: String?, isRecurring: Boolean?, status: String?) =
-    Result.Error(NotImplementedError())
+  override suspend fun edit(
+    id: String,
+    nlText: String?,
+    isRecurring: Boolean?,
+    status: String?,
+    snoozedUntil: String?,
+  ) = Result.Error(NotImplementedError())
   override suspend fun delete(id: String) = Result.Error(NotImplementedError())
   override suspend fun accept(id: String) = Result.Error(NotImplementedError())
 }
@@ -69,5 +76,131 @@ class NewRuleViewModelTest {
     vm.confirm()
     advanceUntilIdle()
     assertNotNull(vm.state.value.createdRuleId)
+  }
+
+  @Test fun edit_mode_calls_edit_not_create() = runTest {
+    val edits = mutableListOf<Triple<String, String?, Boolean?>>()
+    val fakeRepo = object : RulesRepository {
+      override suspend fun preview(nlText: String) = Result.Success(
+        RulePreviewDto(
+          triggerLabel = "x",
+          actionLabel = "x",
+          approximationNote = null,
+          parsedTrigger = JsonObject(emptyMap()),
+          parsedAction = JsonObject(emptyMap()),
+          signalBinding = "cron",
+        ),
+      )
+      override suspend fun create(nlText: String, preview: RulePreviewDto, isRecurring: Boolean): Result<RuleDto> =
+        error("create() should NOT be called in edit mode")
+      override suspend fun edit(
+        id: String,
+        nlText: String?,
+        isRecurring: Boolean?,
+        status: String?,
+        snoozedUntil: String?,
+      ): Result<RuleDto> {
+        edits += Triple(id, nlText, isRecurring)
+        return Result.Success(
+          RuleDto(
+            id = id,
+            source = "user_defined",
+            nlText = nlText ?: "",
+            triggerLabel = "x",
+            actionLabel = "x",
+            status = "active",
+            isRecurring = true,
+            lastFiredAt = null,
+          ),
+        )
+      }
+      override suspend fun list() = Result.Success(emptyList<RuleDto>())
+      override suspend fun delete(id: String) = Result.Error(NotImplementedError())
+      override suspend fun accept(id: String) = Result.Error(NotImplementedError())
+    }
+    val vm = NewRuleViewModel(fakeRepo)
+    vm.beginEdit(
+      RuleDto(
+        id = "r9",
+        source = "user_defined",
+        nlText = "old text",
+        triggerLabel = "x",
+        actionLabel = "x",
+        status = "active",
+        isRecurring = true,
+        lastFiredAt = null,
+      ),
+    )
+    vm.updateNl("new text")
+    vm.runPreview()
+    advanceUntilIdle()
+    vm.confirm()
+    advanceUntilIdle()
+    assertEquals(1, edits.size)
+    assertEquals("r9", edits[0].first)
+    assertEquals("new text", edits[0].second)
+  }
+
+  @Test fun edit_mode_no_op_when_text_unchanged_just_dismisses() = runTest {
+    val edits = mutableListOf<Triple<String, String?, Boolean?>>()
+    val fakeRepo = object : RulesRepository {
+      override suspend fun preview(nlText: String) = Result.Success(
+        RulePreviewDto(
+          triggerLabel = "x",
+          actionLabel = "x",
+          approximationNote = null,
+          parsedTrigger = JsonObject(emptyMap()),
+          parsedAction = JsonObject(emptyMap()),
+          signalBinding = "cron",
+        ),
+      )
+      override suspend fun create(nlText: String, preview: RulePreviewDto, isRecurring: Boolean): Result<RuleDto> =
+        error("create() should NOT be called in edit mode")
+      override suspend fun edit(
+        id: String,
+        nlText: String?,
+        isRecurring: Boolean?,
+        status: String?,
+        snoozedUntil: String?,
+      ): Result<RuleDto> {
+        edits += Triple(id, nlText, isRecurring)
+        return Result.Success(
+          RuleDto(id, "user_defined", nlText ?: "", "x", "x", "active", true, null),
+        )
+      }
+      override suspend fun list() = Result.Success(emptyList<RuleDto>())
+      override suspend fun delete(id: String) = Result.Error(NotImplementedError())
+      override suspend fun accept(id: String) = Result.Error(NotImplementedError())
+    }
+    val vm = NewRuleViewModel(fakeRepo)
+    vm.beginEdit(
+      RuleDto("r9", "user_defined", "same text", "x", "x", "active", true, null),
+    )
+    // user does not change the text; runPreview unnecessary, confirm should
+    // be a no-op (no edit call) and just emit Dismiss.
+    vm.confirm()
+    advanceUntilIdle()
+    assertTrue(edits.isEmpty(), "edit() should not be called when text unchanged")
+  }
+
+  @Test fun reset_clears_edit_state() = runTest {
+    val fake = FakeRulesRepo(
+      RulePreviewDto(
+        triggerLabel = "x",
+        actionLabel = "x",
+        approximationNote = null,
+        parsedTrigger = JsonObject(emptyMap()),
+        parsedAction = JsonObject(emptyMap()),
+        signalBinding = "cron",
+      ),
+    )
+    val vm = NewRuleViewModel(fake)
+    vm.beginEdit(
+      RuleDto("r9", "user_defined", "old", "x", "x", "active", true, null),
+    )
+    assertEquals("r9", vm.state.value.existingRuleId)
+    vm.reset()
+    assertNull(vm.state.value.existingRuleId)
+    assertEquals("", vm.state.value.nlText)
   }
 }

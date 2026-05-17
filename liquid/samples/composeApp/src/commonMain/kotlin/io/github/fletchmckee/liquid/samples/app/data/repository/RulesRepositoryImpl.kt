@@ -61,11 +61,13 @@ class RulesRepositoryImpl : RulesRepository {
     nlText: String?,
     isRecurring: Boolean?,
     status: String?,
+    snoozedUntil: String?,
   ): Result<RuleDto> = try {
     val body = buildJsonObject {
       if (nlText != null) put("nl_text", nlText)
       if (isRecurring != null) put("is_recurring", isRecurring)
       if (status != null) put("status", status)
+      if (snoozedUntil != null) put("snoozed_until", snoozedUntil)
     }.toString()
     val resp = HttpClient.patchUrl("$base/$id", body)
       ?: error("No response from PATCH /rules/$id")

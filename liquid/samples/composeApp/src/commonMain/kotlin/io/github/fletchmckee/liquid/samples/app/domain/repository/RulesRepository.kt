@@ -19,6 +19,7 @@ interface RulesRepository {
     nlText: String? = null,
     isRecurring: Boolean? = null,
     status: String? = null,
+    snoozedUntil: String? = null,
   ): Result<RuleDto>
   suspend fun delete(id: String): Result<Unit>
   suspend fun accept(id: String): Result<RuleDto>
