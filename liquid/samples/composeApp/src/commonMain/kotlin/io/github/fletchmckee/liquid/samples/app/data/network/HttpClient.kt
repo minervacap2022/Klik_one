@@ -40,6 +40,7 @@ internal expect class NativeHttpClient() {
     fileName: String,
     fieldName: String = "file",
     headers: Map<String, String> = emptyMap(),
+    fileMimeType: String? = null,
   ): NativeHttpResponse
 }
 
@@ -212,6 +213,7 @@ object HttpClient {
     fileName: String,
     fieldName: String = "file",
     headers: Map<String, String> = emptyMap(),
+    fileMimeType: String? = null,
   ): String? {
     if (!CurrentUser.isLoggedIn) {
       KlikLogger.i("HttpClient", "Skipping POST (multipart) $url — not authenticated")
@@ -220,7 +222,7 @@ object HttpClient {
     ensureValidToken()
     val allHeaders = headers + CurrentUser.getAuthHeaders()
     KlikLogger.d("HTTP", "POST (multipart) $url, ${fileData.size} bytes")
-    return nativeClient.postMultipart(url, fileData, fileName, fieldName, allHeaders).body
+    return nativeClient.postMultipart(url, fileData, fileName, fieldName, allHeaders, fileMimeType).body
   }
 
   /**

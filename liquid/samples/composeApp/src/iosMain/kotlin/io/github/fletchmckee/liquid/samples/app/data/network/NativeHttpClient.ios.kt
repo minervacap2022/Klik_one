@@ -65,6 +65,7 @@ internal actual class NativeHttpClient actual constructor() {
     fileName: String,
     fieldName: String,
     headers: Map<String, String>,
+    fileMimeType: String?,
   ): NativeHttpResponse = suspendCancellableCoroutine { continuation ->
     val nsUrl = NSURL.URLWithString(url)
     require(nsUrl != null) { "Invalid URL: $url" }
@@ -80,9 +81,10 @@ internal actual class NativeHttpClient actual constructor() {
     }
 
     val lineBreak = "\r\n"
+    val partContentType = fileMimeType ?: "application/octet-stream"
     val headerPart = "--$boundary$lineBreak" +
       "Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$fileName\"$lineBreak" +
-      "Content-Type: application/octet-stream$lineBreak$lineBreak"
+      "Content-Type: $partContentType$lineBreak$lineBreak"
     val footerPart = "$lineBreak--$boundary--$lineBreak"
 
     val headerBytes = headerPart.encodeToByteArray()

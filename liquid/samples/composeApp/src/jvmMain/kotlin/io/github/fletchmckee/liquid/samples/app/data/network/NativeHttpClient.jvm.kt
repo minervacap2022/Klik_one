@@ -156,6 +156,7 @@ internal actual class NativeHttpClient actual constructor() {
     fileName: String,
     fieldName: String,
     headers: Map<String, String>,
+    fileMimeType: String?,
   ): NativeHttpResponse = withContext(Dispatchers.IO) {
     var connection: HttpURLConnection? = null
     try {
@@ -167,9 +168,10 @@ internal actual class NativeHttpClient actual constructor() {
         headers.forEach { (key, value) -> setRequestProperty(key, value) }
       }
       val lineBreak = "\r\n"
+      val partContentType = fileMimeType ?: "application/octet-stream"
       val headerPart = "--$boundary$lineBreak" +
         "Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$fileName\"$lineBreak" +
-        "Content-Type: application/octet-stream$lineBreak$lineBreak"
+        "Content-Type: $partContentType$lineBreak$lineBreak"
       val footer = "$lineBreak--$boundary--$lineBreak"
       connection.outputStream.use { os ->
         os.write(headerPart.toByteArray(Charsets.UTF_8))

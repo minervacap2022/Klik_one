@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -417,12 +420,12 @@ class AuthRepositoryImpl : AuthRepository {
         fileData = image.bytes,
         fileName = image.fileName,
         fieldName = "file",
-        headers = mapOf("Content-Type" to image.mimeType),
+        fileMimeType = image.mimeType,
       ) ?: return Result.Error(Exception("No response from server"))
 
-      val parsed = json.parseToJsonElement(responseText).jsonObject
-      val detail = parsed["detail"]?.jsonPrimitive?.contentOrNull
+      val detail = extractFastApiDetail(responseText)
       if (detail != null) return Result.Error(Exception(detail))
+      val parsed = json.parseToJsonElement(responseText).jsonObject
       val avatarUrl = parsed["avatar_url"]?.jsonPrimitive?.contentOrNull
         ?: return Result.Error(Exception("Server did not return avatar_url"))
 
@@ -433,4 +436,30 @@ class AuthRepositoryImpl : AuthRepository {
       Result.Error(e)
     }
   }
+}
+
+/**
+ * Extract a human-readable error message from a FastAPI response body.
+ *
+ * FastAPI emits two shapes for `detail`:
+ *   - String:   {"detail": "Bad request"}
+ *   - Array:    {"detail": [{"loc": [...], "msg": "field required", "type": "..."}]}
+ *
+ * The array form (HTTP 422 validation errors) used to crash the avatar-upload
+ * response parser, which called `.jsonPrimitive` on the array. Returns null
+ * when the body has no `detail` field or cannot be parsed as JSON.
+ */
+internal fun extractFastApiDetail(responseText: String): String? = try {
+  val el = kotlinx.serialization.json.Json.parseToJsonElement(responseText)
+  val obj = el as? JsonObject
+  val detail = obj?.get("detail")
+  when (detail) {
+    is JsonPrimitive -> detail.contentOrNull
+    is JsonArray -> detail.mapNotNull { item ->
+      (item as? JsonObject)?.get("msg")?.jsonPrimitive?.contentOrNull
+    }.takeIf { it.isNotEmpty() }?.joinToString("; ")
+    else -> null
+  }
+} catch (e: Exception) {
+  null
 }
