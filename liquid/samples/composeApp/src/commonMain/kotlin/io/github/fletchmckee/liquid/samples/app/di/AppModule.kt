@@ -11,6 +11,7 @@ import io.github.fletchmckee.liquid.samples.app.data.repository.GrowthRepository
 import io.github.fletchmckee.liquid.samples.app.data.repository.OrganizationRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.data.repository.PersonRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.data.repository.ProjectRepositoryImpl
+import io.github.fletchmckee.liquid.samples.app.data.repository.RulesRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.data.repository.TaskRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.data.repository.UserRepositoryImpl
 import io.github.fletchmckee.liquid.samples.app.data.source.inmemory.InMemoryCalendarDataSource
@@ -33,6 +34,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.repository.GrowthReposito
 import io.github.fletchmckee.liquid.samples.app.domain.repository.OrganizationRepository
 import io.github.fletchmckee.liquid.samples.app.domain.repository.PersonRepository
 import io.github.fletchmckee.liquid.samples.app.domain.repository.ProjectRepository
+import io.github.fletchmckee.liquid.samples.app.domain.repository.RulesRepository
 import io.github.fletchmckee.liquid.samples.app.domain.repository.TaskRepository
 import io.github.fletchmckee.liquid.samples.app.domain.repository.UserRepository
 import io.github.fletchmckee.liquid.samples.app.domain.usecase.calendar.GetDailyBriefingUseCase
@@ -436,6 +438,10 @@ object AppModule {
     get() = _feedbackRepository ?: FeedbackRepositoryImpl(
       dataSource = feedbackDataSource,
     ).also { _feedbackRepository = it }
+
+  private var _rulesRepository: RulesRepository? = null
+  val rulesRepository: RulesRepository
+    get() = _rulesRepository ?: RulesRepositoryImpl().also { _rulesRepository = it }
 
   // ==================== Auth Repository ====================
   // Singleton auth repository for the entire app
