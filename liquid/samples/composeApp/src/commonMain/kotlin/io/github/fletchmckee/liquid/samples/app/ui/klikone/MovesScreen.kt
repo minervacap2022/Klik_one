@@ -38,6 +38,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,8 +52,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.fletchmckee.liquid.samples.app.core.Result
 import io.github.fletchmckee.liquid.samples.app.di.AppModule
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
+import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 import io.github.fletchmckee.liquid.samples.app.presentation.rules.NewRuleEvent
 import io.github.fletchmckee.liquid.samples.app.presentation.rules.NewRuleViewModel
 import io.github.fletchmckee.liquid.samples.app.model.TaskMetadata
@@ -80,6 +83,7 @@ import io.github.fletchmckee.liquid.samples.app.ui.components.EntityNavigationDa
 import io.github.fletchmckee.liquid.samples.app.ui.components.EntityType
 import io.github.fletchmckee.liquid.samples.app.ui.components.TracedSegmentNavigation
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.LocalKlikStrings
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -118,6 +122,12 @@ fun MovesScreen(
   // changes via rememberSaveable on the open flag.
   var showNewRuleSheet by rememberSaveable { mutableStateOf(false) }
   val newRuleVm = remember { NewRuleViewModel(AppModule.rulesRepository) }
+  // Long-press contextual menu on Featured cards (T21). Holds the ruleId of
+  // the card whose menu is open; null means no menu showing. Edit/Pause/
+  // Delete/Snooze actions all dispatch through here.
+  var showMenuForRuleId by remember { mutableStateOf<String?>(null) }
+  var confirmDeleteRuleId by remember { mutableStateOf<String?>(null) }
+  val ruleActionScope = rememberCoroutineScope()
   val newRuleEvent by newRuleVm.events.collectAsState()
   // When the VM signals Dismiss (i.e. rule persisted), close the sheet and
   // trigger a featured refresh so the new rule's first card appears.
@@ -348,6 +358,11 @@ fun MovesScreen(
                   markTaskSeen(t.id)
                   onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
                 },
+                // Long-press only enabled for cards backed by a real rule.
+                // Static AI suggestions (ruleId == null) keep the simple tap-to-open
+                // behavior so we don't dangle a menu over edit/delete actions
+                // that have no rule to operate on.
+                onLongPress = t.ruleId?.let { rid -> { showMenuForRuleId = rid } },
               )
             }
             Spacer(Modifier.height(8.dp))
@@ -559,6 +574,73 @@ fun MovesScreen(
         )
       }
     }
+
+    // Long-press contextual menu (T21). Edit re-opens NewRuleSheet prefilled,
+    // Pause flips status server-side then refreshes, Delete routes through
+    // a confirm dialog, Snooze 7d is intentionally stubbed for v1.
+    val openMenuRuleId = showMenuForRuleId
+    if (openMenuRuleId != null) {
+      K1Menu(onDismiss = { showMenuForRuleId = null }) {
+        K1MenuItem(label = "Edit") {
+          showMenuForRuleId = null
+          ruleActionScope.launch {
+            when (val r = AppModule.rulesRepository.list()) {
+              is Result.Success -> {
+                val rule = r.data.firstOrNull { it.id == openMenuRuleId }
+                if (rule != null) {
+                  newRuleVm.updateNl(rule.nlText)
+                  showNewRuleSheet = true
+                } else {
+                  KlikLogger.w("MovesScreen", "Edit: rule $openMenuRuleId not in list")
+                }
+              }
+              is Result.Error -> KlikLogger.w(
+                "MovesScreen",
+                "Edit: failed to fetch rule list: ${r.exception.message}",
+              )
+              is Result.Loading -> Unit
+            }
+          }
+        }
+        K1MenuItem(label = "Pause") {
+          showMenuForRuleId = null
+          ruleActionScope.launch {
+            AppModule.rulesRepository.edit(openMenuRuleId, status = "paused")
+            onRefresh()
+          }
+        }
+        K1MenuItem(label = "Delete", danger = true) {
+          confirmDeleteRuleId = openMenuRuleId
+          showMenuForRuleId = null
+        }
+        // Snooze 7d — intentionally stubbed for v1. Documented gap: server
+        // doesn't yet accept a snooze_until field on RulesRepository.edit().
+        K1MenuItem(label = "Snooze 7d") {
+          KlikLogger.i(
+            "MovesScreen",
+            "Snooze 7d requested for rule $openMenuRuleId (not yet implemented)",
+          )
+          showMenuForRuleId = null
+        }
+      }
+    }
+
+    val deleteRuleId = confirmDeleteRuleId
+    if (deleteRuleId != null) {
+      K1ConfirmDialog(
+        title = "Delete rule?",
+        message = "This stops Klik from creating cards for this rule.",
+        confirmLabel = "Delete",
+        onConfirm = {
+          confirmDeleteRuleId = null
+          ruleActionScope.launch {
+            AppModule.rulesRepository.delete(deleteRuleId)
+            onRefresh()
+          }
+        },
+        onDismiss = { confirmDeleteRuleId = null },
+      )
+    }
   } // end overlay Box
 }
 
@@ -651,8 +733,9 @@ private fun FeaturedCard(
   onStart: () -> Unit,
   onSkip: () -> Unit,
   onOpen: () -> Unit = {},
+  onLongPress: (() -> Unit)? = null,
 ) {
-  K1Card(soft = true, onClick = onOpen) {
+  K1Card(soft = true, onClick = onOpen, onLongClick = onLongPress) {
     Row(verticalAlignment = Alignment.Top) {
       Column(Modifier.weight(1f)) {
         Text(t.title, style = K1Type.bodyMd)

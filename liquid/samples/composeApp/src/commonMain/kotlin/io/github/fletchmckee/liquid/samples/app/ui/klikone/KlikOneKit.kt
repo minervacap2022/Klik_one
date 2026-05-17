@@ -1642,3 +1642,119 @@ fun K1BottomSheet(
     }
   }
 }
+
+// ─── K1 Contextual Menu ───────────────────────────────────────────────────
+// Lightweight editorial action sheet — used by long-press on Featured cards
+// to expose Edit / Pause / Delete / Snooze. Avoids Material3 DropdownMenu
+// (Material ripple + elevation shadow). Renders as a centered paper card
+// over a scrim; scrim tap dismisses.
+@Composable
+fun K1Menu(
+  onDismiss: () -> Unit,
+  content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(Color.Black.copy(alpha = 0.4f))
+      .k1Clickable(onClick = onDismiss),
+  ) {
+    Column(
+      modifier = Modifier
+        .align(Alignment.Center)
+        .padding(horizontal = 40.dp)
+        .fillMaxWidth()
+        .clip(K1R.card)
+        .background(KlikPaperCard)
+        .border(0.5.dp, KlikLineHairline, K1R.card)
+        .k1Clickable {}, // swallow taps so menu items don't dismiss scrim
+      content = content,
+    )
+  }
+}
+
+@Composable
+fun K1MenuItem(
+  label: String,
+  danger: Boolean = false,
+  onClick: () -> Unit,
+) {
+  val color = if (danger) KlikAlert else KlikInkPrimary
+  Box(
+    Modifier
+      .fillMaxWidth()
+      .k1Clickable(onClick = onClick)
+      .padding(horizontal = 18.dp, vertical = 14.dp),
+  ) {
+    Text(label, style = K1Type.bodyMd.copy(color = color))
+  }
+  Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
+}
+
+// ─── K1 Confirm Dialog ────────────────────────────────────────────────────
+// Editorial confirm dialog. Same scrim-card pattern as K1Menu; two stacked
+// buttons (Cancel / Confirm) avoid Material3 AlertDialog defaults.
+@Composable
+fun K1ConfirmDialog(
+  title: String,
+  message: String,
+  confirmLabel: String,
+  cancelLabel: String = "Cancel",
+  danger: Boolean = true,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(Color.Black.copy(alpha = 0.4f))
+      .k1Clickable(onClick = onDismiss),
+  ) {
+    Column(
+      modifier = Modifier
+        .align(Alignment.Center)
+        .padding(horizontal = 40.dp)
+        .fillMaxWidth()
+        .clip(K1R.card)
+        .background(KlikPaperCard)
+        .border(0.5.dp, KlikLineHairline, K1R.card)
+        .k1Clickable {}
+        .padding(18.dp),
+    ) {
+      Text(title, style = K1Type.h3)
+      Spacer(Modifier.height(K1Sp.s))
+      Text(message, style = K1Type.bodySm.copy(color = KlikInkSecondary))
+      Spacer(Modifier.height(K1Sp.lg))
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        Box(
+          Modifier
+            .weight(1f)
+            .clip(K1R.chip)
+            .border(0.5.dp, KlikLineHairline, K1R.chip)
+            .k1Clickable(onClick = onDismiss)
+            .padding(vertical = 10.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(cancelLabel, style = K1Type.bodySm.copy(color = KlikInkSecondary))
+        }
+        Box(
+          Modifier
+            .weight(1f)
+            .clip(K1R.chip)
+            .background(if (danger) KlikAlert else KlikInkPrimary)
+            .k1Clickable(onClick = onConfirm)
+            .padding(vertical = 10.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            confirmLabel,
+            style = K1Type.bodySm.copy(color = KlikPaperCard, fontWeight = FontWeight.Medium),
+          )
+        }
+      }
+    }
+  }
+}
