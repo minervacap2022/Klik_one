@@ -9,18 +9,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,13 +44,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,13 +70,15 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikLineHairline
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperApp
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperCard
 import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperChip
-import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
 import io.github.fletchmckee.liquid.samples.app.theme.KlikRiskAccent
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.K1Sp
 import io.github.fletchmckee.liquid.samples.app.ui.klikone.k1Clickable
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 private const val TYPE_PERSON = "person"
 private const val TYPE_ORG = "organization"
@@ -334,69 +333,33 @@ private fun String.formatShortDate(): String {
   return "$month '$year"
 }
 
-private fun evalCubic(t: Float, p0: Float, cp1: Float, cp2: Float, p1: Float): Float {
-  val u = 1f - t
-  return u * u * u * p0 + 3f * u * u * t * cp1 + 3f * u * t * t * cp2 + t * t * t * p1
-}
-
-private fun evalCubicDeriv(t: Float, p0: Float, cp1: Float, cp2: Float, p1: Float): Float {
-  val u = 1f - t
-  return 3f * (u * u * (cp1 - p0) + 2f * u * t * (cp2 - cp1) + t * t * (p1 - cp2))
-}
-
-private data class LeafInfo(val node: GrowthTreeNode, val x: Float, val y: Float, val t: Float)
-
-// Leaf: elongated organic shape with a vein, oriented outward from branch tangent.
-private fun DrawScope.drawLeaf(
-  cx: Float, cy: Float,
-  tangentAngle: Float,
-  side: Float,          // +1f or -1f — which side of the branch
-  halfLen: Float, halfW: Float,
-  color: Color,
-) {
-  val angle = tangentAngle - side * (PI.toFloat() / 2.1f)
-  val cosA = cos(angle); val sinA = sin(angle)
-  fun r(x: Float, y: Float) = Offset(cx + x * cosA - y * sinA, cy + x * sinA + y * cosA)
-
-  val tip  = r(halfLen, 0f)
-  val base = r(-halfLen * 0.38f, 0f)
-  val rC1  = r(halfLen * 0.46f,  halfW)
-  val rC2  = r(-halfLen * 0.06f, halfW * 0.72f)
-  val lC1  = r(halfLen * 0.46f, -halfW)
-  val lC2  = r(-halfLen * 0.06f, -halfW * 0.72f)
-
-  val path = Path().apply {
-    moveTo(tip.x, tip.y)
-    cubicTo(rC1.x, rC1.y, rC2.x, rC2.y, base.x, base.y)
-    cubicTo(lC2.x, lC2.y, lC1.x, lC1.y, tip.x, tip.y)
-    close()
-  }
-  drawPath(path, color.copy(alpha = 0.38f))
-  drawPath(path, color.copy(alpha = 0.88f), style = Stroke(width = 0.55.dp.toPx(), cap = StrokeCap.Round))
-  drawLine(color.copy(alpha = 0.50f), base, tip, strokeWidth = 0.4.dp.toPx(), cap = StrokeCap.Round)
-}
-
-// Fruit: round berry with a short stem — for achievements/milestones on trunk.
-private fun DrawScope.drawFruit(cx: Float, cy: Float, radius: Float, color: Color) {
-  drawLine(
-    color = color.copy(alpha = 0.60f),
-    strokeWidth = 0.8.dp.toPx(),
-    cap = StrokeCap.Round,
-    start = Offset(cx, cy - radius * 0.82f),
-    end = Offset(cx + radius * 0.72f, cy - radius * 2.0f),
-  )
-  drawCircle(color.copy(alpha = 0.88f), radius, Offset(cx, cy))
-  drawCircle(Color.White.copy(alpha = 0.22f), radius * 0.36f, Offset(cx - radius * 0.28f, cy - radius * 0.28f))
-}
-
-// ==================== VIEW: Tree ====================
+// ==================== VIEW: Tree (radial network canvas) ====================
 //
-// You are at the bottom (root). Three branches curve upward:
-//   left → People, center → Orgs, right → Projects.
-// Entities are leaf dots placed along each branch, oldest near the
-// trunk (lower), newest near the tip (upper) — the tree grows over time.
-// Achievement milestones are small diamond markers on the trunk.
-// Future goals are dashed circles just past the branch tips.
+// YOU node at center. People branch left (120°–240°), Orgs branch upper-right
+// (240°–360°), Projects branch lower-right (0°–120°). Pan and pinch to explore.
+
+private data class NetNode(
+  val label: String,
+  val type: String,
+  val wxDp: Float,
+  val wyDp: Float,
+)
+
+private fun buildNetNodes(
+  nodes: List<GrowthTreeNode>,
+  sectorStartDeg: Float,
+  sectorSweepDeg: Float,
+  radiusDp: Float,
+): List<NetNode> {
+  if (nodes.isEmpty()) return emptyList()
+  val sectorCenterDeg = sectorStartDeg + sectorSweepDeg / 2f
+  return nodes.mapIndexed { i, node ->
+    val angleDeg = if (nodes.size == 1) sectorCenterDeg
+    else sectorStartDeg + sectorSweepDeg * i.toFloat() / (nodes.size - 1)
+    val rad = angleDeg * PI.toFloat() / 180f
+    NetNode(node.label.take(10), node.nodeType, cos(rad) * radiusDp, sin(rad) * radiusDp)
+  }
+}
 
 @Composable
 private fun TreeView(data: GrowthTreeResponse) {
@@ -410,19 +373,39 @@ private fun TreeView(data: GrowthTreeResponse) {
     data.nodesByType(TYPE_PROJECT).sortedBy { it.timestamp }.take(6)
   }
 
-  Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(KlikPaperApp)) {
-    Spacer(Modifier.height(4.dp))
-    TreeCanvasBlock(
-      user = data.user,
-      people = people,
-      orgs = orgs,
-      projects = projects,
-      achievementCount = data.achievements.size,
-      goals = data.futureProjection,
-      peopleTotal = data.user.totalPeople.coerceAtLeast(data.nodesByType(TYPE_PERSON).size),
-      orgsTotal = data.user.totalOrgs.coerceAtLeast(data.nodesByType(TYPE_ORG).size),
-      projectsTotal = data.user.totalProjects.coerceAtLeast(data.nodesByType(TYPE_PROJECT).size),
-    )
+  var pan by remember { mutableStateOf(Offset.Zero) }
+  var zoom by remember { mutableStateOf(1f) }
+  val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+    zoom = (zoom * zoomChange).coerceIn(0.35f, 3.5f)
+    pan += panChange
+  }
+
+  Column(modifier = Modifier.fillMaxSize().background(KlikPaperApp)) {
+    Box(
+      modifier = Modifier
+        .weight(1f)
+        .fillMaxWidth()
+        .transformable(state = transformState),
+    ) {
+      NetworkCanvas(
+        user = data.user,
+        people = people,
+        orgs = orgs,
+        projects = projects,
+        pan = pan,
+        zoom = zoom,
+      )
+      Text(
+        "drag to explore",
+        color = KlikInkFaint,
+        fontSize = 9.sp,
+        letterSpacing = 0.8.sp,
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .padding(bottom = 12.dp),
+      )
+    }
+    HairlineDivider()
     TodayLine(level = data.user.level, xpToNext = data.user.xpToNextLevel)
     if (data.futureProjection.isNotEmpty()) {
       GoalsStrip(data.futureProjection)
@@ -432,201 +415,112 @@ private fun TreeView(data: GrowthTreeResponse) {
 }
 
 @Composable
-private fun TreeCanvasBlock(
+private fun NetworkCanvas(
   user: GrowthTreeUserSummary,
   people: List<GrowthTreeNode>,
   orgs: List<GrowthTreeNode>,
   projects: List<GrowthTreeNode>,
-  achievementCount: Int,
-  goals: List<GrowthTreeFutureNode>,
-  peopleTotal: Int,
-  orgsTotal: Int,
-  projectsTotal: Int,
+  pan: Offset,
+  zoom: Float,
 ) {
-  BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(540.dp).padding(horizontal = 8.dp)) {
-    val wDp = maxWidth.value
+  val textMeasurer = rememberTextMeasurer()
 
-    // Root at bottom center (in dp coords within the box)
-    val rootX = wDp * 0.50f
-    val rootY = 500f
+  val peopleNodes = remember(people) { buildNetNodes(people, 120f, 120f, 120f) }
+  val orgNodes = remember(orgs) { buildNetNodes(orgs, 240f, 120f, 120f) }
+  val projectNodes = remember(projects) { buildNetNodes(projects, 0f, 120f, 120f) }
+  val allNodes = remember(peopleNodes, orgNodes, projectNodes) { peopleNodes + orgNodes + projectNodes }
 
-    // Trunk top (where branches diverge)
-    val trunkTopY = 320f
+  Canvas(modifier = Modifier.fillMaxSize()) {
+    val cx = size.width / 2f + pan.x
+    val cy = size.height / 2f + pan.y
 
-    // Branch tips
-    val pTipX = wDp * 0.12f; val pTipY = 60f   // People — upper left
-    val oTipX = wDp * 0.50f; val oTipY = 44f   // Orgs  — upper centre
-    val eTipX = wDp * 0.88f; val eTipY = 60f   // Projects — upper right
+    fun w(wxDp: Float, wyDp: Float) = Offset(
+      cx + wxDp.dp.toPx() * zoom,
+      cy + wyDp.dp.toPx() * zoom,
+    )
 
-    // Cubic bezier control points for each branch
-    val pCp1X = rootX - 6f; val pCp1Y = trunkTopY - 70f
-    val pCp2X = pTipX + 44f; val pCp2Y = pTipY + 110f
-    val oCp1X = rootX; val oCp1Y = trunkTopY - 110f
-    val oCp2X = oTipX; val oCp2Y = oTipY + 110f
-    val eCp1X = rootX + 6f; val eCp1Y = trunkTopY - 70f
-    val eCp2X = eTipX - 44f; val eCp2Y = eTipY + 110f
+    val center = w(0f, 0f)
+    val youR = 32.dp.toPx() * zoom
+    val entityR = 20.dp.toPx() * zoom
 
-    // Distribute N leaves along a bezier: oldest near trunk (low t), newest near tip (high t)
-    fun leafPositions(
-      nodes: List<GrowthTreeNode>,
-      cp1x: Float, cp1y: Float,
-      cp2x: Float, cp2y: Float,
-      tipX: Float, tipY: Float,
-    ): List<LeafInfo> {
-      if (nodes.isEmpty()) return emptyList()
-      return nodes.mapIndexed { i, node ->
-        val t = (i + 1f) / (nodes.size + 1f)
-        LeafInfo(node, evalCubic(t, rootX, cp1x, cp2x, tipX), evalCubic(t, trunkTopY, cp1y, cp2y, tipY), t)
-      }
+    // Lines from YOU to each entity
+    for (n in allNodes) {
+      drawLine(
+        color = KlikLineHairline,
+        start = center,
+        end = w(n.wxDp, n.wyDp),
+        strokeWidth = 0.9.dp.toPx(),
+      )
     }
 
-    val pLeaves = leafPositions(people, pCp1X, pCp1Y, pCp2X, pCp2Y, pTipX, pTipY)
-    val oLeaves = leafPositions(orgs, oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY)
-    val eLeaves = leafPositions(projects, eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY)
+    // Entity nodes
+    val labelSize = (9f * zoom.coerceIn(0.55f, 2.5f)).sp
+    val typeSize = (6.5f * zoom.coerceIn(0.55f, 2.5f)).sp
+    for (n in allNodes) {
+      val pos = w(n.wxDp, n.wyDp)
+      val color = accentForType(n.type)
+      drawCircle(color.copy(alpha = 0.10f), entityR, pos)
+      drawCircle(color, entityR, pos, style = Stroke(width = 0.9.dp.toPx()))
 
-    Canvas(modifier = Modifier.matchParentSize()) {
-      val rx = rootX.dp.toPx(); val ry = rootY.dp.toPx()
-      val ttx = rootX.dp.toPx(); val tty = trunkTopY.dp.toPx()
-
-      // Trunk
-      drawLine(
-        color = KlikInkPrimary,
-        strokeWidth = 1.8.dp.toPx(),
-        cap = StrokeCap.Round,
-        start = Offset(rx, ry - 13.dp.toPx()),
-        end = Offset(ttx, tty),
+      val measured = textMeasurer.measure(
+        n.label,
+        TextStyle(fontSize = labelSize, fontWeight = FontWeight.Medium, color = color),
+        maxLines = 1,
+      )
+      drawText(
+        measured,
+        topLeft = Offset(pos.x - measured.size.width / 2f, pos.y - measured.size.height / 2f),
       )
 
-      // Three branches
-      fun branch(cp1x: Float, cp1y: Float, cp2x: Float, cp2y: Float, tipX: Float, tipY: Float) {
-        val path = Path().apply {
-          moveTo(ttx, tty)
-          cubicTo(cp1x.dp.toPx(), cp1y.dp.toPx(), cp2x.dp.toPx(), cp2y.dp.toPx(), tipX.dp.toPx(), tipY.dp.toPx())
-        }
-        drawPath(path, KlikLineHairline, style = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round))
-      }
-      branch(pCp1X, pCp1Y, pCp2X, pCp2Y, pTipX, pTipY)
-      branch(oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY)
-      branch(eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY)
-
-      // Leaves — organic leaf shapes alternating sides of each branch
-      val hL = 7.dp.toPx(); val hW = 3.5.dp.toPx()
-      fun drawBranchLeaves(
-        leaves: List<LeafInfo>,
-        cp1x: Float, cp1y: Float, cp2x: Float, cp2y: Float,
-        tipX: Float, tipY: Float, color: Color,
-      ) {
-        for ((idx, leaf) in leaves.withIndex()) {
-          val lx = leaf.x.dp.toPx(); val ly = leaf.y.dp.toPx()
-          val ddx = evalCubicDeriv(leaf.t, rootX, cp1x, cp2x, tipX)
-          val ddy = evalCubicDeriv(leaf.t, trunkTopY, cp1y, cp2y, tipY)
-          val angle = atan2(ddy, ddx)
-          drawLeaf(lx, ly, angle, if (idx % 2 == 0) 1f else -1f, hL, hW, color)
+      val typeLabel = n.type.let { t ->
+        when (t) {
+          TYPE_PERSON -> "PERSON"
+          TYPE_ORG -> "ORG"
+          TYPE_PROJECT -> "PROJECT"
+          else -> t.uppercase().take(7)
         }
       }
-      drawBranchLeaves(pLeaves, pCp1X, pCp1Y, pCp2X, pCp2Y, pTipX, pTipY, KlikInkPrimary)
-      drawBranchLeaves(oLeaves, oCp1X, oCp1Y, oCp2X, oCp2Y, oTipX, oTipY, KlikDecisionAccent)
-      drawBranchLeaves(eLeaves, eCp1X, eCp1Y, eCp2X, eCp2Y, eTipX, eTipY, KlikCommitmentAccent)
-
-      // Fruits (achievements/milestones) on trunk
-      if (achievementCount > 0) {
-        val n = achievementCount.coerceAtMost(7)
-        val trunkLen = rootY - 14f - trunkTopY
-        for (i in 0 until n) {
-          val t = (i + 1f) / (n + 1f)
-          val fx = rx
-          val fy = (ry - 13.dp.toPx()) - t * trunkLen.dp.toPx()
-          // Alternate fruit left/right of trunk for natural look
-          val offset = if (i % 2 == 0) 5.dp.toPx() else -5.dp.toPx()
-          drawFruit(fx + offset, fy, 3.8.dp.toPx(), KlikRiskAccent)
-        }
-      }
-
-      // Goal dashed rings at branch tips
-      if (goals.isNotEmpty()) {
-        for ((tipX, tipY) in listOf(pTipX to pTipY, oTipX to oTipY, eTipX to eTipY)) {
-          drawCircle(KlikInkMuted.copy(alpha = 0.18f), 7.dp.toPx(), Offset(tipX.dp.toPx(), tipY.dp.toPx()))
-          drawCircle(
-            color = KlikInkMuted,
-            radius = 7.dp.toPx(),
-            center = Offset(tipX.dp.toPx(), tipY.dp.toPx()),
-            style = Stroke(width = 0.8.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.5f, 2.5f))),
-          )
-        }
-      }
-
-      // Root dot — concentric rings
-      drawCircle(KlikInkPrimary, 11.dp.toPx(), Offset(rx, ry))
-      drawCircle(KlikPaperApp, 7.5.dp.toPx(), Offset(rx, ry))
-      drawCircle(KlikInkPrimary, 4.dp.toPx(), Offset(rx, ry))
-
-      // Branch tip buds (filled core + soft halo)
-      fun drawBud(bx: Float, by: Float, color: Color) {
-        drawCircle(color.copy(alpha = 0.14f), 6.5.dp.toPx(), Offset(bx, by))
-        drawCircle(color, 3.5.dp.toPx(), Offset(bx, by))
-      }
-      drawBud(pTipX.dp.toPx(), pTipY.dp.toPx(), KlikInkPrimary)
-      drawBud(oTipX.dp.toPx(), oTipY.dp.toPx(), KlikDecisionAccent)
-      drawBud(eTipX.dp.toPx(), eTipY.dp.toPx(), KlikCommitmentAccent)
+      val typeMeasured = textMeasurer.measure(
+        typeLabel,
+        TextStyle(fontSize = typeSize, color = KlikInkFaint, letterSpacing = 0.5.sp),
+        maxLines = 1,
+      )
+      drawText(
+        typeMeasured,
+        topLeft = Offset(
+          pos.x - typeMeasured.size.width / 2f,
+          pos.y + entityR + 2.dp.toPx(),
+        ),
+      )
     }
 
-    // Text overlays
-    OverlayLabel(cx = rootX, y = rootY + 14f, widthDp = 160f, text = user.displayName, isHeader = true)
+    // YOU node — outer halo, fill, border
+    drawCircle(KlikInkPrimary.copy(alpha = 0.05f), youR * 1.45f, center)
+    drawCircle(KlikPaperApp, youR, center)
+    drawCircle(KlikInkPrimary, youR, center, style = Stroke(width = 1.6.dp.toPx()))
 
-    OverlayLabel(cx = pTipX, y = pTipY + 10f, widthDp = 74f, text = "PEOPLE", isEyebrow = true)
-    OverlayLabel(cx = pTipX, y = pTipY + 22f, widthDp = 74f, text = "$peopleTotal", isMeta = true)
+    val youLabelSize = (11f * zoom.coerceIn(0.55f, 2.5f)).sp
+    val nameLabelSize = (8f * zoom.coerceIn(0.55f, 2.5f)).sp
 
-    OverlayLabel(cx = oTipX, y = oTipY + 10f, widthDp = 74f, text = "ORGS", isEyebrow = true)
-    OverlayLabel(cx = oTipX, y = oTipY + 22f, widthDp = 74f, text = "$orgsTotal", isMeta = true)
+    val youMeasured = textMeasurer.measure(
+      "YOU",
+      TextStyle(fontSize = youLabelSize, fontWeight = FontWeight.Bold, color = KlikInkPrimary),
+    )
+    drawText(
+      youMeasured,
+      topLeft = Offset(
+        center.x - youMeasured.size.width / 2f,
+        center.y - youMeasured.size.height - 1.dp.toPx(),
+      ),
+    )
 
-    OverlayLabel(cx = eTipX, y = eTipY + 10f, widthDp = 74f, text = "PROJECTS", isEyebrow = true)
-    OverlayLabel(cx = eTipX, y = eTipY + 22f, widthDp = 74f, text = "$projectsTotal", isMeta = true)
-
-    for (leaf in pLeaves) {
-      OverlayLabel(cx = leaf.x, y = leaf.y + 9f, widthDp = 80f, text = leaf.node.label.ifBlank { "—" }, isLeaf = true)
-    }
-    for (leaf in oLeaves) {
-      OverlayLabel(cx = leaf.x, y = leaf.y + 9f, widthDp = 80f, text = leaf.node.label.ifBlank { "—" }, isLeaf = true)
-    }
-    for (leaf in eLeaves) {
-      OverlayLabel(cx = leaf.x, y = leaf.y + 9f, widthDp = 80f, text = leaf.node.label.ifBlank { "—" }, isLeaf = true)
-    }
-  }
-}
-
-@Composable
-private fun BoxScope.OverlayLabel(
-  cx: Float,
-  y: Float,
-  widthDp: Float,
-  text: String,
-  isEyebrow: Boolean = false,
-  isHeader: Boolean = false,
-  isMeta: Boolean = false,
-  isLeaf: Boolean = false,
-) {
-  Box(
-    modifier = Modifier.offset(x = (cx - widthDp / 2f).dp, y = y.dp).width(widthDp.dp),
-    contentAlignment = Alignment.TopCenter,
-  ) {
-    Text(
-      text = text.ifBlank { "—" },
-      color = when {
-        isMeta -> KlikInkTertiary
-        isEyebrow && !isHeader -> KlikInkFaint
-        else -> KlikInkPrimary
-      },
-      fontSize = when {
-        isHeader -> 14.sp
-        isLeaf -> 10.sp
-        isEyebrow -> 8.5.sp
-        else -> 10.sp
-      },
-      fontWeight = if (isMeta) FontWeight.Normal else FontWeight.Medium,
-      letterSpacing = if (isEyebrow) 1.2.sp else 0.sp,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-      textAlign = TextAlign.Center,
+    val nameMeasured = textMeasurer.measure(
+      user.displayName.take(12),
+      TextStyle(fontSize = nameLabelSize, color = KlikInkMuted),
+    )
+    drawText(
+      nameMeasured,
+      topLeft = Offset(center.x - nameMeasured.size.width / 2f, center.y + 2.dp.toPx()),
     )
   }
 }
@@ -727,26 +621,26 @@ private fun HeatView(data: GrowthTreeResponse) {
   val columnAccents = listOf(KlikInkPrimary, KlikCommitmentAccent, KlikDecisionAccent)
 
   Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(KlikPaperApp)) {
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(16.dp))
 
     // Column headers
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-      Spacer(Modifier.width(56.dp))
+      Spacer(Modifier.width(60.dp))
       columnLabels.forEachIndexed { i, label ->
         Column(
           modifier = Modifier.weight(1f),
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-          Canvas(Modifier.size(6.dp)) {
-            drawCircle(columnAccents[i], 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
+          Canvas(Modifier.size(7.dp)) {
+            drawCircle(columnAccents[i], 3.5.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
           }
-          Spacer(Modifier.height(3.dp))
-          Text(label, color = KlikInkFaint, fontSize = 8.5.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, textAlign = TextAlign.Center)
+          Spacer(Modifier.height(4.dp))
+          Text(label, color = KlikInkFaint, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp, textAlign = TextAlign.Center)
         }
       }
     }
 
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(14.dp))
 
     if (allMonths.isEmpty()) {
       Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
@@ -755,20 +649,34 @@ private fun HeatView(data: GrowthTreeResponse) {
     } else {
       Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         for (month in allMonths) {
           val hasAchievement = month in achievementMonths
           val counts = nodesByMonthType[month] ?: emptyMap()
-          HeatRow(month = month, counts = counts, columnTypes = columnTypes, columnAccents = columnAccents, maxCount = maxCount, hasAchievement = hasAchievement)
+          HeatRow(
+            month = month,
+            counts = counts,
+            columnTypes = columnTypes,
+            columnAccents = columnAccents,
+            maxCount = maxCount,
+            hasAchievement = hasAchievement,
+          )
         }
 
         if (goalMonths.isNotEmpty()) {
           Spacer(Modifier.height(8.dp))
           HairlineDivider()
-          Spacer(Modifier.height(4.dp))
-          Text("AHEAD", color = KlikInkFaint, fontSize = 9.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, modifier = Modifier.padding(start = 60.dp))
-          Spacer(Modifier.height(4.dp))
+          Spacer(Modifier.height(6.dp))
+          Text(
+            "AHEAD",
+            color = KlikInkFaint,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(start = 64.dp),
+          )
+          Spacer(Modifier.height(6.dp))
           for (month in goalMonths.sorted()) {
             Row(
               modifier = Modifier.fillMaxWidth(),
@@ -778,20 +686,20 @@ private fun HeatView(data: GrowthTreeResponse) {
                 text = month.heatLabel(),
                 color = KlikInkFaint,
                 fontSize = 9.sp,
-                modifier = Modifier.width(56.dp),
+                modifier = Modifier.width(60.dp),
                 textAlign = TextAlign.End,
               )
               Spacer(Modifier.width(4.dp))
               columnTypes.forEachIndexed { i, _ ->
                 Box(
-                  modifier = Modifier.weight(1f).height(24.dp).clip(RoundedCornerShape(4.dp)).background(KlikPaperChip),
+                  modifier = Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(6.dp)).background(KlikPaperChip),
                   contentAlignment = Alignment.Center,
                 ) {
                   Canvas(Modifier.size(8.dp)) {
                     drawCircle(KlikInkMuted, 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f), style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 2f))))
                   }
                 }
-                if (i < columnTypes.size - 1) Spacer(Modifier.width(3.dp))
+                if (i < columnTypes.size - 1) Spacer(Modifier.width(4.dp))
               }
             }
           }
@@ -799,7 +707,7 @@ private fun HeatView(data: GrowthTreeResponse) {
       }
     }
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(20.dp))
     HeatLegend(columnAccents)
     Spacer(Modifier.height(28.dp))
   }
@@ -820,7 +728,7 @@ private fun HeatRow(
       color = KlikInkFaint,
       fontSize = 9.sp,
       fontWeight = FontWeight.Medium,
-      modifier = Modifier.width(56.dp),
+      modifier = Modifier.width(60.dp),
       textAlign = TextAlign.End,
     )
     Spacer(Modifier.width(4.dp))
@@ -836,27 +744,27 @@ private fun HeatRow(
       }
       val bg = if (count == 0) KlikPaperChip else accent.copy(alpha = alpha)
       Box(
-        modifier = Modifier.weight(1f).height(24.dp).clip(RoundedCornerShape(4.dp)).background(bg),
+        modifier = Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(6.dp)).background(bg),
         contentAlignment = Alignment.Center,
       ) {
         if (count > 0) {
           Text(
             text = "$count",
             color = if (alpha > 0.5f) KlikPaperApp else accent,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
           )
         }
         // Achievement indicator — rose dot in top-right corner
         if (hasAchievement && type == TYPE_PERSON) {
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
-            Canvas(Modifier.size(8.dp).padding(2.dp)) {
-              drawCircle(KlikRiskAccent, 2.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
+            Canvas(Modifier.size(10.dp).padding(3.dp)) {
+              drawCircle(KlikRiskAccent, 2.5.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
             }
           }
         }
       }
-      if (i < columnTypes.size - 1) Spacer(Modifier.width(3.dp))
+      if (i < columnTypes.size - 1) Spacer(Modifier.width(4.dp))
     }
   }
 }
@@ -868,16 +776,14 @@ private fun HeatLegend(accents: List<Color>) {
     horizontalArrangement = Arrangement.spacedBy(10.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    // Intensity scale
     Text("Less", color = KlikInkFaint, fontSize = 9.sp)
     Spacer(Modifier.width(2.dp))
     for (alpha in listOf(0.15f, 0.35f, 0.60f, 0.85f)) {
-      Box(modifier = Modifier.size(width = 14.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(KlikInkPrimary.copy(alpha = alpha)))
+      Box(modifier = Modifier.size(width = 16.dp, height = 16.dp).clip(RoundedCornerShape(3.dp)).background(KlikInkPrimary.copy(alpha = alpha)))
     }
     Spacer(Modifier.width(2.dp))
     Text("More", color = KlikInkFaint, fontSize = 9.sp)
     Spacer(Modifier.weight(1f))
-    // Achievement dot
     Row(verticalAlignment = Alignment.CenterVertically) {
       Canvas(Modifier.size(8.dp)) {
         drawCircle(KlikRiskAccent, 3.dp.toPx(), Offset(size.width / 2f, size.height / 2f))
