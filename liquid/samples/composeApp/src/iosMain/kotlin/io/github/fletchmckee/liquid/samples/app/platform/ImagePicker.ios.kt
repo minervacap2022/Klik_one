@@ -44,6 +44,13 @@ actual object ImagePicker {
   private var delegateHolder: NSObject? = null
 
   actual suspend fun pickAvatar(): PickedImage? = suspendCoroutine { cont ->
+    val gate = OnceGate()
+    fun resumeOnce(value: PickedImage?) {
+      if (!gate.tryEnter()) return
+      delegateHolder = null
+      cont.resume(value)
+    }
+
     val config = PHPickerConfiguration().apply {
       setSelectionLimit(1)
       setFilter(PHPickerFilter.imagesFilter)
@@ -53,11 +60,13 @@ actual object ImagePicker {
     val delegate = object : NSObject(), PHPickerViewControllerDelegateProtocol {
       override fun picker(picker: PHPickerViewController, didFinishPicking: List<*>) {
         picker.dismissViewControllerAnimated(true, completion = null)
+        // PHPicker can deliver this callback more than once (e.g. with the
+        // selection, then again with an empty array on dismissal animation
+        // completion). resumeOnce keeps the second call from double-resuming.
 
         val first = didFinishPicking.firstOrNull() as? PHPickerResult
         if (first == null) {
-          delegateHolder = null
-          cont.resume(null)
+          resumeOnce(null)
           return
         }
         val provider: NSItemProvider = first.itemProvider
@@ -65,28 +74,24 @@ actual object ImagePicker {
         provider.loadDataRepresentationForTypeIdentifier(PUBLIC_IMAGE_UTI) { data: NSData?, error: NSError? ->
           if (data == null) {
             KlikLogger.e("ImagePicker", "loadDataRepresentation failed: ${error?.localizedDescription}")
-            delegateHolder = null
-            cont.resume(null)
+            resumeOnce(null)
             return@loadDataRepresentationForTypeIdentifier
           }
           val image = UIImage.imageWithData(data)
           if (image == null) {
             KlikLogger.e("ImagePicker", "UIImage decode failed (${data.length} bytes)")
-            delegateHolder = null
-            cont.resume(null)
+            resumeOnce(null)
             return@loadDataRepresentationForTypeIdentifier
           }
           val downscaled = downscale(image, MAX_EDGE)
           val jpeg: NSData? = UIImageJPEGRepresentation(downscaled, JPEG_QUALITY)
           if (jpeg == null) {
             KlikLogger.e("ImagePicker", "JPEG encode failed")
-            delegateHolder = null
-            cont.resume(null)
+            resumeOnce(null)
             return@loadDataRepresentationForTypeIdentifier
           }
           val bytes = jpeg.toByteArray()
-          delegateHolder = null
-          cont.resume(
+          resumeOnce(
             PickedImage(bytes = bytes, mimeType = "image/jpeg", fileName = "avatar.jpg"),
           )
         }
@@ -99,8 +104,7 @@ actual object ImagePicker {
     val root = topViewController()
     if (root == null) {
       KlikLogger.e("ImagePicker", "No root VC to present from")
-      delegateHolder = null
-      cont.resume(null)
+      resumeOnce(null)
       return@suspendCoroutine
     }
     root.presentViewController(picker, animated = true, completion = null)
