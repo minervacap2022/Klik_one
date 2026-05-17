@@ -6,13 +6,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
@@ -39,6 +43,7 @@ import io.github.fletchmckee.liquid.samples.app.theme.KlikPaperSoft
  * K1 editorial only — paper-and-ink palette, hairline rules, sparkle, no
  * Material3 leakage beyond Text/Icon primitives.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NewRuleSheet(
   viewModel: NewRuleViewModel,
@@ -50,9 +55,11 @@ fun NewRuleSheet(
     Modifier
       .fillMaxWidth()
       .background(KlikPaperCard)
-      .padding(24.dp)
-      .navigationBarsPadding(),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+      .statusBarsPadding()
+      .imePadding()
+      .navigationBarsPadding()
+      .padding(horizontal = 24.dp, vertical = 20.dp),
+    verticalArrangement = Arrangement.spacedBy(14.dp),
   ) {
     val editing = ui.existingRuleId != null
     Text(if (editing) "Edit this rule" else "Teach Klik a rule", style = K1Type.h2)
@@ -79,11 +86,18 @@ fun NewRuleSheet(
         textStyle = K1Type.bodyMd,
         cursorBrush = SolidColor(KlikInkPrimary),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+        // Cap height so the input doesn't balloon — typical rule fits 1-3 lines.
+        maxLines = 4,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
       )
     }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // FlowRow wraps chips onto multiple lines instead of clipping the third one.
+    FlowRow(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
       listOf(
         "After every 1:1, draft a recap email",
         "Every Monday 9 AM, summarize last week",
