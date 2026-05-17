@@ -345,17 +345,25 @@ private data class NetNode(
   val wyDp: Float,
 )
 
+private const val SECTOR_PADDING_DEG = 8f
+private const val RING_INNER_DP = 105f
+private const val RING_OUTER_DP = 175f
+
 private fun buildNetNodes(
   nodes: List<GrowthTreeNode>,
   sectorStartDeg: Float,
   sectorSweepDeg: Float,
-  radiusDp: Float,
 ): List<NetNode> {
   if (nodes.isEmpty()) return emptyList()
-  val sectorCenterDeg = sectorStartDeg + sectorSweepDeg / 2f
+  val start = sectorStartDeg + SECTOR_PADDING_DEG
+  val sweep = sectorSweepDeg - 2f * SECTOR_PADDING_DEG
+  val centerDeg = start + sweep / 2f
   return nodes.mapIndexed { i, node ->
-    val angleDeg = if (nodes.size == 1) sectorCenterDeg
-    else sectorStartDeg + sectorSweepDeg * i.toFloat() / (nodes.size - 1)
+    val angleDeg = if (nodes.size == 1) centerDeg
+    else start + sweep * i.toFloat() / (nodes.size - 1)
+    // Alternate rings (zigzag) once we exceed 3 nodes — gives a layered look
+    // and prevents labels from colliding on a single ring.
+    val radiusDp = if (nodes.size <= 3 || i % 2 == 0) RING_INNER_DP else RING_OUTER_DP
     val rad = angleDeg * PI.toFloat() / 180f
     NetNode(node.label.take(10), node.nodeType, cos(rad) * radiusDp, sin(rad) * radiusDp)
   }
@@ -425,9 +433,9 @@ private fun NetworkCanvas(
 ) {
   val textMeasurer = rememberTextMeasurer()
 
-  val peopleNodes = remember(people) { buildNetNodes(people, 120f, 120f, 120f) }
-  val orgNodes = remember(orgs) { buildNetNodes(orgs, 240f, 120f, 120f) }
-  val projectNodes = remember(projects) { buildNetNodes(projects, 0f, 120f, 120f) }
+  val peopleNodes = remember(people) { buildNetNodes(people, 120f, 120f) }
+  val orgNodes = remember(orgs) { buildNetNodes(orgs, 240f, 120f) }
+  val projectNodes = remember(projects) { buildNetNodes(projects, 0f, 120f) }
   val allNodes = remember(peopleNodes, orgNodes, projectNodes) { peopleNodes + orgNodes + projectNodes }
 
   Canvas(modifier = Modifier.fillMaxSize()) {
