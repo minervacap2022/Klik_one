@@ -424,6 +424,7 @@ object AppModule {
   val userRepository: UserRepository
     get() = _userRepository ?: UserRepositoryImpl(
       dataSource = userDataSource,
+      authRepository = authRepository,
     ).also { _userRepository = it }
 
   private var _chatRepository: ChatRepository? = null

@@ -2921,11 +2921,37 @@ private fun MainAppContent() {
                                     } else {
                                         KlikLogger.e("MainApp", "Klik One onboarding complete but authState.userId is null — completion not persisted")
                                     }
-                                    authViewModel.submitOnboardingProfile(
-                                        name = fullName,
-                                        occupation = pickedRole?.title,
-                                        avatar = avatar,
-                                    )
+                                    // Persist name + occupation + avatar via appScope so the
+                                    // PATCH survives the screen tearing down on hasCompletedKlikOnboarding=true.
+                                    // Previously routed through AuthViewModel.viewModelScope, where the
+                                    // PATCH /api/auth/profile never landed for any user (verified across
+                                    // every nginx log rotation).
+                                    val profileName = fullName.trim().ifEmpty { null }
+                                    val occupation = pickedRole?.title
+                                    if (profileName != null || !occupation.isNullOrBlank()) {
+                                        appScope.launch {
+                                            when (val r = io.github.fletchmckee.liquid.samples.app.di.AppModule
+                                                .authRepository.updateProfile(profileName, occupation)) {
+                                                is io.github.fletchmckee.liquid.samples.app.core.Result.Success ->
+                                                    KlikLogger.i("MainApp", "Onboarding profile saved (name=${profileName != null}, occupation=$occupation)")
+                                                is io.github.fletchmckee.liquid.samples.app.core.Result.Error ->
+                                                    KlikLogger.e("MainApp", "Onboarding profile save failed: ${r.exception.message}", r.exception)
+                                                is io.github.fletchmckee.liquid.samples.app.core.Result.Loading -> Unit
+                                            }
+                                        }
+                                    }
+                                    if (avatar != null) {
+                                        appScope.launch {
+                                            when (val r = io.github.fletchmckee.liquid.samples.app.di.AppModule
+                                                .authRepository.uploadAvatar(avatar)) {
+                                                is io.github.fletchmckee.liquid.samples.app.core.Result.Success ->
+                                                    KlikLogger.i("MainApp", "Onboarding avatar uploaded: ${r.data}")
+                                                is io.github.fletchmckee.liquid.samples.app.core.Result.Error ->
+                                                    KlikLogger.e("MainApp", "Onboarding avatar upload failed: ${r.exception.message}", r.exception)
+                                                is io.github.fletchmckee.liquid.samples.app.core.Result.Loading -> Unit
+                                            }
+                                        }
+                                    }
                                     KlikLogger.i("MainApp", "Klik One onboarding complete (role=${pickedRole?.id}, hasAvatar=${avatar != null})")
                                     hasCompletedKlikOnboarding = true
                                 }

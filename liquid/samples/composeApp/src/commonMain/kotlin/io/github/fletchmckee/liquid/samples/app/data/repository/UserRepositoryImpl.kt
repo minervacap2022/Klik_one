@@ -8,6 +8,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.Device
 import io.github.fletchmckee.liquid.samples.app.domain.entity.LiquidGlassPreferences
 import io.github.fletchmckee.liquid.samples.app.domain.entity.User
 import io.github.fletchmckee.liquid.samples.app.domain.entity.UserPreferences
+import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
 import io.github.fletchmckee.liquid.samples.app.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  */
 class UserRepositoryImpl(
   private val dataSource: InMemoryUserDataSource,
+  private val authRepository: AuthRepository,
 ) : UserRepository {
 
   private val _userFlow = MutableStateFlow<Result<User>>(Result.Loading)
@@ -45,10 +47,20 @@ class UserRepositoryImpl(
   }
 
   override suspend fun updateUser(user: User): Result<User> = try {
-    val updated = dataSource.updateUser(user)
-      ?: throw NoSuchElementException("Failed to update user")
-    refreshUserInternal()
-    Result.Success(updated)
+    val trimmedName = user.name.trim()
+    if (trimmedName.isEmpty()) {
+      throw IllegalArgumentException("Name cannot be empty")
+    }
+    when (val r = authRepository.updateProfile(fullName = trimmedName, occupation = null)) {
+      is Result.Success -> {
+        val updated = dataSource.updateUser(user.copy(name = trimmedName))
+          ?: throw NoSuchElementException("Failed to update local user cache")
+        refreshUserInternal()
+        Result.Success(updated)
+      }
+      is Result.Error -> Result.Error(r.exception, r.message ?: "Failed to save profile")
+      is Result.Loading -> Result.Loading
+    }
   } catch (e: Exception) {
     Result.Error(e, "Failed to update user")
   }
