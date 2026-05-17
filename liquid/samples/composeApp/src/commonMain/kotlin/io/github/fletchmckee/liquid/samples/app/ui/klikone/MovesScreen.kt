@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.fletchmckee.liquid.samples.app.core.Result
+import io.github.fletchmckee.liquid.samples.app.data.network.dto.RuleDto
 import io.github.fletchmckee.liquid.samples.app.di.AppModule
 import io.github.fletchmckee.liquid.samples.app.domain.entity.TaskStatus
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
@@ -137,6 +138,29 @@ fun MovesScreen(
       newRuleVm.consumeEvent()
       onRefresh()
     }
+  }
+
+  // T22: pending rules — Klik's daily-inferred suggestions awaiting user
+  // accept/decline. Backend writes these to `featured_rules` with
+  // status='pending_review' WITHOUT a `featured_tasks` row, so they never
+  // reach the screen through the regular featuredTasks pipeline. We fetch
+  // them client-side and render Accept/Decline cards above the firings.
+  var pendingRules by remember { mutableStateOf<List<RuleDto>>(emptyList()) }
+  var pendingRulesRefreshKey by remember { mutableStateOf(0) }
+  LaunchedEffect(pendingRulesRefreshKey) {
+    when (val r = AppModule.rulesRepository.list()) {
+      is Result.Success -> pendingRules = r.data.filter { it.status == "pending_review" }
+      is Result.Error -> KlikLogger.w(
+        "MovesScreen",
+        "Pending rules fetch failed: ${r.exception.message}",
+      )
+      is Result.Loading -> Unit
+    }
+  }
+  // Re-fetch whenever the host PTR cycle ends so pending rules stay in sync
+  // with the rest of the Moves board.
+  LaunchedEffect(isRefreshing) {
+    if (!isRefreshing) pendingRulesRefreshKey++
   }
 
   // Auto-clear the deep-link highlight after a short dwell so the row
@@ -324,9 +348,10 @@ fun MovesScreen(
 
       if (filter == "all") {
         Column(Modifier.padding(horizontal = 20.dp)) {
+          val featuredSectionCount = (featured.size + pendingRules.size).takeIf { it > 0 }
           K1SectionHeader(
             s.aiSuggested,
-            count = featured.size.takeIf { it > 0 },
+            count = featuredSectionCount,
             dotColor = KlikCommitmentAccent,
             trailing = {
               // "+" — opens NewRuleSheet so the user can teach Klik a new
@@ -341,6 +366,29 @@ fun MovesScreen(
             },
           )
           Spacer(Modifier.height(K1Sp.s))
+          // T22: Pending rules render ABOVE firings — they need user action
+          // before Klik will start auto-creating cards for them, so they
+          // get the most prominent slot in the Featured stack.
+          pendingRules.forEach { rule ->
+            PendingRuleCard(
+              rule = rule,
+              onAccept = {
+                ruleActionScope.launch {
+                  AppModule.rulesRepository.accept(rule.id)
+                  pendingRulesRefreshKey++
+                  onRefresh()
+                }
+              },
+              onDecline = {
+                ruleActionScope.launch {
+                  AppModule.rulesRepository.edit(rule.id, status = "archived")
+                  pendingRulesRefreshKey++
+                  onRefresh()
+                }
+              },
+            )
+            Spacer(Modifier.height(8.dp))
+          }
           featured.forEach { t ->
             K1SwipeRow(
               isPinned = t.id in pinnedTaskIds,
@@ -723,6 +771,39 @@ private fun NeedsOkCard(
           style = K1Type.metaSm.copy(color = KlikInkTertiary),
         )
       }
+    }
+  }
+}
+
+/**
+ * T22: A Klik-inferred rule that's waiting on user approval. Distinct from
+ * `FeaturedCard` (which is a *firing* of an already-active rule) — this
+ * rule hasn't been promoted yet, so the action set is Accept (promote to
+ * active) / Decline (archive, hide from view). Visual cue is a small
+ * "✦ Klik suggests" label so the user can tell at a glance this is a
+ * proposal, not a chore Klik is already on.
+ */
+@Composable
+private fun PendingRuleCard(
+  rule: RuleDto,
+  onAccept: () -> Unit,
+  onDecline: () -> Unit,
+) {
+  K1Card(soft = true) {
+    Text(
+      "\u2726 Klik suggests",
+      style = K1Type.metaSm.copy(color = KlikCommitmentAccent),
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(rule.actionLabel, style = K1Type.bodyMd)
+    if (rule.triggerLabel.isNotBlank()) {
+      Spacer(Modifier.height(3.dp))
+      Text(rule.triggerLabel, style = K1Type.metaSm.copy(color = KlikInkTertiary))
+    }
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      ActionButton("Accept", primary = true) { onAccept() }
+      ActionButton("Decline", primary = false, muted = true) { onDecline() }
     }
   }
 }
