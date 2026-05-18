@@ -44,7 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontStyle
@@ -364,17 +367,6 @@ fun MovesScreen(
             s.aiSuggested,
             count = featuredSectionCount,
             dotColor = KlikCommitmentAccent,
-            trailing = {
-              // "+" — opens NewRuleSheet so the user can teach Klik a new
-              // recurring/contextual rule that surfaces here.
-              Text(
-                "+",
-                style = K1Type.h3.copy(color = KlikInkSecondary),
-                modifier = Modifier
-                  .k1Clickable { showNewRuleSheet = true }
-                  .padding(horizontal = 8.dp, vertical = 2.dp),
-              )
-            },
           )
           Spacer(Modifier.height(K1Sp.s))
           // T22: Pending rules render ABOVE firings — they need user action
@@ -434,6 +426,9 @@ fun MovesScreen(
             }
             Spacer(Modifier.height(8.dp))
           }
+          // Dashed "Add rule" slot — single entry point for teaching Klik a
+          // new rule (replaces the old "+" in the section header).
+          AddRuleSlot(onClick = { showNewRuleSheet = true })
         }
         Spacer(Modifier.height(K1Sp.xxl))
       }
@@ -844,6 +839,40 @@ private fun PendingRuleCard(
       ActionButton("Accept", primary = true) { onAccept() }
       ActionButton("Decline", primary = false, muted = true) { onDecline() }
     }
+  }
+}
+
+/**
+ * Dashed card-shaped slot rendered at the END of the Featured list. Tapping it
+ * opens NewRuleSheet (same destination as the old "+" header button, which has
+ * been removed — this is the single entry point for teaching Klik a new rule).
+ */
+@Composable
+private fun AddRuleSlot(onClick: () -> Unit, modifier: Modifier = Modifier) {
+  val borderColor = KlikLineHairline
+  val dash = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
+  Column(
+    modifier = modifier
+      .fillMaxWidth()
+      .clip(K1R.card)
+      .drawBehind {
+        val r = 12.dp.toPx() // K1R.card radius
+        drawRoundRect(
+          color = borderColor,
+          style = Stroke(width = 0.5.dp.toPx(), pathEffect = dash),
+          cornerRadius = CornerRadius(r, r),
+        )
+      }
+      .k1Clickable(onClick = onClick)
+      .padding(vertical = 22.dp, horizontal = 16.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(6.dp),
+  ) {
+    Text("\u2726", style = K1Type.h2.copy(color = KlikInkSecondary))
+    Text(
+      "Teach Klik a new rule",
+      style = K1Type.metaSm.copy(color = KlikInkTertiary),
+    )
   }
 }
 
