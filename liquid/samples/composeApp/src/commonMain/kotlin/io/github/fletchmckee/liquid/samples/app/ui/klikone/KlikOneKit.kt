@@ -1615,31 +1615,40 @@ private fun K1ArchiveGlyph(color: Color) {
 }
 
 // ─── K1 Bottom Sheet ──────────────────────────────────────────────────────
-// Editorial bottom sheet for K1. Avoids Material3 ModalBottomSheet so we
-// don't pick up Material ripple / drag handle / scrim defaults. Tap the
-// scrim to dismiss. Content is bottom-anchored with a rounded-top card.
+// Editorial bottom sheet for K1. Wrapped in a Popup so the scrim and card
+// overlay the bottom navigation bar at MainApp level — without the Popup,
+// the sheet only covers the screen-content area and the tab bar shows
+// through (buttons get hidden behind it). Tap the scrim to dismiss.
 @Composable
 fun K1BottomSheet(
   onDismiss: () -> Unit,
   content: @Composable () -> Unit,
 ) {
-  Box(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(Color.Black.copy(alpha = 0.4f))
-      .k1Clickable(onClick = onDismiss),
+  androidx.compose.ui.window.Popup(
+    alignment = Alignment.BottomCenter,
+    onDismissRequest = onDismiss,
+    properties = androidx.compose.ui.window.PopupProperties(
+      focusable = true,
+      dismissOnBackPress = true,
+      dismissOnClickOutside = true,
+    ),
   ) {
-    // Bottom-anchored card. Inner Box swallows scrim taps so users can
-    // interact with the sheet content without dismissing.
     Box(
       modifier = Modifier
-        .align(Alignment.BottomCenter)
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-        .background(KlikPaperCard)
-        .k1Clickable {}, // consume taps so they don't reach the scrim
+        .fillMaxSize()
+        .background(Color.Black.copy(alpha = 0.4f))
+        .k1Clickable(onClick = onDismiss),
     ) {
-      content()
+      Box(
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+          .background(KlikPaperCard)
+          .k1Clickable {}, // consume taps so they don't reach the scrim
+      ) {
+        content()
+      }
     }
   }
 }
