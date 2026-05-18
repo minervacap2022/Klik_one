@@ -21,7 +21,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import platform.AVFAudio.AVAudioRecorder
 import platform.AVFAudio.AVAudioSession
-import platform.AVFAudio.AVAudioSessionCategoryRecord
+import platform.AVFAudio.AVAudioSessionCategoryOptionAllowBluetooth
+import platform.AVFAudio.AVAudioSessionCategoryOptionAllowBluetoothA2DP
+import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
+import platform.AVFAudio.AVAudioSessionCategoryOptionMixWithOthers
+import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
 import platform.AVFAudio.AVAudioSessionModeMeasurement
 import platform.AVFAudio.AVAudioSessionRecordPermissionGranted
 import platform.AVFAudio.AVEncoderAudioQualityKey
@@ -71,21 +75,24 @@ actual object VoiceRecorderService {
       val session = AVAudioSession.sharedInstance()
 
       memScoped {
+        // PlayAndRecord + .allowBluetooth so we can capture mic input from
+        // BT headsets and the Klik One hardware via HFP. Combined with
+        // UIBackgroundModes=[audio] in Info.plist, this keeps the app alive
+        // while a session is active even after the user backgrounds it.
         val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-        session.setCategory(AVAudioSessionCategoryRecord, errorPtr.ptr)
+        val options = AVAudioSessionCategoryOptionAllowBluetooth or
+          AVAudioSessionCategoryOptionAllowBluetoothA2DP or
+          AVAudioSessionCategoryOptionMixWithOthers or
+          AVAudioSessionCategoryOptionDefaultToSpeaker
+        session.setCategory(
+          AVAudioSessionCategoryPlayAndRecord,
+          AVAudioSessionModeMeasurement,
+          options,
+          errorPtr.ptr,
+        )
         val error = errorPtr.value
         if (error != null) {
           KlikLogger.e(TAG, "Failed to set audio session category: ${error.localizedDescription}")
-          return@withContext false
-        }
-      }
-
-      memScoped {
-        val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-        session.setMode(AVAudioSessionModeMeasurement, errorPtr.ptr)
-        val error = errorPtr.value
-        if (error != null) {
-          KlikLogger.e(TAG, "Failed to set audio session mode: ${error.localizedDescription}")
           return@withContext false
         }
       }

@@ -9,9 +9,18 @@
 	<key>NSRemindersUsageDescription</key>
 	<string>Klik would like to access your reminders to automatically create action items and follow-ups from your meetings.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Klik uses the microphone for voice-to-text input in the AskKlik chat.</string>
+	<string>Klik uses the microphone to capture your conversations so it can summarize and follow up. Recording continues while the app is in the background.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Klik uses speech recognition to convert your voice into text for the AskKlik chat.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Klik connects to your Klik One hardware so it can stream audio from your conversations, including while the app is in the background.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Klik communicates with your Klik One hardware over Bluetooth to receive audio and control the device.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>

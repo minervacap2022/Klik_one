@@ -31,7 +31,11 @@ import platform.AVFAudio.AVAudioEngine
 import platform.AVFAudio.AVAudioFormat
 import platform.AVFAudio.AVAudioPCMFormatFloat32
 import platform.AVFAudio.AVAudioSession
-import platform.AVFAudio.AVAudioSessionCategoryRecord
+import platform.AVFAudio.AVAudioSessionCategoryOptionAllowBluetooth
+import platform.AVFAudio.AVAudioSessionCategoryOptionAllowBluetoothA2DP
+import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
+import platform.AVFAudio.AVAudioSessionCategoryOptionMixWithOthers
+import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
 import platform.AVFAudio.AVAudioSessionModeDefault
 import platform.AVFAudio.setActive
 import platform.Foundation.NSError
@@ -105,22 +109,28 @@ actual object FixedSessionAudioStreamer {
     KlikLogger.i(TAG, "AVAudioSession category=${session.category}, mode=${session.mode}")
 
     memScoped {
+      // PlayAndRecord (not Record) + .allowBluetooth so we can ingest the
+      // Klik One hardware mic via HFP and any standard BT headset; combined
+      // with UIBackgroundModes=[audio] in Info.plist, this keeps the app
+      // alive while a session is active, including after the user has
+      // backgrounded it. MixWithOthers + DefaultToSpeaker keep other apps'
+      // audio playing and route any sounds we emit to the loudspeaker.
       val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-      session.setCategory(AVAudioSessionCategoryRecord, errorPtr.ptr)
+      val options = AVAudioSessionCategoryOptionAllowBluetooth or
+        AVAudioSessionCategoryOptionAllowBluetoothA2DP or
+        AVAudioSessionCategoryOptionMixWithOthers or
+        AVAudioSessionCategoryOptionDefaultToSpeaker
+      session.setCategory(
+        AVAudioSessionCategoryPlayAndRecord,
+        AVAudioSessionModeDefault,
+        options,
+        errorPtr.ptr,
+      )
       if (errorPtr.value != null) {
         KlikLogger.e(TAG, "FAIL at setCategory: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
         return@withContext false
       }
-      KlikLogger.i(TAG, "setCategory(Record) OK")
-    }
-    memScoped {
-      val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-      session.setMode(AVAudioSessionModeDefault, errorPtr.ptr)
-      if (errorPtr.value != null) {
-        KlikLogger.e(TAG, "FAIL at setMode: code=${errorPtr.value?.code}, domain=${errorPtr.value?.domain}, desc=${errorPtr.value?.localizedDescription}")
-        return@withContext false
-      }
-      KlikLogger.i(TAG, "setMode(Default) OK")
+      KlikLogger.i(TAG, "setCategory(PlayAndRecord + Bluetooth + mixWithOthers) OK")
     }
     memScoped {
       val errorPtr = alloc<ObjCObjectVar<NSError?>>()
