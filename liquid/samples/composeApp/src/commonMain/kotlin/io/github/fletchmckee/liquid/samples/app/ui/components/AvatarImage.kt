@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
+import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
 
 /**
  * Displays an avatar image from a URL with a fallback to initials.
@@ -43,6 +44,13 @@ fun AvatarImage(
       modifier = modifier
         .size(size)
         .clip(CircleShape),
+      onSuccess = { state ->
+        val p = state.result.image
+        KlikLogger.i("AvatarImage", "loaded $avatarUrl (${p.width}x${p.height})")
+      },
+      onError = { state ->
+        KlikLogger.e("AvatarImage", "load FAILED $avatarUrl: ${state.result.throwable.message}", state.result.throwable)
+      },
       loading = {
         InitialsAvatar(
           initials = initials,

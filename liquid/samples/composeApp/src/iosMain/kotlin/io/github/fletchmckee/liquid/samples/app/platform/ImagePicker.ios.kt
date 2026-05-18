@@ -39,9 +39,27 @@ actual object ImagePicker {
 
   private const val MAX_EDGE: Double = 1024.0
   private const val JPEG_QUALITY: Double = 0.85
-  private const val PUBLIC_IMAGE_UTI: String = "public.image"
+  // Asking PHPicker for the generic "public.image" UTI returns a TRANSCODED
+  // PNG preview — sometimes a 1x1 placeholder — rather than the real photo
+  // bytes. We probe the provider's registered UTIs and request a specific
+  // concrete type (jpeg/heic/heif/png) so we get the full original data.
+  private val SPECIFIC_IMAGE_UTIS = listOf(
+    "public.jpeg",
+    "public.heic",
+    "public.heif",
+    "public.png",
+    "public.tiff",
+  )
+  private const val FALLBACK_IMAGE_UTI: String = "public.image"
 
   private var delegateHolder: NSObject? = null
+
+  private fun pickBestUti(provider: NSItemProvider): String {
+    @Suppress("UNCHECKED_CAST")
+    val registered: List<String> = (provider.registeredTypeIdentifiers as List<String>)
+    val match = SPECIFIC_IMAGE_UTIS.firstOrNull { it in registered }
+    return match ?: FALLBACK_IMAGE_UTI
+  }
 
   actual suspend fun pickAvatar(): PickedImage? = suspendCoroutine { cont ->
     val gate = OnceGate()
@@ -70,20 +88,27 @@ actual object ImagePicker {
           return
         }
         val provider: NSItemProvider = first.itemProvider
+        val chosenUti = pickBestUti(provider)
+        KlikLogger.i("ImagePicker", "Registered UTIs=${provider.registeredTypeIdentifiers}, chosen=$chosenUti")
 
-        provider.loadDataRepresentationForTypeIdentifier(PUBLIC_IMAGE_UTI) { data: NSData?, error: NSError? ->
+        provider.loadDataRepresentationForTypeIdentifier(chosenUti) { data: NSData?, error: NSError? ->
           if (data == null) {
-            KlikLogger.e("ImagePicker", "loadDataRepresentation failed: ${error?.localizedDescription}")
+            KlikLogger.e("ImagePicker", "loadDataRepresentation($chosenUti) failed: ${error?.localizedDescription}")
             resumeOnce(null)
             return@loadDataRepresentationForTypeIdentifier
           }
+          KlikLogger.i("ImagePicker", "loadDataRepresentation($chosenUti) → ${data.length} bytes")
           val image = UIImage.imageWithData(data)
           if (image == null) {
-            KlikLogger.e("ImagePicker", "UIImage decode failed (${data.length} bytes)")
+            KlikLogger.e("ImagePicker", "UIImage decode failed from ${data.length} bytes")
             resumeOnce(null)
             return@loadDataRepresentationForTypeIdentifier
           }
+          val (origW, origH) = image.size.useContents { width to height }
+          KlikLogger.i("ImagePicker", "Decoded UIImage: ${origW.toInt()}x${origH.toInt()}")
           val downscaled = downscale(image, MAX_EDGE)
+          val (dw, dh) = downscaled.size.useContents { width to height }
+          KlikLogger.i("ImagePicker", "Downscaled: ${dw.toInt()}x${dh.toInt()}")
           val jpeg: NSData? = UIImageJPEGRepresentation(downscaled, JPEG_QUALITY)
           if (jpeg == null) {
             KlikLogger.e("ImagePicker", "JPEG encode failed")
@@ -91,6 +116,7 @@ actual object ImagePicker {
             return@loadDataRepresentationForTypeIdentifier
           }
           val bytes = jpeg.toByteArray()
+          KlikLogger.i("ImagePicker", "JPEG encoded: ${bytes.size} bytes")
           resumeOnce(
             PickedImage(bytes = bytes, mimeType = "image/jpeg", fileName = "avatar.jpg"),
           )

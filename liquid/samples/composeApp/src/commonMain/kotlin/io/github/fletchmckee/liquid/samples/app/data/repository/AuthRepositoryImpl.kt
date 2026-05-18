@@ -414,7 +414,7 @@ class AuthRepositoryImpl : AuthRepository {
   ): Result<String> {
     return try {
       val url = "${ApiConfig.AUTH_BASE_URL}/profile/avatar"
-      KlikLogger.d("AuthRepository", "POST (multipart) $url, ${image.bytes.size} bytes (${image.mimeType})")
+      KlikLogger.i("AuthRepository", "uploadAvatar: ${image.bytes.size} bytes, MIME=${image.mimeType}, name=${image.fileName} → $url")
       val responseText = HttpClient.postMultipartUrl(
         url = url,
         fileData = image.bytes,
