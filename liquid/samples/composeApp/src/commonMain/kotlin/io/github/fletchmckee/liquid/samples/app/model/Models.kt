@@ -95,7 +95,7 @@ data class TaskMetadata(
   // Backend-provided confirmation flag (true when IN_REVIEW and needs user action)
   val needsConfirmation: Boolean = false,
   // KK_exec integration fields
-  val kkExecCategory: String? = null, // a_simple, b_apis, c_complex_level1, d_complex_level2, e_complex_level3, f_cannotdo
+  val kkExecCategory: String? = null, // a_reminder, a_tools, b_apis, c_complex_level1, d_complex_level2, e_complex_level3, f_cannotdo
   val kkExecCanExecute: Boolean? = null, // Whether this task can be executed
   val kkExecIsSensitive: Boolean? = null, // Whether this requires user confirmation (e_complex_level3)
   val kkExecSensitivityReasons: List<String> = emptyList(), // Why this task is sensitive
@@ -196,7 +196,7 @@ val kkExecSensitiveTodos: List<TaskMetadata> get() = kkExecSensitiveTodosState.v
 /**
  * KK_exec Daily todos (auto-executable and cannot execute)
  * Displayed in the "Daily" section of the Function screen.
- * Includes categories: a_simple, b_apis, c_complex_level1, d_complex_level2, f_cannotdo
+ * Includes categories: a_reminder, a_tools, b_apis, c_complex_level1, d_complex_level2, f_cannotdo
  */
 val kkExecDailyTodosState = mutableStateOf<List<TaskMetadata>>(emptyList())
 val kkExecDailyTodos: List<TaskMetadata> get() = kkExecDailyTodosState.value

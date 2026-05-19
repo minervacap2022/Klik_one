@@ -1756,13 +1756,14 @@ data class KKExecTaskResultDto(
  * DTO for todo items from KK_exec/KK_todo_extract.
  * Maps to the todo_items table in PostgreSQL.
  *
- * Categories:
- * - a_simple: Simple tasks using built-in tools (auto-executable)
- * - b_apis: External APIs with system keys (auto-executable)
- * - c_complex_level1: User OAuth integrations (auto-executable with OAuth)
- * - d_complex_level2: OAuth + memory context (auto-executable)
- * - e_complex_level3: OAuth + memory + sensitive ops (REQUIRES CONFIRMATION)
- * - f_cannotdo: Cannot execute (physical world, no integration)
+ * Categories (canonical taxonomy in KK_common/models/todo/category.py):
+ * - a_reminder: Pure reminder, no tools needed
+ * - a_tools: Simple built-in functions (calculator, text_transform, etc.)
+ * - b_apis: System APIs, no user auth
+ * - c_complex_level1: User OAuth (MCP), no memory
+ * - d_complex_level2: OAuth + memory
+ * - e_complex_level3: OAuth + memory + sensitive (REQUIRES CONFIRMATION)
+ * - f_cannotdo: Out of scope
  *
  * Note: The API returns id as String and session_id/user_id may be at wrapper level.
  */
@@ -1773,7 +1774,7 @@ data class KKExecTodoItemDto(
   val user_id: String? = null, // May be at wrapper level, not per-item
   val title: String = "",
   val description: String? = null,
-  val category: String = "a_simple", // a_simple, b_apis, c_complex_level1, d_complex_level2, e_complex_level3, f_cannotdo
+  val category: String, // a_reminder, a_tools, b_apis, c_complex_level1, d_complex_level2, e_complex_level3, f_cannotdo
   val can_execute: Boolean = true,
   val out_of_scope_reason: String? = null,
   val is_sensitive: Boolean = false,
@@ -2017,7 +2018,7 @@ enum class KKExecCategory {
       "d_complex_level2" -> D_COMPLEX_LEVEL2
       "e_complex_level3" -> E_COMPLEX_LEVEL3
       "f_cannotdo" -> F_CANNOTDO
-      else -> A_TOOLS
+      else -> throw IllegalArgumentException("Unknown KKExecCategory: '$value' — backend taxonomy out of sync with client.")
     }
   }
 

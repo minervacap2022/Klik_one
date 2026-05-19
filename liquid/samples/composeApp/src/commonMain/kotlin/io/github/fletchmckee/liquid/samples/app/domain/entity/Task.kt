@@ -58,7 +58,7 @@ data class TaskMetadata(
   val assignees: List<String> = emptyList(),
   val createdAt: Long = 0L,
   // KK_exec integration fields
-  // Category determines execution requirements: a_simple, b_apis, c_complex_level1, d_complex_level2, e_complex_level3, f_cannotdo
+  // Category determines execution requirements: a_reminder, a_tools, b_apis, c_complex_level1, d_complex_level2, e_complex_level3, f_cannotdo
   val kkExecCategory: String? = null,
   // Whether this task can be executed by KK_exec
   val kkExecCanExecute: Boolean? = null,
