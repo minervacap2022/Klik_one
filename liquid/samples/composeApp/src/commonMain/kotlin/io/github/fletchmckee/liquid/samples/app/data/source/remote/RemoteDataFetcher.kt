@@ -1793,6 +1793,7 @@ data class KKExecTodoItemDto(
   val task_result: KKExecTaskResultDto? = null, // Execution result object from backend JSONB
   val tools_used: List<String> = emptyList(), // Tools used in execution (from backend)
   val execution_status: String? = null, // Execution status: pending/executing/completed/failed
+  val source_quote: String? = null, // Verbatim transcript line that triggered this todo (joined from optimized_transcripts.segment_ids[0]). Falls back to description when null.
   val created_at: String = "",
   val updated_at: String = "",
 ) {
@@ -1832,6 +1833,7 @@ data class KKExecTodoItemDto(
     toolsUsed = tools_used,
     executionStatus = execution_status,
     reauthInfo = task_result?.extractReauthInfo(),
+    sourceQuote = source_quote,
     createdAt = created_at,
     updatedAt = updated_at,
   )
@@ -2128,6 +2130,7 @@ data class KKExecTodoItem(
   val toolsUsed: List<String>, // Tools used in execution
   val executionStatus: String?, // Execution status
   val reauthInfo: ReauthInfo? = null, // Non-null when execution status is requires_reauth
+  val sourceQuote: String? = null, // Verbatim transcript line that triggered this todo
   val createdAt: String,
   val updatedAt: String,
 ) {
@@ -2197,6 +2200,7 @@ data class KKExecTodoItem(
       null
     },
     reauthInfo = reauthInfo,
+    sourceQuote = sourceQuote,
     createdAt = createdAt,
     completedAt = if (status in setOf(KKExecStatus.COMPLETED, KKExecStatus.APPROVED) ||
       executionStatus?.uppercase() in setOf("COMPLETED", "APPROVED")) updatedAt else null,

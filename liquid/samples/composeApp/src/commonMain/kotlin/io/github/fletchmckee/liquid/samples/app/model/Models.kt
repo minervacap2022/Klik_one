@@ -128,6 +128,11 @@ data class TaskMetadata(
   val ruleId: String? = null,
   // Human-readable trigger label (e.g. "Daily 8am") shown under Featured card titles.
   val triggerLabel: String? = null,
+  // Verbatim transcript line that triggered this task. Backend joins
+  // todo_items.segment_ids[0] against optimized_transcripts and returns
+  // the resolved text. NeedsOkCard renders this in the italic quote box;
+  // tapping it deep-links to the segment via relatedSegments.
+  val sourceQuote: String? = null,
 ) {
   /**
    * Check if this task is from KK_exec (has KK_exec integration fields).

@@ -461,6 +461,7 @@ fun MovesScreen(
                   markTaskSeen(t.id)
                   onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
                 },
+                onQuoteClick = onSegmentClick,
               )
             }
             Spacer(Modifier.height(8.dp))
@@ -733,6 +734,7 @@ private fun NeedsOkCard(
   onApprove: (String) -> Unit,
   onArchive: (String) -> Unit,
   onOpen: () -> Unit = {},
+  onQuoteClick: ((TracedSegmentNavigation) -> Unit)? = null,
 ) {
   K1Card(soft = true, onClick = onOpen) {
     // Top row: unread dot + title + subtitle | time ago
@@ -758,19 +760,33 @@ private fun NeedsOkCard(
       }
     }
 
-    // Italic draft preview in inner white card (matches reference)
-    if (!t.description.isNullOrBlank()) {
+    // Italic source-quote box. Shows the verbatim transcript line that
+    // triggered the task (preferring t.sourceQuote when populated by the
+    // backend; falling back to t.description for legacy todos). When a
+    // session_id + segment_id pair is available, tapping the quote deep-
+    // links into the session detail at that segment.
+    val quoteText = t.sourceQuote ?: t.description
+    if (!quoteText.isNullOrBlank()) {
       Spacer(Modifier.height(10.dp))
+      val segId = t.relatedSegments.firstOrNull()?.toString()
+      val mtgId = t.relatedMeetingId
+      val clickable = onQuoteClick != null && segId != null && !mtgId.isNullOrBlank()
       Box(
         Modifier
           .fillMaxWidth()
           .clip(K1R.soft)
           .background(KlikPaperCard)
+          .then(
+            if (clickable) {
+              Modifier.k1Clickable {
+                onQuoteClick!!(TracedSegmentNavigation(sessionId = mtgId!!, segmentId = segId!!))
+              }
+            } else Modifier,
+          )
           .padding(horizontal = 12.dp, vertical = 10.dp),
       ) {
-        val txt = t.description!!
         Text(
-          "\u201C${txt.take(140)}${if (txt.length > 140) "\u2026" else ""}\u201D",
+          "\u201C${quoteText.take(140)}${if (quoteText.length > 140) "\u2026" else ""}\u201D",
           style = K1Type.caption.copy(
             color = KlikInkSecondary,
             fontStyle = FontStyle.Italic,
