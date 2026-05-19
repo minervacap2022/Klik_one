@@ -761,11 +761,10 @@ private fun NeedsOkCard(
     }
 
     // Italic source-quote box. Shows the verbatim transcript line that
-    // triggered the task (preferring t.sourceQuote when populated by the
-    // backend; falling back to t.description for legacy todos). When a
-    // session_id + segment_id pair is available, tapping the quote deep-
-    // links into the session detail at that segment.
-    val quoteText = t.sourceQuote ?: t.description
+    // triggered the task (sourceQuote only — never falls back to description,
+    // which has its own slot above). Tapping deep-links to the session
+    // segment when a session_id + segment_id pair is available.
+    val quoteText = t.sourceQuote
     if (!quoteText.isNullOrBlank()) {
       Spacer(Modifier.height(10.dp))
       val segId = t.relatedSegments.firstOrNull()?.toString()
