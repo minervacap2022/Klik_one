@@ -2138,7 +2138,9 @@ data class KKExecTodoItem(
   fun toTaskMetadata(): UITaskMetadata = UITaskMetadata(
     id = id.toString(),
     title = title,
-    subtitle = description ?: "",
+    // subtitle stays blank: NeedsOkCard renders description in an italic
+    // quote box. Setting subtitle to the same string painted it twice.
+    subtitle = "",
     context = when {
       !canExecute -> outOfScopeReason ?: "Cannot execute"
       isSensitive -> "Requires confirmation"
@@ -2646,7 +2648,10 @@ data class FeaturedTaskDto(
     io.github.fletchmckee.liquid.samples.app.model.TaskMetadata(
       id = title.hashCode().toString(),
       title = title,
-      subtitle = description,
+      // subtitle stays blank — NeedsOkCard / FeaturedCard render description
+      // in their own quote/body slot; mirroring it here painted the same
+      // sentence twice on each card.
+      subtitle = "",
       context = category,
       relatedProject = "",
       relatedPeople = emptyList(),
