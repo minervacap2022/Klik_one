@@ -3129,6 +3129,25 @@ private fun MainAppContent() {
                                         },
                                         onEntityClick = { nav -> navigateToEntity(nav) },
                                         onRename = { newName -> renamePersonAction(p.id, newName) },
+                                        onPickAvatar = { target ->
+                                            // Tap-the-avatar → system image picker → upload to
+                                            // /api/auth/profile/avatar?voiceprint_id=<id>. Refreshing
+                                            // peopleState via AppModule.reloadPeople() makes the new
+                                            // URL flow into every K1Avatar callsite app-wide.
+                                            appScope.launch {
+                                                val image = io.github.fletchmckee.liquid.samples.app.platform.ImagePicker.pickAvatar() ?: return@launch
+                                                when (val r = io.github.fletchmckee.liquid.samples.app.di.AppModule
+                                                    .authRepository.uploadPersonAvatar(target.id, image)) {
+                                                    is io.github.fletchmckee.liquid.samples.app.core.Result.Success -> {
+                                                        KlikLogger.i("MainApp", "Person avatar uploaded for ${target.id}: ${r.data}")
+                                                        AppModule.reloadPeople()
+                                                    }
+                                                    is io.github.fletchmckee.liquid.samples.app.core.Result.Error ->
+                                                        KlikLogger.e("MainApp", "Person avatar upload failed for ${target.id}: ${r.exception.message}", r.exception)
+                                                    is io.github.fletchmckee.liquid.samples.app.core.Result.Loading -> Unit
+                                                }
+                                            }
+                                        },
                                     )
                                 } else {
                                     LaunchedEffect(Unit) { currentRoute = lastMainRoute }

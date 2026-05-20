@@ -687,7 +687,7 @@ private fun MeetingRow(m: Meeting, onClick: () -> Unit = {}) {
       if (m.participants.isNotEmpty()) {
         K1AvatarStack(
           seeds = m.participants.take(3).map { p ->
-            K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id)
+            K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id, avatarUrl = p.avatarUrl)
           },
           size = 18.dp,
         )
@@ -715,7 +715,7 @@ private fun MeetingRow(m: Meeting, onClick: () -> Unit = {}) {
           Spacer(Modifier.width(8.dp))
           K1AvatarStack(
             seeds = m.participants.take(3).map { p ->
-              K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id)
+              K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id, avatarUrl = p.avatarUrl)
             },
             size = 20.dp,
           )

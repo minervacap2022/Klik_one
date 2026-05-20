@@ -835,8 +835,10 @@ private data class Quad(val a: Color, val b: Color, val c: Color, val d: Color)
 // pattern is banned.
 
 /** One seed for one rendered avatar — initials are display-only; idSeed
- *  drives the colour. Use [k1Seed] helpers to construct from domain types. */
-data class K1AvatarSeed(val initials: String, val idSeed: String?)
+ *  drives the colour. avatarUrl, when present, replaces the initials disc
+ *  with the uploaded image via [AvatarImage] (Coil 3). Use [k1Seed] helpers
+ *  to construct from domain types. */
+data class K1AvatarSeed(val initials: String, val idSeed: String?, val avatarUrl: String? = null)
 
 /**
  * Deterministic avatar palette index. Spec v1.0 §6 — hash the person's
@@ -868,6 +870,12 @@ fun K1Avatar(
    *  derived from initials and will not match other surfaces for the same
    *  person — pass it. */
   idSeed: String? = null,
+  /** When non-blank, the avatar is rendered as the uploaded image (Coil 3)
+   *  with a transparent crop into the same circular footprint. The initials
+   *  disc remains the loading + error fallback so a slow network never
+   *  produces an empty hole. Every small avatar in the app routes through
+   *  this single path — one upload propagates everywhere. */
+  avatarUrl: String? = null,
 ) {
   val (bg, fg) = k1AvatarColors(idSeed?.takeIf { it.isNotBlank() } ?: initials)
   val fontSize = when {
@@ -876,6 +884,23 @@ fun K1Avatar(
     size <= 36.dp -> 12.sp
     size <= 48.dp -> 14.sp
     else -> 16.sp // spec §6: 56px avatar uses 16/500
+  }
+  if (!avatarUrl.isNullOrBlank()) {
+    io.github.fletchmckee.liquid.samples.app.ui.components.AvatarImage(
+      avatarUrl = avatarUrl,
+      initials = initials.take(2).uppercase(),
+      size = size,
+      backgroundColor = bg,
+      initialsColor = fg,
+      initialsStyle = TextStyle(
+        fontSize = fontSize,
+        fontWeight = FontWeight.Medium,
+        color = fg,
+        textAlign = TextAlign.Center,
+      ),
+      modifier = modifier,
+    )
+    return
   }
   Box(modifier.size(size).background(bg, CircleShape), contentAlignment = Alignment.Center) {
     Text(
@@ -907,7 +932,7 @@ fun K1AvatarStack(
           .size(size)
           .background(KlikPaperApp, CircleShape) // border color = bg per spec
           .padding(1.5.dp),
-      ) { K1Avatar(seed.initials, size = size - 3.dp, idSeed = seed.idSeed) }
+      ) { K1Avatar(seed.initials, size = size - 3.dp, idSeed = seed.idSeed, avatarUrl = seed.avatarUrl) }
     }
   }
 }

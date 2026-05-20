@@ -205,7 +205,7 @@ fun SessionDetailScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
           K1AvatarStack(
             seeds = meeting.participants.take(4).map { p ->
-              K1AvatarSeed(initials = initialsOf(displayNameOf(p)), idSeed = p.id)
+              K1AvatarSeed(initials = initialsOf(displayNameOf(p)), idSeed = p.id, avatarUrl = p.avatarUrl)
             },
             size = 24.dp,
           )

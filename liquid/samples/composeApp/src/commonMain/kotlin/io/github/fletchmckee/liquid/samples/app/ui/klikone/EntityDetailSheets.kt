@@ -671,6 +671,10 @@ fun PersonDetailScreen(
   onBack: () -> Unit,
   onEntityClick: (EntityNavigationData) -> Unit = {},
   onRename: ((String) -> Unit)? = null,
+  /** Tap-the-avatar opens the system image picker and uploads to
+   *  /api/auth/profile/avatar?voiceprint_id=<person.id>. Provided by MainApp;
+   *  null means the avatar is read-only (e.g. when not signed in). */
+  onPickAvatar: ((Person) -> Unit)? = null,
 ) {
   val personDisplayName = person.canonicalName
   val personMeetings = meetings.filter { m ->
@@ -699,7 +703,11 @@ fun PersonDetailScreen(
       Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      K1Avatar(initialsOf(personDisplayName), size = 72.dp, idSeed = person.id)
+      Box(
+        Modifier.then(if (onPickAvatar != null) Modifier.k1Clickable { onPickAvatar(person) } else Modifier),
+      ) {
+        K1Avatar(initialsOf(personDisplayName), size = 72.dp, idSeed = person.id, avatarUrl = person.avatarUrl)
+      }
       Spacer(Modifier.width(K1Sp.lg))
       Column(Modifier.weight(1f)) {
         val roleParts = listOfNotNull(
@@ -1200,7 +1208,7 @@ fun OrgDetailScreen(
             Modifier.fillMaxWidth().k1Clickable { onEntityClick(EntityNavigationData(EntityType.PERSON, p.id)) }.padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            K1Avatar(initialsOf(p.name), size = 32.dp, idSeed = p.id)
+            K1Avatar(initialsOf(p.name), size = 32.dp, idSeed = p.id, avatarUrl = p.avatarUrl)
             Spacer(Modifier.width(K1Sp.m))
             Column(Modifier.weight(1f)) {
               Text(p.name, style = K1Type.bodyMd)
@@ -1502,7 +1510,7 @@ private fun K1RelatedSessionsCards(
             if (m.participants.isNotEmpty()) {
               K1AvatarStack(
                 seeds = m.participants.take(3).map { p ->
-                  K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id)
+                  K1AvatarSeed(initials = initialsOf(p.name), idSeed = p.id, avatarUrl = p.avatarUrl)
                 },
                 size = 20.dp,
               )

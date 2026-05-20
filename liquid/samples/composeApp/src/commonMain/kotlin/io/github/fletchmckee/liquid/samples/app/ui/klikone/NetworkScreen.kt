@@ -548,7 +548,7 @@ private fun PeoplePanel(
             Modifier.width(72.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
           ) {
-            K1Avatar(initialsOfPerson(p), size = 56.dp, idSeed = p.id)
+            K1Avatar(initialsOfPerson(p), size = 56.dp, idSeed = p.id, avatarUrl = p.avatarUrl)
             Spacer(Modifier.height(K1Sp.s))
             Text(
               firstName(p.name),
@@ -613,7 +613,7 @@ private fun NeedsAttentionRow(person: Person, lapsed: String) {
       .padding(horizontal = 14.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    K1Avatar(initialsOfPerson(person), size = 36.dp, idSeed = person.id)
+    K1Avatar(initialsOfPerson(person), size = 36.dp, idSeed = person.id, avatarUrl = person.avatarUrl)
     Spacer(Modifier.width(K1Sp.m))
     Column(Modifier.weight(1f)) {
       Text(person.name, style = K1Type.bodyMd)
@@ -669,7 +669,7 @@ private fun PersonRow(
         .padding(vertical = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      K1Avatar(initialsOfPerson(p), size = 36.dp, idSeed = p.id)
+      K1Avatar(initialsOfPerson(p), size = 36.dp, idSeed = p.id, avatarUrl = p.avatarUrl)
       Spacer(Modifier.width(K1Sp.m))
       Column(Modifier.weight(1f)) {
         Text(p.name, style = K1Type.bodyMd)

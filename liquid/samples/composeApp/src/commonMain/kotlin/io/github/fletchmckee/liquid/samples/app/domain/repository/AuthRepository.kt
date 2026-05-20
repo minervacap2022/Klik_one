@@ -106,4 +106,19 @@ interface AuthRepository {
    * @return the avatar_url string from the server.
    */
   suspend fun uploadAvatar(image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage): Result<String>
+
+  /**
+   * Upload an avatar image for one of the user's people (Person entity),
+   * scoped by voiceprint_id. Identical wire format to [uploadAvatar] except
+   * the URL carries `?voiceprint_id=...`, which makes the backend write to
+   * `people.avatar_url` for that (user_id, voiceprint_id) row instead of
+   * `users.avatar_url`.
+   *
+   * POST /api/auth/profile/avatar?voiceprint_id=<vp> (multipart, field "file")
+   * @return the avatar_url string from the server.
+   */
+  suspend fun uploadPersonAvatar(
+    voiceprintId: String,
+    image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage,
+  ): Result<String>
 }

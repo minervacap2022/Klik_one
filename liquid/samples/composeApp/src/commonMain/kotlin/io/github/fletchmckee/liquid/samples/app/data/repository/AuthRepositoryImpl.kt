@@ -414,10 +414,25 @@ class AuthRepositoryImpl : AuthRepository {
 
   override suspend fun uploadAvatar(
     image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage,
+  ): Result<String> = uploadAvatarInternal(image, voiceprintId = null, logTag = "uploadAvatar")
+
+  override suspend fun uploadPersonAvatar(
+    voiceprintId: String,
+    image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage,
+  ): Result<String> = uploadAvatarInternal(image, voiceprintId = voiceprintId, logTag = "uploadPersonAvatar")
+
+  // Single multipart upload path; voiceprintId, when set, is appended as a
+  // query parameter. Backend reads it via Query(None) and writes to
+  // people.avatar_url for that row; null → user-self path.
+  private suspend fun uploadAvatarInternal(
+    image: io.github.fletchmckee.liquid.samples.app.platform.PickedImage,
+    voiceprintId: String?,
+    logTag: String,
   ): Result<String> {
     return try {
-      val url = "${ApiConfig.AUTH_BASE_URL}/profile/avatar"
-      KlikLogger.i("AuthRepository", "uploadAvatar: ${image.bytes.size} bytes, MIME=${image.mimeType}, name=${image.fileName} → $url")
+      val base = "${ApiConfig.AUTH_BASE_URL}/profile/avatar"
+      val url = if (voiceprintId != null) "$base?voiceprint_id=$voiceprintId" else base
+      KlikLogger.i("AuthRepository", "$logTag: ${image.bytes.size} bytes, MIME=${image.mimeType}, name=${image.fileName} → $url")
       val responseText = HttpClient.postMultipartUrl(
         url = url,
         fileData = image.bytes,
@@ -432,10 +447,10 @@ class AuthRepositoryImpl : AuthRepository {
       val avatarUrl = parsed["avatar_url"]?.jsonPrimitive?.contentOrNull
         ?: return Result.Error(Exception("Server did not return avatar_url"))
 
-      KlikLogger.i("AuthRepository", "Avatar uploaded: $avatarUrl")
+      KlikLogger.i("AuthRepository", "$logTag → $avatarUrl")
       Result.Success(avatarUrl)
     } catch (e: Exception) {
-      KlikLogger.e("AuthRepository", "uploadAvatar failed: ${e.message}", e)
+      KlikLogger.e("AuthRepository", "$logTag failed: ${e.message}", e)
       Result.Error(e)
     }
   }
