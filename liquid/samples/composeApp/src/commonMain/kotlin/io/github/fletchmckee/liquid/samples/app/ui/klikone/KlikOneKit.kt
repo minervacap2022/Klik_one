@@ -1807,21 +1807,33 @@ fun K1Toast(message: String?, onDismiss: () -> Unit) {
     kotlinx.coroutines.delay(2500)
     onDismiss()
   }
-  Box(
-    modifier = Modifier
-      .fillMaxSize()
-      .padding(bottom = 96.dp),
-    contentAlignment = Alignment.BottomCenter,
+  // Render the toast in its own Popup window so it never sits as a
+  // sibling of a PullToRefreshBox in the parent Box's child stack.
+  // The previous `Box(Modifier.fillMaxSize())` approach silently broke
+  // pull-to-refresh on MovesScreen (commit 824279d) because the wrapper
+  // Box's child arrangement disrupted PullToRefreshBox's nested-scroll
+  // dispatch on iOS Compose Multiplatform. Popup avoids the problem
+  // entirely — separate window, no shared parent.
+  androidx.compose.ui.window.Popup(
+    alignment = Alignment.BottomCenter,
+    onDismissRequest = onDismiss,
+    properties = androidx.compose.ui.window.PopupProperties(
+      focusable = false,
+      dismissOnBackPress = true,
+      dismissOnClickOutside = false,
+    ),
   ) {
-    Row(
-      modifier = Modifier
-        .clip(RoundedCornerShape(999.dp))
-        .background(KlikInkPrimary)
-        .k1Clickable(onClick = onDismiss)
-        .padding(horizontal = 16.dp, vertical = 10.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(message, style = K1Type.bodySm.copy(color = KlikPaperCard))
+    Box(modifier = Modifier.padding(bottom = 96.dp)) {
+      Row(
+        modifier = Modifier
+          .clip(RoundedCornerShape(999.dp))
+          .background(KlikInkPrimary)
+          .k1Clickable(onClick = onDismiss)
+          .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(message, style = K1Type.bodySm.copy(color = KlikPaperCard))
+      }
     }
   }
 }

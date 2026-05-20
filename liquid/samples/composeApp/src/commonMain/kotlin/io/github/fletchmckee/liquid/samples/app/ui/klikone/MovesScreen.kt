@@ -266,7 +266,11 @@ fun MovesScreen(
   }
 
   val ptrState = rememberPullToRefreshState()
-  Box(Modifier.fillMaxSize()) {
+  // PullToRefreshBox is the outer container — wrapping it in an extra Box
+  // breaks nested-scroll dispatch on iOS CMP (the symptom users see is
+  // "pull-to-refresh doesn't work on Moves while other screens are fine").
+  // Sheets / dialogs / toast all use Popup, so they overlay correctly
+  // without needing a shared Box parent.
   PullToRefreshBox(
     isRefreshing = isRefreshing,
     state = ptrState,
@@ -741,10 +745,10 @@ fun MovesScreen(
       )
     }
 
-    // Toast pill — sits above everything else (sheets, menus, dialogs)
-    // so feedback from fire-and-forget rule actions is always visible.
+    // Toast pill — Popup-based, overlays above everything else (sheets,
+    // menus, dialogs) so feedback from fire-and-forget rule actions is
+    // always visible. No shared parent Box required.
     K1Toast(message = toastMessage, onDismiss = { toastMessage = null })
-  } // end overlay Box
 }
 
 @Composable
