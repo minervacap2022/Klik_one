@@ -752,7 +752,11 @@ private fun NeedsOkCard(
         )
         if (t.subtitle.isNotBlank()) {
           Spacer(Modifier.height(3.dp))
-          Text(t.subtitle, style = K1Type.caption)
+          // Need-attention cards sit directly above a verbatim source-quote
+          // box; a 200-char essay above a 140-char quote duplicates the
+          // ask. Show the first sentence only — enough to convey the why,
+          // short enough that the eye lands on the action buttons.
+          Text(firstSentence(t.subtitle), style = K1Type.caption)
         }
       }
       if (t.dueInfo.isNotBlank()) {
@@ -1405,6 +1409,27 @@ private fun LinkChainIcon() {
       center = Offset(6.5.dp.toPx(), 3.5.dp.toPx()),
     )
   }
+}
+
+/** First sentence of a possibly-multi-sentence description. Walks until the
+ *  first sentence-ending punctuation; falls back to an 80-char hard cap with
+ *  ellipsis when the writer used no punctuation. Empty in = empty out. */
+private fun firstSentence(s: String): String {
+  if (s.isBlank()) return s
+  val trimmed = s.trim()
+  // Look for `.`, `?`, or `!` followed by a space or end of string. Anything
+  // shorter than 12 chars before the boundary is probably an abbreviation
+  // (e.g. "Inc.") so we skip those candidate boundaries.
+  var i = 0
+  while (i < trimmed.length) {
+    val ch = trimmed[i]
+    if (ch == '.' || ch == '?' || ch == '!') {
+      val isBoundary = i == trimmed.lastIndex || trimmed[i + 1] == ' '
+      if (isBoundary && i >= 12) return trimmed.substring(0, i + 1)
+    }
+    i++
+  }
+  return if (trimmed.length > 80) trimmed.substring(0, 80).trimEnd() + "\u2026" else trimmed
 }
 
 /** Human-readable K1 stage label for a KK_exec task status string. */
