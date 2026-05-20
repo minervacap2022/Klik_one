@@ -885,7 +885,7 @@ private fun PendingRuleCard(
   onAccept: () -> Unit,
   onDecline: () -> Unit,
 ) {
-  K1Card(soft = true) {
+  K1Card(modifier = Modifier.fillMaxWidth(), soft = true) {
     Text(
       "\u2726 Klik suggests",
       style = K1Type.metaSm.copy(color = KlikCommitmentAccent),
