@@ -2656,7 +2656,7 @@ data class FeaturedTaskDto(
       // subtitle = description; featured cards don't have a source_quote
       // path yet, so description belongs in the subtitle slot.
       subtitle = description,
-      context = category,
+      context = "",
       relatedProject = "",
       relatedPeople = emptyList(),
       dueInfo = "",
