@@ -17,7 +17,7 @@ import io.github.fletchmckee.liquid.samples.app.domain.entity.LoginCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.entity.SignupCredentials
 import io.github.fletchmckee.liquid.samples.app.domain.repository.AuthRepository
 import io.github.fletchmckee.liquid.samples.app.logging.KlikLogger
-import io.github.fletchmckee.liquid.samples.app.model.clearArchivePinState
+import io.github.fletchmckee.liquid.samples.app.model.clearAllUserScopedState
 import kotlin.concurrent.Volatile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -245,8 +245,11 @@ class AuthRepositoryImpl : AuthRepository {
     // user out again.
     HttpClient.clearTokenRefreshCallback()
     hasRegisteredCallback = false
-    // Clear archive/pin state to prevent leaking across users.
-    clearArchivePinState()
+    // Wipe EVERY user-scoped Models global (people, tasks, meetings,
+    // archive/pin, etc.) — narrower clearArchivePinState() previously
+    // left peopleState + task lists in place, so log-out as Lynn →
+    // log-in as Alex painted Lynn's cached entries on first frame.
+    io.github.fletchmckee.liquid.samples.app.model.clearAllUserScopedState()
   }
 
   override suspend fun refreshToken(): Result<AuthResponse> {

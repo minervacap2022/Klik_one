@@ -663,8 +663,13 @@ private fun MainAppContent() {
   // React to auth state changes:
   // - Login: set isAuthReady to start data loading
   // - Logout (or forced token expiry): reset isAuthReady to stop all data loading
-  LaunchedEffect(authState.isLoggedIn) {
+  LaunchedEffect(authState.isLoggedIn, authState.userId) {
     if (authState.isLoggedIn && !isAuthReady) {
+      // Defensive wipe before bringing the new user online — guards against
+      // a previous user's globals leaking into first-paint of the next session
+      // (e.g. Lynn → Alex showed Lynn's cached people/tasks until the new
+      // fetches returned).
+      io.github.fletchmckee.liquid.samples.app.model.clearAllUserScopedState()
       AppModule.syncCurrentUser()
       isAuthReady = true
     } else if (!authState.isLoggedIn && isAuthReady) {
@@ -689,6 +694,9 @@ private fun MainAppContent() {
       InitGuard.integrationsCheckedAt = 0L
       // Reset AppModule so it re-initializes on next login
       AppModule.resetForLogout()
+      // Wipe every user-scoped Models global (people, tasks, meetings,
+      // archive/pin, etc.). Replaces the old narrow clearArchivePinState().
+      io.github.fletchmckee.liquid.samples.app.model.clearAllUserScopedState()
     }
   }
 

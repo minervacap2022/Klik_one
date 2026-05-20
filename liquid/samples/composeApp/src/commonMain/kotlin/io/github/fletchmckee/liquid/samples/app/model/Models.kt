@@ -382,6 +382,48 @@ fun clearArchivePinState() {
   KlikLogger.i("Models", "Cleared all archive/pin state for logout")
 }
 
+/**
+ * Clear EVERY user-scoped global state on auth change (logout, or before
+ * login when a different user_id is detected). Without this, log-out as
+ * Lynn → log-in as Alex paints Lynn's cached people/tasks/meetings on
+ * first frame because the global mutableStateOf<List<...>> singletons
+ * survive process-resident across the auth transition.
+ *
+ * Includes archive/pin state — never call clearArchivePinState() and this
+ * separately; this is the single entry point.
+ */
+fun clearAllUserScopedState() {
+  // Network entities (peopleState includes the logged-in user's own row)
+  peopleState.value = emptyList()
+  meetingsState.value = emptyList()
+  scenariosState.value = emptyList()
+  projectsState.value = emptyList()
+  organizationsState.value = emptyList()
+
+  // Task pipelines (review queue, KK_exec daily, completed, etc.)
+  reviewMetadataState.value = emptyList()
+  pendingMetadataState.value = emptyList()
+  completedMetadataState.value = emptyList()
+  kkExecSensitiveTodosState.value = emptyList()
+  kkExecDailyTodosState.value = emptyList()
+  kkExecDailyTodosGroupedState.value = emptyMap()
+  allKKExecTodosState.value = emptyList()
+  executingTodoIdsState.value = emptySet()
+  recentlyCompletedCategoriesState.value = emptySet()
+
+  // Session-scoped UI state
+  seenTaskIdsState.value = emptySet()
+
+  // Archive / pin sets + their persistent storage
+  clearArchivePinState()
+
+  // Archived display caches
+  archivedTasksState.value = emptyList()
+  archivedMeetingsState.value = emptyList()
+
+  KlikLogger.i("Models", "Cleared ALL user-scoped state for auth transition")
+}
+
 // ==================== ARCHIVE/PIN HELPER FUNCTIONS ====================
 
 /**
