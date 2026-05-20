@@ -2428,7 +2428,19 @@ private fun MainAppContent() {
                                     }
                                 },
                             )
-                            "function" -> MovesScreen(
+                            "function" -> {
+                              // peopleState is recomposed live, so this map rebuilds with
+                              // every list update — the chip's "to <name>" reflects the
+                              // freshest canonical name without any other plumbing.
+                              val peopleNameById: Map<String, String> = remember(peopleState.value) {
+                                peopleState.value.associate { p ->
+                                  p.id to (p.canonicalName.ifBlank { p.name })
+                                }
+                              }
+                              val resolvePersonName: (String) -> String? = { id ->
+                                peopleNameById[id]?.ifBlank { null }
+                              }
+                              MovesScreen(
                                 isLoading = isEventsLoading,
                                 isRefreshing = isTasksRefreshing,
                                 highlightedTaskId = highlightedMoveId,
@@ -2572,8 +2584,10 @@ private fun MainAppContent() {
                                         expandSegmentText = tracedSegment?.text
                                     }
                                     currentRoute = "today"
-                                }
+                                },
+                                resolvePersonName = resolvePersonName,
                             )
+                            }
                             "growth" -> NetworkScreen(
                                 isLoading = isGrowthLoading,
                                 isLlmDataLoading = isLlmDataLoading,

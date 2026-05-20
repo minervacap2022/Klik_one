@@ -71,6 +71,9 @@ import io.github.fletchmckee.liquid.samples.app.model.seenTaskIdsState
 import io.github.fletchmckee.liquid.samples.app.model.toggleTaskPin
 import io.github.fletchmckee.liquid.samples.app.theme.KlikAlert
 import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentAccent
+import io.github.fletchmckee.liquid.samples.app.theme.KlikCommitmentBg
+import io.github.fletchmckee.liquid.samples.app.theme.KlikDecisionAccent
+import io.github.fletchmckee.liquid.samples.app.theme.KlikDecisionBg
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkMuted
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkPrimary
 import io.github.fletchmckee.liquid.samples.app.theme.KlikInkSecondary
@@ -117,6 +120,10 @@ fun MovesScreen(
   onArchiveTaskOnBackend: (String) -> Unit = {},
   onEntityClick: (EntityNavigationData) -> Unit = {},
   onSegmentClick: (TracedSegmentNavigation) -> Unit = {},
+  /** Resolve a Person.id (voiceprint_id) → display name. Used by the
+   *  NeedsOk channel chip's "to <name>" line. Returns null when the id
+   *  is unknown; the chip then suppresses the recipient line. */
+  resolvePersonName: (String) -> String? = { null },
 ) {
   val s = LocalKlikStrings.current
   var filter by remember { mutableStateOf("all") }
@@ -462,6 +469,7 @@ fun MovesScreen(
                   onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
                 },
                 onQuoteClick = onSegmentClick,
+                resolvePersonName = resolvePersonName,
               )
             }
             Spacer(Modifier.height(8.dp))
@@ -735,9 +743,27 @@ private fun NeedsOkCard(
   onArchive: (String) -> Unit,
   onOpen: () -> Unit = {},
   onQuoteClick: ((TracedSegmentNavigation) -> Unit)? = null,
+  resolvePersonName: (String) -> String? = { null },
 ) {
+  val channel = channelOf(t)
+  val recipient = needsOkRecipientLabel(t, channel, resolvePersonName)
   K1Card(soft = true, onClick = onOpen) {
-    // Top row: unread dot + title + subtitle | time ago
+    // Channel chip + due date — the loud row that answers Heidi's
+    // "what is this going to do?" question. Amber DecisionBg for
+    // judgment-class todos, teal CommitmentBg for outbound channels;
+    // the glyph + label disambiguates the specific channel.
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      NeedsOkChannelChip(channel = channel, recipient = recipient)
+      Spacer(Modifier.weight(1f))
+      if (t.dueInfo.isNotBlank()) {
+        Text(t.dueInfo, style = K1Type.metaSm)
+      }
+    }
+    Spacer(Modifier.height(8.dp))
+
+    // Title row: unread dot + title + first-sentence subtitle. The
+    // chip already carries the channel signal, so the subtitle stays
+    // collapsed to one sentence; verbatim ask lives in the quote box.
     Row(verticalAlignment = Alignment.Top) {
       if (isUnread) {
         UnreadDot(KlikWarn)
@@ -752,15 +778,8 @@ private fun NeedsOkCard(
         )
         if (t.subtitle.isNotBlank()) {
           Spacer(Modifier.height(3.dp))
-          // Need-attention cards sit directly above a verbatim source-quote
-          // box; a 200-char essay above a 140-char quote duplicates the
-          // ask. Show the first sentence only — enough to convey the why,
-          // short enough that the eye lands on the action buttons.
           Text(firstSentence(t.subtitle), style = K1Type.caption)
         }
-      }
-      if (t.dueInfo.isNotBlank()) {
-        Text(t.dueInfo, style = K1Type.metaSm)
       }
     }
 
@@ -800,10 +819,12 @@ private fun NeedsOkCard(
 
     Spacer(Modifier.height(10.dp))
 
-    // Action row
+    // Action row — primary verb is derived from the channel chip so
+    // Heidi reads "Send email" / "Send Slack" / "Confirm" instead of
+    // a generic "Approve & send" that begs the question "send what?"
     val btnS = LocalKlikStrings.current
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-      ActionButton(btnS.approveAndSend, primary = true) { onApprove(t.id) }
+      ActionButton(channel.verb, primary = true) { onApprove(t.id) }
       ActionButton(btnS.edit, primary = false) { /* edit */ }
       ActionButton(btnS.skip, primary = false, muted = true) { onArchive(t.id) }
     }
@@ -1448,5 +1469,51 @@ private fun execStageLabel(rawStatus: String?): String {
     "REQUIRES_REAUTH" -> "Reconnect needed"
     "" -> "Running"
     else -> s.lowercase().replaceFirstChar { it.uppercase() }
+  }
+}
+
+/** The loud channel pill that crowns every Need-attention card.
+ *
+ *  Two semantic tints from the K1 palette — Decision (amber) for
+ *  judgment-class todos, Commitment (teal) for outbound channels — so
+ *  the colour tells you what *kind* of card this is and the glyph +
+ *  label nails the specific channel. Recipient suffix ("to Marc",
+ *  "with Maya, Marc") lives inside the pill when present so the chip
+ *  reads as one breath; resolution of voiceprint_id → display name is
+ *  the caller's job via [needsOkRecipientLabel].
+ *
+ *  No new colour tokens introduced — uses [KlikDecisionBg]/[KlikDecisionAccent]
+ *  and [KlikCommitmentBg]/[KlikCommitmentAccent] that already power the
+ *  Today and detail-sheet chips. */
+@Composable
+private fun NeedsOkChannelChip(channel: NeedsOkChannel, recipient: String?) {
+  val isDecision = channel == NeedsOkChannel.DECISION
+  val bg = if (isDecision) KlikDecisionBg else KlikCommitmentBg
+  val fg = if (isDecision) KlikDecisionAccent else KlikCommitmentAccent
+  val glyph = when (channel) {
+    NeedsOkChannel.EMAIL -> "✉"
+    NeedsOkChannel.SLACK -> "#"
+    NeedsOkChannel.CALENDAR -> "◷"
+    NeedsOkChannel.DOC -> "⌑"
+    NeedsOkChannel.DECISION -> "⚖"
+  }
+  val text = buildString {
+    append(glyph).append("  ").append(channel.label)
+    if (!recipient.isNullOrBlank()) append("  ·  ").append(recipient)
+  }
+  Box(
+    Modifier
+      .clip(K1R.pill)
+      .background(bg)
+      .padding(horizontal = 10.dp, vertical = 5.dp),
+  ) {
+    Text(
+      text,
+      style = K1Type.metaSm.copy(
+        color = fg,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.2.sp,
+      ),
+    )
   }
 }
