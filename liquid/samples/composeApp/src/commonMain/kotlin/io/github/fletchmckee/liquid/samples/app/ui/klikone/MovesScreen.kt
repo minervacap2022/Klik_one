@@ -124,6 +124,15 @@ fun MovesScreen(
    *  NeedsOk channel chip's "to <name>" line. Returns null when the id
    *  is unknown; the chip then suppresses the recipient line. */
   resolvePersonName: (String) -> String? = { null },
+  /** Resolve a Project.id (e.g. "PROJ_series_b") → human project name
+   *  ("Series B Fundraise"). Used by RunningRow / DoneRow meta lines
+   *  that otherwise leak raw IDs. Null = unknown id → fall back to the
+   *  raw id rather than dropping the field. */
+  resolveProjectName: (String) -> String? = { null },
+  /** Resolve a session_id (e.g. "sess_79e3f605834b") → a human label —
+   *  the meeting summary_title when available, else the session date.
+   *  Used by NeedsOkCard's "From <session>" footer. */
+  resolveSessionLabel: (String) -> String? = { null },
 ) {
   val s = LocalKlikStrings.current
   var filter by remember { mutableStateOf("all") }
@@ -470,6 +479,7 @@ fun MovesScreen(
                 },
                 onQuoteClick = onSegmentClick,
                 resolvePersonName = resolvePersonName,
+                resolveSessionLabel = resolveSessionLabel,
               )
             }
             Spacer(Modifier.height(8.dp))
@@ -525,6 +535,7 @@ fun MovesScreen(
                 onArchiveTaskOnBackend(task.id)
               },
               onRetryTask = onRetryTask,
+              resolveProjectName = resolveProjectName,
             )
             Spacer(Modifier.height(K1Sp.s))
           }
@@ -559,6 +570,7 @@ fun MovesScreen(
                   markTaskSeen(t.id)
                   onEntityClick(EntityNavigationData(EntityType.TASK, t.id))
                 },
+                resolveProjectName = resolveProjectName,
               )
             }
             Spacer(Modifier.height(6.dp))
@@ -744,6 +756,7 @@ private fun NeedsOkCard(
   onOpen: () -> Unit = {},
   onQuoteClick: ((TracedSegmentNavigation) -> Unit)? = null,
   resolvePersonName: (String) -> String? = { null },
+  resolveSessionLabel: (String) -> String? = { null },
 ) {
   val channel = channelOf(t)
   val recipient = needsOkRecipientLabel(t, channel, resolvePersonName)
@@ -840,8 +853,13 @@ private fun NeedsOkCard(
       Row(verticalAlignment = Alignment.CenterVertically) {
         LinkChainIcon()
         Spacer(Modifier.width(4.dp))
+        // Render the resolved session label (summary_title / date) when
+        // we have it. Falls back to the truncated raw id only when the
+        // session list hasn't loaded — better an ugly id than a blank
+        // footer, but the resolved title is the goal.
+        val sessionLabel = resolveSessionLabel(sessionRef) ?: "session · ${sessionRef.take(8)}"
         Text(
-          "From session · ${sessionRef.take(8)}",
+          "From $sessionLabel",
           style = K1Type.metaSm.copy(color = KlikInkTertiary),
         )
       }
@@ -1007,6 +1025,7 @@ private fun TaskCategoryGroup(
   onPinTask: (String) -> Unit = {},
   onArchiveTask: (TaskMetadata) -> Unit = {},
   onRetryTask: (String) -> Unit = {},
+  resolveProjectName: (String) -> String? = { null },
 ) {
   var expanded by remember { mutableStateOf(forceExpanded || tasks.size <= 3) }
   // Re-expand when a deep-link highlight lands inside this group so the
@@ -1048,6 +1067,7 @@ private fun TaskCategoryGroup(
             isHighlighted = t.id == highlightedTaskId,
             onClick = { onTaskClick(t) },
             onRetry = { onRetryTask(t.id) },
+            resolveProjectName = resolveProjectName,
           )
         }
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(KlikLineHairline))
@@ -1072,6 +1092,7 @@ private fun RunningTaskRow(
   isHighlighted: Boolean = false,
   onClick: () -> Unit,
   onRetry: () -> Unit,
+  resolveProjectName: (String) -> String? = { null },
 ) {
   Row(
     Modifier.fillMaxWidth()
@@ -1107,7 +1128,13 @@ private fun RunningTaskRow(
       val metaParts = buildList {
         add(stageLabel)
         stepInfo?.let { add(it) }
-        t.relatedProject.takeIf { it.isNotBlank() }?.let { add(it) }
+        t.relatedProject.takeIf { it.isNotBlank() }?.let { id ->
+          // Resolve project_id ("PROJ_series_b") → "Series B Fundraise";
+          // when the resolver doesn't know the id we still surface the
+          // raw id rather than dropping the line — surprise empty space
+          // would be worse than a leaked id.
+          add(resolveProjectName(id) ?: id)
+        }
       }
       Spacer(Modifier.height(2.dp))
       Text(
@@ -1140,7 +1167,7 @@ private fun RunningTaskRow(
 }
 
 @Composable
-private fun RunningRow(t: TaskMetadata, onClick: () -> Unit = {}) {
+private fun RunningRow(t: TaskMetadata, onClick: () -> Unit = {}, resolveProjectName: (String) -> String? = { null }) {
   Row(
     Modifier
       .fillMaxWidth()
@@ -1184,7 +1211,9 @@ private fun RunningRow(t: TaskMetadata, onClick: () -> Unit = {}) {
       val stageLabel = execStageLabel(t.kkExecStatus)
       val meta = buildList {
         add(stageLabel)
-        t.relatedProject.takeIf { it.isNotBlank() }?.let { add(it) }
+        t.relatedProject.takeIf { it.isNotBlank() }?.let { id ->
+          add(resolveProjectName(id) ?: id)
+        }
       }.joinToString(" · ")
       Spacer(Modifier.height(2.dp))
       Text(
@@ -1228,6 +1257,7 @@ private fun FailedRow(
   isUnread: Boolean = false,
   onRetry: () -> Unit = {},
   onOpen: () -> Unit = {},
+  resolveProjectName: (String) -> String? = { null },
 ) {
   // Failed tasks read as a paper card tinted with a hairline KlikAlert border so
   // they stay editorial but never blend into the green check-marked Done list.
@@ -1278,7 +1308,9 @@ private fun FailedRow(
       val reason = execStageLabel(t.kkExecStatus)
       val meta = buildList {
         add(reason)
-        t.relatedProject.takeIf { it.isNotBlank() }?.let { add(it) }
+        t.relatedProject.takeIf { it.isNotBlank() }?.let { id ->
+          add(resolveProjectName(id) ?: id)
+        }
       }.joinToString(" · ")
       Spacer(Modifier.height(2.dp))
       Text(meta, style = K1Type.metaSm.copy(color = KlikAlert))

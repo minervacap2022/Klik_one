@@ -2429,16 +2429,31 @@ private fun MainAppContent() {
                                 },
                             )
                             "function" -> {
-                              // peopleState is recomposed live, so this map rebuilds with
-                              // every list update — the chip's "to <name>" reflects the
-                              // freshest canonical name without any other plumbing.
+                              // Live id→name maps for the three resolvers MovesScreen
+                              // threads into NeedsOkCard / RunningTaskRow / FailedRow.
+                              // Rebuilt on each state change so renames propagate
+                              // without explicit invalidation.
                               val peopleNameById: Map<String, String> = remember(peopleState.value) {
                                 peopleState.value.associate { p ->
                                   p.id to (p.canonicalName.ifBlank { p.name })
                                 }
                               }
+                              val projectNameById: Map<String, String> = remember(projectsState.value) {
+                                projectsState.value.associate { p -> p.id to p.name }
+                              }
+                              val sessionLabelById: Map<String, String> = remember(meetings) {
+                                meetings.associate { m ->
+                                  m.id to m.title.ifBlank { m.date.toString() }
+                                }
+                              }
                               val resolvePersonName: (String) -> String? = { id ->
                                 peopleNameById[id]?.ifBlank { null }
+                              }
+                              val resolveProjectName: (String) -> String? = { id ->
+                                projectNameById[id]?.ifBlank { null }
+                              }
+                              val resolveSessionLabel: (String) -> String? = { id ->
+                                sessionLabelById[id]?.ifBlank { null }
                               }
                               MovesScreen(
                                 isLoading = isEventsLoading,
@@ -2586,6 +2601,8 @@ private fun MainAppContent() {
                                     currentRoute = "today"
                                 },
                                 resolvePersonName = resolvePersonName,
+                                resolveProjectName = resolveProjectName,
+                                resolveSessionLabel = resolveSessionLabel,
                             )
                             }
                             "growth" -> NetworkScreen(
