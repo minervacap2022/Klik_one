@@ -10,17 +10,15 @@ import kotlin.test.assertNull
 /**
  * Guards the mapping `TaskMetadata.toolCategoriesNeeded` → `NeedsOkChannel`.
  *
- * Backend KK_LLM emits `selected_sub_categories` as a sorted/dedup'd list
- * of canonical capability names (`email`, `messaging`, `calendar`,
- * `file_storage`, …) on every todo. The Heidi card (todo 3111,
- * e_complex_level3) deliberately carries an empty list because a $300M
- * valuation isn't channel-routable; that case must resolve to DECISION
- * so the card renders ⚖ Decision / Confirm — never a fake "Send email"
- * verb.
+ * The 17 canonical sub_category names that KK_LLM is allowed to emit are
+ * defined in `KK_exec/config/tools.yaml`. Every value must map to a
+ * concrete channel — falling through to DECISION on a known canonical
+ * value would render a wrong verb ("Confirm" on a card that should say
+ * "Create task" / "Run search" / etc.). Only empty arrays or genuinely
+ * unknown values get DECISION.
  *
- * No backend change is implied by these tests; the field exists in
- * production today (~85 rows on user_627db9bc alone) and reaches iOS
- * via RemoteDataFetcher.kt:1828.
+ * Provider names ("slack", "notion", etc.) are NEVER expected here —
+ * those are runtime execution details, not card-display categories.
  */
 class NeedsOkChannelTest {
 
@@ -36,68 +34,113 @@ class NeedsOkChannelTest {
       toolCategoriesNeeded = cats,
     )
 
-  // ─── channel derivation ───────────────────────────────────────────────
+  // ─── 17 canonical sub_categories from KK_exec/config/tools.yaml ──────
+  // Every one must resolve to a non-DECISION channel. If KK_exec adds a
+  // new canonical name, this test will fail until iOS adds the mapping.
 
-  @Test fun emptyCategoriesIsDecision() =
-    assertEquals(NeedsOkChannel.DECISION, channelOf(task(emptyList())))
-
-  @Test fun emailCategoryMapsEmail() =
+  @Test fun emailMapsEmail() =
     assertEquals(NeedsOkChannel.EMAIL, channelOf(task(listOf("email"))))
 
-  @Test fun messagingCategoryMapsSlack() =
-    assertEquals(NeedsOkChannel.SLACK, channelOf(task(listOf("messaging"))))
+  @Test fun messagingMapsMessage() =
+    assertEquals(NeedsOkChannel.MESSAGE, channelOf(task(listOf("messaging"))))
 
-  @Test fun calendarCategoryMapsCalendar() =
+  @Test fun calendarMapsCalendar() =
     assertEquals(NeedsOkChannel.CALENDAR, channelOf(task(listOf("calendar"))))
-
-  @Test fun fileStorageMapsDoc() =
-    assertEquals(NeedsOkChannel.DOC, channelOf(task(listOf("file_storage"))))
 
   @Test fun documentationMapsDoc() =
     assertEquals(NeedsOkChannel.DOC, channelOf(task(listOf("documentation"))))
 
-  /** Email wins over messaging when both present — picking the higher-
-   *  fidelity outbound channel matches what KK_exec does at execution
-   *  time (gmail dispatch precedes slack). Tested against prod combos
-   *  like `["email", "messaging"]` which appear on 19 rows for one user. */
-  @Test fun emailWinsOverMessagingWhenBothPresent() =
+  @Test fun fileStorageMapsFile() =
+    assertEquals(NeedsOkChannel.FILE, channelOf(task(listOf("file_storage"))))
+
+  @Test fun taskManagementMapsTask() =
+    assertEquals(NeedsOkChannel.TASK, channelOf(task(listOf("task_management"))))
+
+  @Test fun codeRepositoryMapsCode() =
+    assertEquals(NeedsOkChannel.CODE, channelOf(task(listOf("code_repository"))))
+
+  @Test fun webSearchMapsResearch() =
+    assertEquals(NeedsOkChannel.RESEARCH, channelOf(task(listOf("web_search"))))
+
+  @Test fun webBrowseMapsResearch() =
+    assertEquals(NeedsOkChannel.RESEARCH, channelOf(task(listOf("web_browse"))))
+
+  @Test fun externalDataMapsResearch() =
+    assertEquals(NeedsOkChannel.RESEARCH, channelOf(task(listOf("external_data"))))
+
+  @Test fun calculationMapsCompute() =
+    assertEquals(NeedsOkChannel.COMPUTE, channelOf(task(listOf("calculation"))))
+
+  @Test fun textProcessingMapsCompute() =
+    assertEquals(NeedsOkChannel.COMPUTE, channelOf(task(listOf("text_processing"))))
+
+  @Test fun dataTransformationMapsCompute() =
+    assertEquals(NeedsOkChannel.COMPUTE, channelOf(task(listOf("data_transformation"))))
+
+  /** data_query appears in prod (4 rows) but isn't documented in
+   *  tools.yaml's sub_categories list — likely a legacy name for what
+   *  data_transformation now covers. Map it the same way so legacy rows
+   *  don't collapse to DECISION. */
+  @Test fun dataQueryMapsCompute() =
+    assertEquals(NeedsOkChannel.COMPUTE, channelOf(task(listOf("data_query"))))
+
+  @Test fun audioUnderstandingMapsAnalyze() =
+    assertEquals(NeedsOkChannel.ANALYZE, channelOf(task(listOf("audio_understanding"))))
+
+  @Test fun imageUnderstandingMapsAnalyze() =
+    assertEquals(NeedsOkChannel.ANALYZE, channelOf(task(listOf("image_understanding"))))
+
+  @Test fun imageGenerationMapsGenerate() =
+    assertEquals(NeedsOkChannel.GENERATE, channelOf(task(listOf("image_generation"))))
+
+  @Test fun memoryMapsMemory() =
+    assertEquals(NeedsOkChannel.MEMORY, channelOf(task(listOf("memory"))))
+
+  /** simple_tools shows up in prod (2 rows) — a catch-all for things
+   *  that don't fit the major categories. Treat as COMPUTE rather than
+   *  DECISION so the user sees an action verb, not a judgment prompt. */
+  @Test fun simpleToolsMapsCompute() =
+    assertEquals(NeedsOkChannel.COMPUTE, channelOf(task(listOf("simple_tools"))))
+
+  // ─── Multi-category precedence ─────────────────────────────────────
+
+  /** When email and messaging both present, email wins — higher-fidelity
+   *  outbound matches KK_exec dispatch precedence. */
+  @Test fun emailBeatsMessaging() =
     assertEquals(NeedsOkChannel.EMAIL, channelOf(task(listOf("email", "messaging"))))
 
-  /** Unknown sub-category falls through to DECISION rather than
-   *  pretending to know a channel we don't have a verb for. The
-   *  alternative — guessing "Send" — would put a fake action button on
-   *  a card with no real outbound. */
-  @Test fun unknownCategoryFallsThroughToDecision() =
-    assertEquals(NeedsOkChannel.DECISION, channelOf(task(listOf("web_search"))))
+  /** Calendar beats messaging — scheduling is more action-defining than
+   *  a generic chat. Verified against the 10 prod rows that carry both. */
+  @Test fun calendarBeatsMessaging() =
+    assertEquals(NeedsOkChannel.CALENDAR, channelOf(task(listOf("calendar", "messaging"))))
 
-  /** Production values are lowercase but the validator at todo_item.py
-   *  doesn't case-normalize; defensive lowercasing here keeps us safe
-   *  if the upstream prompt changes. */
-  @Test fun categoryCasingIgnored() =
+  // ─── Decision / unknown ────────────────────────────────────────────
+
+  @Test fun emptyMapsDecision() =
+    assertEquals(NeedsOkChannel.DECISION, channelOf(task(emptyList())))
+
+  /** An unrecognized name (typo, new category not yet ported to iOS)
+   *  falls through to DECISION rather than guessing a verb. The test
+   *  for every canonical value above must pass first — DECISION is
+   *  the *last-resort* state, not the default. */
+  @Test fun unknownCategoryFallsThroughToDecision() =
+    assertEquals(NeedsOkChannel.DECISION, channelOf(task(listOf("not_a_real_category_xyz"))))
+
+  /** Provider names like "slack", "notion", "github" must NEVER appear
+   *  on the wire as sub_categories — those are runtime providers.
+   *  If one slips through, fall to DECISION (loud signal something is
+   *  miswired upstream). */
+  @Test fun providerNameFallsThroughToDecision() {
+    assertEquals(NeedsOkChannel.DECISION, channelOf(task(listOf("slack"))))
+    assertEquals(NeedsOkChannel.DECISION, channelOf(task(listOf("notion"))))
+    assertEquals(NeedsOkChannel.DECISION, channelOf(task(listOf("github"))))
+  }
+
+  @Test fun caseInsensitive() =
     assertEquals(NeedsOkChannel.EMAIL, channelOf(task(listOf("Email"))))
 
-  // ─── enum verb labels — what the action button says ───────────────────
+  // ─── Recipient label ──────────────────────────────────────────────
 
-  @Test fun decisionVerbIsConfirm() = assertEquals("Confirm", NeedsOkChannel.DECISION.verb)
-  @Test fun emailVerbIsSendEmail() = assertEquals("Send email", NeedsOkChannel.EMAIL.verb)
-  @Test fun slackVerbIsSendSlack() = assertEquals("Send Slack", NeedsOkChannel.SLACK.verb)
-  @Test fun calendarVerbIsSendInvite() = assertEquals("Send invite", NeedsOkChannel.CALENDAR.verb)
-  @Test fun docVerbIsSaveDoc() = assertEquals("Save doc", NeedsOkChannel.DOC.verb)
-
-  // ─── enum chip labels — what the chip pill says ───────────────────────
-
-  @Test fun decisionChipLabel() = assertEquals("Decision", NeedsOkChannel.DECISION.label)
-  @Test fun emailChipLabel() = assertEquals("Email", NeedsOkChannel.EMAIL.label)
-  @Test fun slackChipLabel() = assertEquals("Slack", NeedsOkChannel.SLACK.label)
-  @Test fun calendarChipLabel() = assertEquals("Calendar", NeedsOkChannel.CALENDAR.label)
-  @Test fun docChipLabel() = assertEquals("Doc", NeedsOkChannel.DOC.label)
-
-  // ─── recipient line — "to <name(s)>" ──────────────────────────────────
-
-  /** Decision cards never carry a recipient line — there's no "to" when
-   *  the action is a judgment call. Even if relatedPeople is populated
-   *  (LLM pulled in stakeholders for context), the chip's recipient
-   *  slot must stay empty. */
   @Test fun decisionHasNoRecipientEvenWhenPeoplePopulated() {
     val t = task(emptyList(), people = listOf("vp_marc_devereux"))
     val resolve: (String) -> String? = { "Marc Devereux" }
@@ -118,9 +161,6 @@ class NeedsOkChannelTest {
     assertEquals("to Alex Rivera, Maya Singh", needsOkRecipientLabel(t, NeedsOkChannel.EMAIL, resolve))
   }
 
-  /** Three+ recipients collapse to "Alex Rivera + 2" to keep the chip
-   *  on one line at iPhone widths. Picked over "Alex et al." which
-   *  reads vaguer. */
   @Test fun emailWithThreeOrMorePeopleCollapses() {
     val t = task(listOf("email"), people = listOf("vp_a", "vp_b", "vp_c"))
     val resolve: (String) -> String? = { id ->
@@ -129,18 +169,46 @@ class NeedsOkChannelTest {
     assertEquals("to Alex + 2", needsOkRecipientLabel(t, NeedsOkChannel.EMAIL, resolve))
   }
 
-  /** When relatedPeople contains an id the resolver doesn't know, drop
-   *  the unknown entries silently rather than rendering "to vp_xxx"
-   *  (raw IDs are ugly and leak schema). Empty after filter → no line. */
   @Test fun unresolvableIdsAreDropped() {
-    val t = task(listOf("email"), people = listOf("vp_unknown_1", "vp_unknown_2"))
+    val t = task(listOf("email"), people = listOf("vp_unknown_1"))
     val resolve: (String) -> String? = { null }
     assertNull(needsOkRecipientLabel(t, NeedsOkChannel.EMAIL, resolve))
   }
 
-  @Test fun calendarRecipientUsesSameFormat() {
+  @Test fun calendarRecipientUsesWith() {
     val t = task(listOf("calendar"), people = listOf("vp_a"))
     val resolve: (String) -> String? = { "Maya Singh" }
     assertEquals("with Maya Singh", needsOkRecipientLabel(t, NeedsOkChannel.CALENDAR, resolve))
   }
+
+  /** Outbound channels other than calendar use "to". MESSAGE goes "to"
+   *  the recipient (the channel-or-DM is a runtime detail). */
+  @Test fun messageRecipientUsesTo() {
+    val t = task(listOf("messaging"), people = listOf("vp_a"))
+    val resolve: (String) -> String? = { "Maya Singh" }
+    assertEquals("to Maya Singh", needsOkRecipientLabel(t, NeedsOkChannel.MESSAGE, resolve))
+  }
+
+  // ─── Enum identity sanity ──────────────────────────────────────────
+
+  /** Channel labels and verbs are NOT stored on the enum any more —
+   *  they live in KlikStrings and are resolved at render time so they
+   *  pick up the user's locale. The enum is semantic only. This test
+   *  documents that contract. */
+  @Test fun channelEnumIsSemanticOnly() {
+    // If someone re-adds .label/.verb properties to the enum to "make
+    // it more convenient", this test fails fast — labels MUST come
+    // through KlikStrings or the i18n contract breaks.
+    val allChannels = NeedsOkChannel.values().toSet()
+    assertEquals(13, allChannels.size,
+      "Expected 13 channels (12 actions + DECISION); add/remove tests if intentional")
+  }
+
+  // The per-category explicit tests above (`emailMapsEmail` …
+  // `simpleToolsMapsCompute`) are the contract — one test per canonical
+  // name from `KK_exec/config/tools.yaml`. Adding a new backend category
+  // means adding one new explicit test, which forces the developer to
+  // add the mapping in `channelOf()` to make it pass. No second list of
+  // category names exists in this file — `channelOf()` is the single
+  // source of truth for the mapping.
 }

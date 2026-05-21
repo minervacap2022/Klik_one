@@ -97,6 +97,29 @@ data class KlikStrings(
   val syncedAcrossDevices: String,
   val couldntLoadPreferences: String,
   val language: String,
+  // NeedsOk channel chip — labels (left of " · ") and verbs (primary
+  // button). Mirrors the 13-entry NeedsOkChannel enum. Localized so
+  // every supported locale gets native-feeling chips and buttons; the
+  // glyph stays as a unicode symbol (no locale-specific iconography).
+  val needsOkChips: KlikChipStrings,
+)
+
+/** Per-channel labels (chip text) + verbs (button text) for the
+ *  Need-attention card. One entry per [NeedsOkChannel] enum value. */
+data class KlikChipStrings(
+  val emailLabel: String,    val emailVerb: String,
+  val messageLabel: String,  val messageVerb: String,
+  val calendarLabel: String, val calendarVerb: String,
+  val docLabel: String,      val docVerb: String,
+  val fileLabel: String,     val fileVerb: String,
+  val taskLabel: String,     val taskVerb: String,
+  val codeLabel: String,     val codeVerb: String,
+  val researchLabel: String, val researchVerb: String,
+  val computeLabel: String,  val computeVerb: String,
+  val analyzeLabel: String,  val analyzeVerb: String,
+  val generateLabel: String, val generateVerb: String,
+  val memoryLabel: String,   val memoryVerb: String,
+  val decisionLabel: String, val decisionVerb: String,
 )
 
 val LocalKlikStrings = compositionLocalOf { klikStrings("en") }
@@ -137,6 +160,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "字号", darkMode = "深色模式", hapticFeedback = "触觉反馈",
     syncedAcrossDevices = "已跨设备同步",
     couldntLoadPreferences = "无法加载偏好设置", language = "语言",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "邮件",    emailVerb = "发送邮件",
+      messageLabel = "消息",  messageVerb = "发送消息",
+      calendarLabel = "日程", calendarVerb = "发送邀请",
+      docLabel = "文档",      docVerb = "保存文档",
+      fileLabel = "文件",     fileVerb = "保存文件",
+      taskLabel = "任务",     taskVerb = "创建任务",
+      codeLabel = "代码",     codeVerb = "提交 PR",
+      researchLabel = "调研", researchVerb = "执行搜索",
+      computeLabel = "计算",  computeVerb = "运行",
+      analyzeLabel = "分析",  analyzeVerb = "分析",
+      generateLabel = "生成", generateVerb = "生成",
+      memoryLabel = "记忆",   memoryVerb = "保存",
+      decisionLabel = "决策", decisionVerb = "确认",
+    ),
   )
   "es" -> KlikStrings(
     tabToday = "Hoy", tabMoves = "Acciones", tabNetwork = "Red", tabYou = "Tú",
@@ -173,6 +211,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "Tamaño del texto", darkMode = "Modo oscuro", hapticFeedback = "Respuesta háptica",
     syncedAcrossDevices = "Sincronizado en todos los dispositivos",
     couldntLoadPreferences = "No se pudieron cargar las preferencias", language = "Idioma",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "Correo",     emailVerb = "Enviar correo",
+      messageLabel = "Mensaje",  messageVerb = "Enviar mensaje",
+      calendarLabel = "Calendario", calendarVerb = "Enviar invitación",
+      docLabel = "Doc",          docVerb = "Guardar doc",
+      fileLabel = "Archivo",     fileVerb = "Guardar archivo",
+      taskLabel = "Tarea",       taskVerb = "Crear tarea",
+      codeLabel = "Código",      codeVerb = "Abrir PR",
+      researchLabel = "Búsqueda", researchVerb = "Buscar",
+      computeLabel = "Cálculo",  computeVerb = "Ejecutar",
+      analyzeLabel = "Analizar", analyzeVerb = "Analizar",
+      generateLabel = "Generar", generateVerb = "Generar",
+      memoryLabel = "Memoria",   memoryVerb = "Guardar",
+      decisionLabel = "Decisión", decisionVerb = "Confirmar",
+    ),
   )
   "fr" -> KlikStrings(
     tabToday = "Aujourd'hui", tabMoves = "Actions", tabNetwork = "Réseau", tabYou = "Moi",
@@ -209,6 +262,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "Taille du texte", darkMode = "Mode sombre", hapticFeedback = "Retour haptique",
     syncedAcrossDevices = "Synchronisé sur tous les appareils",
     couldntLoadPreferences = "Impossible de charger les préférences", language = "Langue",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "E-mail",     emailVerb = "Envoyer l'e-mail",
+      messageLabel = "Message",  messageVerb = "Envoyer le message",
+      calendarLabel = "Agenda",  calendarVerb = "Envoyer l'invitation",
+      docLabel = "Doc",          docVerb = "Enregistrer",
+      fileLabel = "Fichier",     fileVerb = "Enregistrer le fichier",
+      taskLabel = "Tâche",       taskVerb = "Créer la tâche",
+      codeLabel = "Code",        codeVerb = "Ouvrir la PR",
+      researchLabel = "Recherche", researchVerb = "Rechercher",
+      computeLabel = "Calcul",   computeVerb = "Exécuter",
+      analyzeLabel = "Analyser", analyzeVerb = "Analyser",
+      generateLabel = "Générer", generateVerb = "Générer",
+      memoryLabel = "Mémoire",   memoryVerb = "Enregistrer",
+      decisionLabel = "Décision", decisionVerb = "Confirmer",
+    ),
   )
   "de" -> KlikStrings(
     tabToday = "Heute", tabMoves = "Aufgaben", tabNetwork = "Netzwerk", tabYou = "Ich",
@@ -245,6 +313,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "Textgröße", darkMode = "Dunkelmodus", hapticFeedback = "Haptisches Feedback",
     syncedAcrossDevices = "Geräteübergreifend synchronisiert",
     couldntLoadPreferences = "Einstellungen konnten nicht geladen werden", language = "Sprache",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "E-Mail",      emailVerb = "E-Mail senden",
+      messageLabel = "Nachricht", messageVerb = "Nachricht senden",
+      calendarLabel = "Kalender", calendarVerb = "Einladung senden",
+      docLabel = "Dok",           docVerb = "Speichern",
+      fileLabel = "Datei",        fileVerb = "Datei speichern",
+      taskLabel = "Aufgabe",      taskVerb = "Aufgabe erstellen",
+      codeLabel = "Code",         codeVerb = "PR öffnen",
+      researchLabel = "Recherche", researchVerb = "Suchen",
+      computeLabel = "Rechnen",   computeVerb = "Ausführen",
+      analyzeLabel = "Analyse",   analyzeVerb = "Analysieren",
+      generateLabel = "Erzeugen", generateVerb = "Erzeugen",
+      memoryLabel = "Speicher",   memoryVerb = "Speichern",
+      decisionLabel = "Entscheidung", decisionVerb = "Bestätigen",
+    ),
   )
   "ja" -> KlikStrings(
     tabToday = "今日", tabMoves = "アクション", tabNetwork = "ネットワーク", tabYou = "マイページ",
@@ -281,6 +364,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "テキストサイズ", darkMode = "ダークモード", hapticFeedback = "触覚フィードバック",
     syncedAcrossDevices = "デバイス間で同期済み",
     couldntLoadPreferences = "設定を読み込めませんでした", language = "言語",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "メール",   emailVerb = "メール送信",
+      messageLabel = "メッセージ", messageVerb = "メッセージ送信",
+      calendarLabel = "カレンダー", calendarVerb = "招待を送る",
+      docLabel = "ドキュメント", docVerb = "保存",
+      fileLabel = "ファイル",   fileVerb = "ファイルを保存",
+      taskLabel = "タスク",     taskVerb = "タスク作成",
+      codeLabel = "コード",     codeVerb = "PR を開く",
+      researchLabel = "調査",   researchVerb = "検索",
+      computeLabel = "計算",    computeVerb = "実行",
+      analyzeLabel = "分析",    analyzeVerb = "分析",
+      generateLabel = "生成",   generateVerb = "生成",
+      memoryLabel = "メモリ",   memoryVerb = "保存",
+      decisionLabel = "判断",   decisionVerb = "確定",
+    ),
   )
   "ko" -> KlikStrings(
     tabToday = "오늘", tabMoves = "작업", tabNetwork = "네트워크", tabYou = "내 정보",
@@ -317,6 +415,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "텍스트 크기", darkMode = "다크 모드", hapticFeedback = "햅틱 피드백",
     syncedAcrossDevices = "기기 전체에서 동기화됨",
     couldntLoadPreferences = "환경설정을 불러올 수 없습니다", language = "언어",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "이메일",   emailVerb = "이메일 보내기",
+      messageLabel = "메시지", messageVerb = "메시지 보내기",
+      calendarLabel = "캘린더", calendarVerb = "초대 보내기",
+      docLabel = "문서",       docVerb = "저장",
+      fileLabel = "파일",      fileVerb = "파일 저장",
+      taskLabel = "작업",      taskVerb = "작업 만들기",
+      codeLabel = "코드",      codeVerb = "PR 열기",
+      researchLabel = "조사",  researchVerb = "검색",
+      computeLabel = "계산",   computeVerb = "실행",
+      analyzeLabel = "분석",   analyzeVerb = "분석",
+      generateLabel = "생성",  generateVerb = "생성",
+      memoryLabel = "메모리",  memoryVerb = "저장",
+      decisionLabel = "결정",  decisionVerb = "확인",
+    ),
   )
   "pt" -> KlikStrings(
     tabToday = "Hoje", tabMoves = "Ações", tabNetwork = "Rede", tabYou = "Eu",
@@ -353,6 +466,21 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "Tamanho do texto", darkMode = "Modo escuro", hapticFeedback = "Feedback háptico",
     syncedAcrossDevices = "Sincronizado em todos os dispositivos",
     couldntLoadPreferences = "Não foi possível carregar as preferências", language = "Idioma",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "E-mail",      emailVerb = "Enviar e-mail",
+      messageLabel = "Mensagem",  messageVerb = "Enviar mensagem",
+      calendarLabel = "Calendário", calendarVerb = "Enviar convite",
+      docLabel = "Doc",           docVerb = "Salvar doc",
+      fileLabel = "Arquivo",      fileVerb = "Salvar arquivo",
+      taskLabel = "Tarefa",       taskVerb = "Criar tarefa",
+      codeLabel = "Código",       codeVerb = "Abrir PR",
+      researchLabel = "Pesquisa", researchVerb = "Buscar",
+      computeLabel = "Cálculo",   computeVerb = "Executar",
+      analyzeLabel = "Analisar",  analyzeVerb = "Analisar",
+      generateLabel = "Gerar",    generateVerb = "Gerar",
+      memoryLabel = "Memória",    memoryVerb = "Salvar",
+      decisionLabel = "Decisão",  decisionVerb = "Confirmar",
+    ),
   )
   else -> KlikStrings(
     tabToday = "Today", tabMoves = "Moves", tabNetwork = "Network", tabYou = "You",
@@ -389,5 +517,39 @@ fun klikStrings(lang: String): KlikStrings = when (lang) {
     textSize = "Text size", darkMode = "Dark mode", hapticFeedback = "Haptic feedback",
     syncedAcrossDevices = "Synced across devices",
     couldntLoadPreferences = "Couldn't load preferences", language = "Language",
+    needsOkChips = KlikChipStrings(
+      emailLabel = "Email",     emailVerb = "Send email",
+      messageLabel = "Message", messageVerb = "Send message",
+      calendarLabel = "Calendar", calendarVerb = "Send invite",
+      docLabel = "Doc",         docVerb = "Save doc",
+      fileLabel = "File",       fileVerb = "Save file",
+      taskLabel = "Task",       taskVerb = "Create task",
+      codeLabel = "Code",       codeVerb = "Open PR",
+      researchLabel = "Research", researchVerb = "Run search",
+      computeLabel = "Compute", computeVerb = "Run",
+      analyzeLabel = "Analyze", analyzeVerb = "Analyze",
+      generateLabel = "Generate", generateVerb = "Generate",
+      memoryLabel = "Memory",   memoryVerb = "Save",
+      decisionLabel = "Decision", decisionVerb = "Confirm",
+    ),
   )
+}
+
+/** Returns the localized (label, verb) pair for a given [NeedsOkChannel].
+ *  Single source of truth — every render site reads through this so the
+ *  enum stays semantic-only and locales stay in `KlikStrings`. */
+fun KlikChipStrings.forChannel(channel: NeedsOkChannel): Pair<String, String> = when (channel) {
+  NeedsOkChannel.EMAIL    -> emailLabel    to emailVerb
+  NeedsOkChannel.MESSAGE  -> messageLabel  to messageVerb
+  NeedsOkChannel.CALENDAR -> calendarLabel to calendarVerb
+  NeedsOkChannel.DOC      -> docLabel      to docVerb
+  NeedsOkChannel.FILE     -> fileLabel     to fileVerb
+  NeedsOkChannel.TASK     -> taskLabel     to taskVerb
+  NeedsOkChannel.CODE     -> codeLabel     to codeVerb
+  NeedsOkChannel.RESEARCH -> researchLabel to researchVerb
+  NeedsOkChannel.COMPUTE  -> computeLabel  to computeVerb
+  NeedsOkChannel.ANALYZE  -> analyzeLabel  to analyzeVerb
+  NeedsOkChannel.GENERATE -> generateLabel to generateVerb
+  NeedsOkChannel.MEMORY   -> memoryLabel   to memoryVerb
+  NeedsOkChannel.DECISION -> decisionLabel to decisionVerb
 }

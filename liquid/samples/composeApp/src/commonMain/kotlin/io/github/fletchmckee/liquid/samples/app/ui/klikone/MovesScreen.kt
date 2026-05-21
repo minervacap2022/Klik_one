@@ -846,12 +846,12 @@ private fun NeedsOkCard(
 
     Spacer(Modifier.height(10.dp))
 
-    // Action row — primary verb is derived from the channel chip so
-    // Heidi reads "Send email" / "Send Slack" / "Confirm" instead of
-    // a generic "Approve & send" that begs the question "send what?"
+    // Action row — primary verb comes from KlikStrings so all 8 locales
+    // get a native verb ("Send email" / "发送邮件" / "メール送信" / …).
     val btnS = LocalKlikStrings.current
+    val (_, verb) = btnS.needsOkChips.forChannel(channel)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-      ActionButton(channel.verb, primary = true) { onApprove(t.id) }
+      ActionButton(verb, primary = true) { onApprove(t.id) }
       ActionButton(btnS.edit, primary = false) { /* edit */ }
       ActionButton(btnS.skip, primary = false, muted = true) { onArchive(t.id) }
     }
@@ -1536,15 +1536,13 @@ private fun NeedsOkChannelChip(channel: NeedsOkChannel, recipient: String?) {
   val isDecision = channel == NeedsOkChannel.DECISION
   val bg = if (isDecision) KlikDecisionBg else KlikCommitmentBg
   val fg = if (isDecision) KlikDecisionAccent else KlikCommitmentAccent
-  val glyph = when (channel) {
-    NeedsOkChannel.EMAIL -> "✉"
-    NeedsOkChannel.SLACK -> "#"
-    NeedsOkChannel.CALENDAR -> "◷"
-    NeedsOkChannel.DOC -> "⌑"
-    NeedsOkChannel.DECISION -> "⚖"
-  }
+  // K1 editorial: typography is the design. The chip's amber/teal tint
+  // already signals decision-vs-outbound; the label nails the channel.
+  // No iconography per channel — that fights the paper-and-ink language
+  // and forces locale-bound glyph choices we'd inevitably get wrong.
+  val (label, _) = LocalKlikStrings.current.needsOkChips.forChannel(channel)
   val text = buildString {
-    append(glyph).append("  ").append(channel.label)
+    append(label)
     if (!recipient.isNullOrBlank()) append("  ·  ").append(recipient)
   }
   Box(
