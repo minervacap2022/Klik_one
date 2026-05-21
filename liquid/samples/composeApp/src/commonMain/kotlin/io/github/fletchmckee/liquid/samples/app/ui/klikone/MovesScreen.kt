@@ -446,6 +446,16 @@ fun MovesScreen(
             }
             Spacer(Modifier.height(8.dp))
           }
+          if (featured.isEmpty() && pendingRules.isEmpty()) {
+            Spacer(Modifier.height(K1Sp.s))
+            Text(
+              "No AI suggestions today",
+              style = K1Type.caption.copy(color = KlikInkMuted),
+              modifier = Modifier.fillMaxWidth(),
+              textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(Modifier.height(K1Sp.s))
+          }
           // Dashed "Add rule" slot — single entry point for teaching Klik a
           // new rule (replaces the old "+" in the section header).
           AddRuleSlot(onClick = { showNewRuleSheet = true })

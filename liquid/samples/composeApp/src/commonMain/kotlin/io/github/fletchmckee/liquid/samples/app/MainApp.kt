@@ -1861,7 +1861,7 @@ private fun MainAppContent() {
     try {
       val tz = TimeZone.currentSystemDefault().id
       val featured = RemoteDataFetcher.fetchFeaturedTasks(tz)
-      reviewMetadataState.value = featured
+      reviewMetadataState.value = featured.distinctBy { it.id }
       KlikLogger.i("MainApp", "Featured tasks loaded: ${featured.size} items")
     } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
       throw ce

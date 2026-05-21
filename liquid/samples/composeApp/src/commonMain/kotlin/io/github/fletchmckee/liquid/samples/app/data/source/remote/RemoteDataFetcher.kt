@@ -2642,6 +2642,7 @@ data class NotificationPreferencesDto(
 
 @Serializable
 data class FeaturedTaskDto(
+  val id: String,
   val title: String,
   val description: String,
   val category: String,
@@ -2651,7 +2652,7 @@ data class FeaturedTaskDto(
 ) {
   fun toTaskMetadata(): io.github.fletchmckee.liquid.samples.app.model.TaskMetadata =
     io.github.fletchmckee.liquid.samples.app.model.TaskMetadata(
-      id = title.hashCode().toString(),
+      id = id,
       title = title,
       // subtitle = description; featured cards don't have a source_quote
       // path yet, so description belongs in the subtitle slot.
